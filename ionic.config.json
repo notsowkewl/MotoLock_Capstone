@@ -1,0 +1,7 @@
+{
+  "name": "MotoLock",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}
