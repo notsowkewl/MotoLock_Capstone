@@ -5684,12 +5684,15 @@ const API_BASE_URL =
 let faceRegisterTimer = null;
 const FACE_MODEL_URLS = ['https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights', '/models'];
 const FACE_DESCRIPTOR_KEY = 'motolock_face_descriptor';
+const HELMET_FACE_DESCRIPTOR_KEY = 'motolock_helmet_face_descriptor';
 const FACE_MATCH_THRESHOLD = 0.42;
+const HELMET_FACE_MATCH_THRESHOLD = 0.52;
 let faceModelsLoaded = false;
 let faceCameraStream = null;
 let faceEnrollInterval = null;
 let faceVerifyInterval = null;
 let enrolledFaceDescriptor = null;
+let enrolledHelmetFaceDescriptor = null;
 
 async function loadFaceModels() {
   if (faceModelsLoaded) return;
@@ -5801,6 +5804,12 @@ function saveLocalFaceDescriptor(descriptor) {
   enrolledFaceDescriptor = new Float32Array(JSON.parse(serialized));
 }
 
+function saveLocalHelmetFaceDescriptor(descriptor) {
+  const serialized = JSON.stringify(Array.from(descriptor));
+  localStorage.setItem(HELMET_FACE_DESCRIPTOR_KEY, serialized);
+  enrolledHelmetFaceDescriptor = new Float32Array(JSON.parse(serialized));
+}
+
 async function loadEnrolledFaceDescriptor() {
   if (enrolledFaceDescriptor) return enrolledFaceDescriptor;
 
@@ -5819,10 +5828,40 @@ async function loadEnrolledFaceDescriptor() {
     const result = await api('/face/me');
     if (Array.isArray(result.descriptor)) {
       saveLocalFaceDescriptor(result.descriptor);
+      if (Array.isArray(result.helmetDescriptor)) {
+        saveLocalHelmetFaceDescriptor(result.helmetDescriptor);
+      }
       return enrolledFaceDescriptor;
     }
   } catch (err) {
     console.warn('No backend Face ID profile:', err.message);
+  }
+
+  return null;
+}
+
+async function loadEnrolledHelmetFaceDescriptor() {
+  if (enrolledHelmetFaceDescriptor) return enrolledHelmetFaceDescriptor;
+
+  const stored = localStorage.getItem(HELMET_FACE_DESCRIPTOR_KEY);
+
+  if (stored) {
+    try {
+      enrolledHelmetFaceDescriptor = new Float32Array(JSON.parse(stored));
+      return enrolledHelmetFaceDescriptor;
+    } catch (err) {
+      localStorage.removeItem(HELMET_FACE_DESCRIPTOR_KEY);
+    }
+  }
+
+  try {
+    const result = await api('/face/me');
+    if (Array.isArray(result.helmetDescriptor)) {
+      saveLocalHelmetFaceDescriptor(result.helmetDescriptor);
+      return enrolledHelmetFaceDescriptor;
+    }
+  } catch (err) {
+    console.warn('No backend helmet Face ID profile:', err.message);
   }
 
   return null;
@@ -5887,6 +5926,18 @@ async function saveFaceProfileToBackend(descriptor) {
   }
 }
 
+async function saveHelmetFaceProfileToBackend(descriptor) {
+  const body = JSON.stringify({
+    helmetDescriptor: Array.from(descriptor)
+  });
+
+  try {
+    await api('/face/enroll', { method: 'POST', body });
+  } catch (err) {
+    await api('/verification/enroll-face', { method: 'POST', body });
+  }
+}
+
 async function initFaceVerification(kind) {
   const isHelmet = kind === 'helmet';
   const videoId = isHelmet ? 'helmet-video' : 'no-helmet-video';
@@ -5894,20 +5945,36 @@ async function initFaceVerification(kind) {
   const textId = isHelmet ? 'helmet-capture-text' : 'no-helmet-capture-text';
   const resultId = isHelmet ? 'helmet-result' : 'no-helmet-result';
   const samples = [];
+  const helmetEnrollSamples = [];
 
   document.getElementById(resultId)?.style.setProperty('display', 'none');
 
   try {
-    const enrolled = await loadEnrolledFaceDescriptor();
+    if (isHelmet && !rideCheckStatus.noHelmetVerified) {
+      setFaceCaptureState(textId, circleId, 'Complete no-helmet Face ID first.', 'error');
+      return;
+    }
 
-    if (!enrolled) {
+    const enrolled = isHelmet
+      ? await loadEnrolledHelmetFaceDescriptor()
+      : await loadEnrolledFaceDescriptor();
+
+    if (!enrolled && !isHelmet) {
       setFaceCaptureState(textId, circleId, 'No Face ID profile found. Please register Face ID first.', 'error');
       return;
     }
 
     await loadFaceModels();
     const video = await startFaceCamera(videoId, circleId);
-    setFaceCaptureState(textId, circleId, isHelmet ? 'Look at the camera with your helmet on.' : 'Look directly at the camera.');
+    setFaceCaptureState(
+      textId,
+      circleId,
+      isHelmet && !enrolled
+        ? 'First helmet scan. Keep your helmet on and look at the camera.'
+        : isHelmet
+          ? 'Look at the camera with your helmet on.'
+          : 'Look directly at the camera.'
+    );
 
     faceVerifyInterval = setInterval(async () => {
       try {
@@ -5919,13 +5986,45 @@ async function initFaceVerification(kind) {
           return;
         }
 
-        const distance = faceapi.euclideanDistance(enrolled, descriptor);
+        if (isHelmet && !enrolled) {
+          helmetEnrollSamples.push(descriptor);
 
-        if (distance < FACE_MATCH_THRESHOLD) {
+          if (helmetEnrollSamples.length < 8) {
+            setFaceCaptureState(textId, circleId, `Learning helmet Face ID ${helmetEnrollSamples.length}/8...`);
+            return;
+          }
+
+          const averaged = averageFaceDescriptors(helmetEnrollSamples.slice(-8));
+          saveLocalHelmetFaceDescriptor(averaged);
+
+          clearInterval(faceVerifyInterval);
+          faceVerifyInterval = null;
+
+          await saveHelmetFaceProfileToBackend(averaged);
+          await saveFaceVerificationToBackend(kind, 0, true);
+          document.getElementById(resultId)?.style.setProperty('display', 'flex');
+          setFaceCaptureState(textId, circleId, 'Helmet Face ID saved and verified.', 'success');
+
+          setTimeout(() => {
+            stopFaceCamera();
+            completeHelmetVerification(true);
+          }, 650);
+          return;
+        }
+
+        const distance = faceapi.euclideanDistance(enrolled, descriptor);
+        const threshold = isHelmet ? HELMET_FACE_MATCH_THRESHOLD : FACE_MATCH_THRESHOLD;
+
+        if (distance < threshold) {
           samples.push(distance);
         } else {
           samples.length = 0;
-          setFaceCaptureState(textId, circleId, 'Face does not match registered Face ID.', 'error');
+          setFaceCaptureState(
+            textId,
+            circleId,
+            isHelmet ? 'Helmet Face ID does not match.' : 'Face does not match registered Face ID.',
+            'error'
+          );
           return;
         }
 
@@ -5977,10 +6076,17 @@ async function verifyCurrentFaceOnce(kind) {
   const resultId = isHelmet ? 'helmet-result' : 'no-helmet-result';
 
   try {
-    const enrolled = await loadEnrolledFaceDescriptor();
+    const enrolled = isHelmet
+      ? await loadEnrolledHelmetFaceDescriptor()
+      : await loadEnrolledFaceDescriptor();
 
-    if (!enrolled) {
+    if (!enrolled && !isHelmet) {
       setFaceCaptureState(textId, circleId, 'No Face ID profile found. Please register Face ID first.', 'error');
+      return;
+    }
+
+    if (!enrolled && isHelmet) {
+      setFaceCaptureState(textId, circleId, 'Hold still. MotoLock is learning your helmet Face ID.', 'scanning');
       return;
     }
 
@@ -6000,7 +6106,9 @@ async function verifyCurrentFaceOnce(kind) {
     }
 
     const averageDistance = distances.reduce((sum, value) => sum + value, 0) / distances.length;
-    const verified = averageDistance < FACE_MATCH_THRESHOLD && distances.every(distance => distance < 0.48);
+    const threshold = isHelmet ? HELMET_FACE_MATCH_THRESHOLD : FACE_MATCH_THRESHOLD;
+    const maxDistance = isHelmet ? 0.58 : 0.48;
+    const verified = averageDistance < threshold && distances.every(distance => distance < maxDistance);
 
     await saveFaceVerificationToBackend(kind, averageDistance, verified);
 

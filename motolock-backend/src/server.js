@@ -44,6 +44,74 @@ function generateToken(user) {
   );
 }
 
+function parseFaceProfile(rawProfile) {
+  if (!rawProfile) {
+    return {
+      descriptor: null,
+      helmetDescriptor: null,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(rawProfile);
+
+    if (Array.isArray(parsed)) {
+      return {
+        descriptor: parsed,
+        helmetDescriptor: null,
+      };
+    }
+
+    return {
+      descriptor: Array.isArray(parsed.descriptor)
+        ? parsed.descriptor
+        : Array.isArray(parsed.faceDescriptor)
+          ? parsed.faceDescriptor
+          : null,
+      helmetDescriptor: Array.isArray(parsed.helmetDescriptor)
+        ? parsed.helmetDescriptor
+        : null,
+    };
+  } catch (err) {
+    return {
+      descriptor: null,
+      helmetDescriptor: null,
+    };
+  }
+}
+
+async function saveFaceProfile(userId, { descriptor, helmetDescriptor }) {
+  const [rows] = await db.query(
+    'SELECT face_descriptor FROM users WHERE id = ?',
+    [userId],
+  );
+
+  const current = parseFaceProfile(rows[0]?.face_descriptor);
+  const nextProfile = {
+    descriptor: Array.isArray(descriptor) ? descriptor : current.descriptor,
+    helmetDescriptor: Array.isArray(helmetDescriptor)
+      ? helmetDescriptor
+      : current.helmetDescriptor,
+  };
+
+  if (!nextProfile.descriptor && !nextProfile.helmetDescriptor) {
+    throw new Error('Invalid face descriptor.');
+  }
+
+  await db.query(
+    `
+    UPDATE users
+    SET face_descriptor = ?,
+        face_enrolled = 1,
+        face_enrolled_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+    `,
+    [JSON.stringify(nextProfile), userId],
+  );
+
+  return nextProfile;
+}
+
 /* GOOGLE LOGIN */
 app.post('/api/auth/google', async (req, res) => {
   try {
@@ -608,26 +676,26 @@ app.get("/api/test", (req, res) => {
 app.post("/api/face/enroll", authMiddleware, async (req, res) => {
   try {
     const descriptor = req.body.descriptor || req.body.faceDescriptor;
+    const helmetDescriptor = req.body.helmetDescriptor;
 
-    if (!descriptor || !Array.isArray(descriptor)) {
+    if ((!descriptor || !Array.isArray(descriptor)) && (!helmetDescriptor || !Array.isArray(helmetDescriptor))) {
       return res.status(400).json({
         success: false,
         message: "Invalid face descriptor."
       });
     }
 
-    await db.query(
-      `
-      UPDATE users
-      SET face_descriptor = ?,
-          face_enrolled = 1,
-          face_enrolled_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-      `,
-      [JSON.stringify(descriptor), req.user.id]
-    );
+    const faceProfile = await saveFaceProfile(req.user.id, {
+      descriptor,
+      helmetDescriptor,
+    });
 
-    res.json({ success: true, message: "Face profile saved." });
+    res.json({
+      success: true,
+      message: "Face profile saved.",
+      descriptor: faceProfile.descriptor,
+      helmetDescriptor: faceProfile.helmetDescriptor,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({
@@ -644,7 +712,9 @@ app.get("/api/face/me", authMiddleware, async (req, res) => {
       [req.user.id]
     );
 
-    if (!rows.length || !rows[0].face_descriptor) {
+    const faceProfile = parseFaceProfile(rows[0]?.face_descriptor);
+
+    if (!rows.length || (!faceProfile.descriptor && !faceProfile.helmetDescriptor)) {
       return res.status(404).json({
         success: false,
         message: "No face profile found."
@@ -653,7 +723,8 @@ app.get("/api/face/me", authMiddleware, async (req, res) => {
 
     res.json({
       success: true,
-      descriptor: JSON.parse(rows[0].face_descriptor)
+      descriptor: faceProfile.descriptor,
+      helmetDescriptor: faceProfile.helmetDescriptor,
     });
   } catch (err) {
     console.error(err);
@@ -667,28 +738,25 @@ app.get("/api/face/me", authMiddleware, async (req, res) => {
 app.post("/api/verification/enroll-face", authMiddleware, async (req, res) => {
   try {
     const descriptor = req.body.descriptor || req.body.faceDescriptor;
+    const helmetDescriptor = req.body.helmetDescriptor;
 
-    if (!descriptor || !Array.isArray(descriptor)) {
+    if ((!descriptor || !Array.isArray(descriptor)) && (!helmetDescriptor || !Array.isArray(helmetDescriptor))) {
       return res.status(400).json({
         success: false,
         message: "Invalid face descriptor."
       });
     }
 
-    await db.query(
-      `
-      UPDATE users
-      SET face_descriptor = ?,
-          face_enrolled = 1,
-          face_enrolled_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-      `,
-      [JSON.stringify(descriptor), req.user.id]
-    );
+    const faceProfile = await saveFaceProfile(req.user.id, {
+      descriptor,
+      helmetDescriptor,
+    });
 
     return res.json({
       success: true,
       message: "Face ID setup saved",
+      descriptor: faceProfile.descriptor,
+      helmetDescriptor: faceProfile.helmetDescriptor,
     });
   } catch (err) {
     console.log(err);
