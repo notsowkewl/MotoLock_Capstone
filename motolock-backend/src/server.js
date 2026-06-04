@@ -607,21 +607,33 @@ app.get("/api/test", (req, res) => {
 
 app.post("/api/face/enroll", authMiddleware, async (req, res) => {
   try {
-    const { descriptor } = req.body;
+    const descriptor = req.body.descriptor || req.body.faceDescriptor;
 
     if (!descriptor || !Array.isArray(descriptor)) {
-      return res.status(400).json({ message: "Invalid face descriptor." });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid face descriptor."
+      });
     }
 
     await db.query(
-      "UPDATE users SET face_descriptor = ? WHERE id = ?",
+      `
+      UPDATE users
+      SET face_descriptor = ?,
+          face_enrolled = 1,
+          face_enrolled_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+      `,
       [JSON.stringify(descriptor), req.user.id]
     );
 
     res.json({ success: true, message: "Face profile saved." });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Failed to save face profile." });
+    res.status(500).json({
+      success: false,
+      message: "Failed to save face profile."
+    });
   }
 });
 
@@ -633,15 +645,81 @@ app.get("/api/face/me", authMiddleware, async (req, res) => {
     );
 
     if (!rows.length || !rows[0].face_descriptor) {
-      return res.status(404).json({ message: "No face profile found." });
+      return res.status(404).json({
+        success: false,
+        message: "No face profile found."
+      });
     }
 
     res.json({
+      success: true,
       descriptor: JSON.parse(rows[0].face_descriptor)
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Failed to load face profile." });
+    res.status(500).json({
+      success: false,
+      message: "Failed to load face profile."
+    });
+  }
+});
+
+app.post("/api/verification/enroll-face", authMiddleware, async (req, res) => {
+  try {
+    const descriptor = req.body.descriptor || req.body.faceDescriptor;
+
+    if (!descriptor || !Array.isArray(descriptor)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid face descriptor."
+      });
+    }
+
+    await db.query(
+      `
+      UPDATE users
+      SET face_descriptor = ?,
+          face_enrolled = 1,
+          face_enrolled_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+      `,
+      [JSON.stringify(descriptor), req.user.id]
+    );
+
+    return res.json({
+      success: true,
+      message: "Face ID setup saved",
+    });
+  } catch (err) {
+    console.log(err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to save face profile.",
+    });
+  }
+});
+
+app.post("/api/verification/liveness", authMiddleware, async (req, res) => {
+  try {
+    const { distance, verified, kind } = req.body;
+
+    return res.json({
+      success: true,
+      message: "Face verification recorded",
+      verification: {
+        kind: kind || "face",
+        distance: typeof distance === "number" ? distance : null,
+        verified: verified === true,
+      },
+    });
+  } catch (err) {
+    console.log(err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to record face verification.",
+    });
   }
 });
 

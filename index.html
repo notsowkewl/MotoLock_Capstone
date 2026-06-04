@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MotoLock App Flow</title>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -636,6 +637,32 @@
       width: 74px;
       height: 16px;
       border-radius: 0;
+    }
+
+    .face-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+      transform: scaleX(-1);
+    }
+
+    .camera-circle.camera-live .face {
+      display: none;
+    }
+
+    .camera-circle.camera-live .face-video {
+      display: block;
+    }
+
+    .camera-circle.scanning {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 8px rgba(245, 158, 11, 0.08);
+    }
+
+    .camera-circle.error {
+      border-color: var(--red);
+      box-shadow: 0 0 0 8px rgba(237, 28, 36, 0.08);
     }
 
     .corner {
@@ -3731,11 +3758,12 @@
           <h2>Position your face in the frame</h2>
           <p>Keep your face centered. The next scan starts automatically once your face is detected.</p>
         </div>
-        <div class="camera-circle green">
+        <div class="camera-circle green" id="face-enroll-camera">
+          <video class="face-video" id="face-enroll-video" autoplay playsinline muted></video>
           <div class="face"></div>
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
         </div>
-        <div class="capture">Face detected. Capturing...<strong>100%</strong></div>
+        <div class="capture" id="face-enroll-capture-text">Starting camera...</div>
       </div>
     </section>
 
@@ -3750,7 +3778,7 @@
           <div class="face turn"></div>
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
         </div>
-        <div class="capture">Face angle detected. Capturing...<strong>100%</strong></div>
+        <div class="capture" id="face-turn-capture-text">Keep your face visible while MotoLock saves your profile.</div>
       </div>
     </section>
 
@@ -4024,12 +4052,13 @@
 
       <div class="page center">
         <div class="screen-title"><h2>No Helmet</h2><p>Please remove your helmet and look at the camera.</p><span class="pill">No Helmet</span></div>
-        <div class="camera-circle green">
+        <div class="camera-circle green" id="no-helmet-camera">
+          <video class="face-video" id="no-helmet-video" autoplay playsinline muted></video>
           <div class="face"></div>
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
         </div>
         <div class="capture" id="no-helmet-capture-text">Position your face in the frame.</div>
-        <div class="verification-result"><svg class="icon"><use href="#icon-check"></use></svg> Face matched with registered Face ID</div>
+        <div class="verification-result" id="no-helmet-result" style="display:none"><svg class="icon"><use href="#icon-check"></use></svg> Face matched with registered Face ID</div>
         <div class="button-stack">
           <button class="btn" onclick="completeNoHelmetVerification()">Verify Face</button>
           <button class="btn btn-soft" onclick="failVerificationAttempt('face')">Simulate: Face Not Matched</button>
@@ -4041,12 +4070,13 @@
 
       <div class="page center">
         <div class="screen-title"><h2>With Helmet</h2><p>Please wear your helmet and look at the camera.</p><span class="pill">With Helmet</span></div>
-        <div class="camera-circle green">
+        <div class="camera-circle green" id="helmet-camera">
+          <video class="face-video" id="helmet-video" autoplay playsinline muted></video>
           <div class="face helmet"></div>
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
         </div>
         <div class="capture" id="helmet-capture-text">Position your face and helmet in the frame.</div>
-        <div class="verification-result"><svg class="icon"><use href="#icon-check"></use></svg> Helmet and rider face verified</div>
+        <div class="verification-result" id="helmet-result" style="display:none"><svg class="icon"><use href="#icon-check"></use></svg> Helmet and rider face verified</div>
         <div class="button-stack">
           <button class="btn" onclick="completeHelmetVerification()">Verify Face</button>
           <button class="btn btn-soft" onclick="failVerificationAttempt('helmet')">Simulate: Helmet Verification Failed</button>
@@ -5646,9 +5676,352 @@
 </div>
 
   <script>
-const API_BASE_URL = "http://10.0.2.2:5001/api";
+const API_BASE_URL =
+  location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+    ? 'http://192.168.100.227:5001/api'
+    : 'http://192.168.100.227:5001/api';
     // function pang lipat //
 let faceRegisterTimer = null;
+const FACE_MODEL_URLS = ['https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights', '/models'];
+const FACE_DESCRIPTOR_KEY = 'motolock_face_descriptor';
+const FACE_MATCH_THRESHOLD = 0.42;
+let faceModelsLoaded = false;
+let faceCameraStream = null;
+let faceEnrollInterval = null;
+let faceVerifyInterval = null;
+let enrolledFaceDescriptor = null;
+
+async function loadFaceModels() {
+  if (faceModelsLoaded) return;
+
+  let lastError = null;
+
+  for (const url of FACE_MODEL_URLS) {
+    try {
+      await faceapi.nets.tinyFaceDetector.loadFromUri(url);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(url);
+      await faceapi.nets.faceRecognitionNet.loadFromUri(url);
+      faceModelsLoaded = true;
+      return;
+    } catch (err) {
+      lastError = err;
+      console.warn('Face model load failed:', url, err);
+    }
+  }
+
+  throw lastError || new Error('Face models could not be loaded.');
+}
+
+function stopFaceCamera() {
+  if (faceEnrollInterval) {
+    clearInterval(faceEnrollInterval);
+    faceEnrollInterval = null;
+  }
+
+  if (faceVerifyInterval) {
+    clearInterval(faceVerifyInterval);
+    faceVerifyInterval = null;
+  }
+
+  if (faceCameraStream) {
+    faceCameraStream.getTracks().forEach(track => track.stop());
+    faceCameraStream = null;
+  }
+}
+
+async function startFaceCamera(videoId, circleId) {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('Camera is not available on this device.');
+  }
+
+  if (!faceCameraStream) {
+    faceCameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: 320, height: 426 },
+      audio: false
+    });
+  }
+
+  const video = document.getElementById(videoId);
+  const circle = document.getElementById(circleId);
+
+  if (!video) return null;
+
+  video.srcObject = faceCameraStream;
+  await video.play().catch(() => {});
+  circle?.classList.add('camera-live', 'scanning');
+
+  return video;
+}
+
+async function readFaceDescriptor(video) {
+  if (!video || video.readyState < 2) return null;
+
+  const detection = await faceapi
+    .detectSingleFace(
+      video,
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.6 })
+    )
+    .withFaceLandmarks()
+    .withFaceDescriptor();
+
+  return detection?.descriptor || null;
+}
+
+function averageFaceDescriptors(descriptors) {
+  const length = descriptors[0].length;
+  const result = new Float32Array(length);
+
+  for (let i = 0; i < length; i += 1) {
+    result[i] = descriptors.reduce((sum, descriptor) => sum + descriptor[i], 0) / descriptors.length;
+  }
+
+  return result;
+}
+
+function setFaceCaptureState(textId, circleId, message, state = 'scanning') {
+  const text = document.getElementById(textId);
+  const circle = document.getElementById(circleId);
+
+  if (text) {
+    text.textContent = message;
+    text.style.color = state === 'error' ? 'var(--red)' : state === 'success' ? 'var(--green)' : '';
+    text.style.fontWeight = state === 'error' || state === 'success' ? '900' : '';
+  }
+
+  if (circle) {
+    circle.classList.toggle('green', state === 'success');
+    circle.classList.toggle('scanning', state === 'scanning');
+    circle.classList.toggle('error', state === 'error');
+  }
+}
+
+function saveLocalFaceDescriptor(descriptor) {
+  const serialized = JSON.stringify(Array.from(descriptor));
+  localStorage.setItem(FACE_DESCRIPTOR_KEY, serialized);
+  enrolledFaceDescriptor = new Float32Array(JSON.parse(serialized));
+}
+
+async function loadEnrolledFaceDescriptor() {
+  if (enrolledFaceDescriptor) return enrolledFaceDescriptor;
+
+  const stored = localStorage.getItem(FACE_DESCRIPTOR_KEY);
+
+  if (stored) {
+    try {
+      enrolledFaceDescriptor = new Float32Array(JSON.parse(stored));
+      return enrolledFaceDescriptor;
+    } catch (err) {
+      localStorage.removeItem(FACE_DESCRIPTOR_KEY);
+    }
+  }
+
+  try {
+    const result = await api('/face/me');
+    if (Array.isArray(result.descriptor)) {
+      saveLocalFaceDescriptor(result.descriptor);
+      return enrolledFaceDescriptor;
+    }
+  } catch (err) {
+    console.warn('No backend Face ID profile:', err.message);
+  }
+
+  return null;
+}
+
+async function initFaceEnrollment() {
+  const samples = [];
+
+  try {
+    await loadFaceModels();
+    const video = await startFaceCamera('face-enroll-video', 'face-enroll-camera');
+    setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', 'Position your face in the frame.');
+
+    faceEnrollInterval = setInterval(async () => {
+      try {
+        const descriptor = await readFaceDescriptor(video);
+
+        if (!descriptor) {
+          samples.length = 0;
+          setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', 'No face detected. Move closer.', 'scanning');
+          return;
+        }
+
+        samples.push(descriptor);
+
+        if (samples.length < 10) {
+          setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', `Hold still. Capturing ${samples.length}/10...`);
+          return;
+        }
+
+        const averaged = averageFaceDescriptors(samples.slice(-10));
+        saveLocalFaceDescriptor(averaged);
+
+        clearInterval(faceEnrollInterval);
+        faceEnrollInterval = null;
+
+        await saveFaceProfileToBackend(averaged);
+        setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', 'Face ID captured successfully.', 'success');
+        setTimeout(() => {
+          stopFaceCamera();
+          go('faceRegistered');
+        }, 700);
+      } catch (err) {
+        console.warn('Face enrollment read failed:', err);
+      }
+    }, 650);
+  } catch (err) {
+    setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', err.message, 'error');
+  }
+}
+
+async function saveFaceProfileToBackend(descriptor) {
+  const body = JSON.stringify({
+    descriptor: Array.from(descriptor),
+    faceDescriptor: Array.from(descriptor)
+  });
+
+  try {
+    await api('/face/enroll', { method: 'POST', body });
+  } catch (err) {
+    await api('/verification/enroll-face', { method: 'POST', body });
+  }
+}
+
+async function initFaceVerification(kind) {
+  const isHelmet = kind === 'helmet';
+  const videoId = isHelmet ? 'helmet-video' : 'no-helmet-video';
+  const circleId = isHelmet ? 'helmet-camera' : 'no-helmet-camera';
+  const textId = isHelmet ? 'helmet-capture-text' : 'no-helmet-capture-text';
+  const resultId = isHelmet ? 'helmet-result' : 'no-helmet-result';
+  const samples = [];
+
+  document.getElementById(resultId)?.style.setProperty('display', 'none');
+
+  try {
+    const enrolled = await loadEnrolledFaceDescriptor();
+
+    if (!enrolled) {
+      setFaceCaptureState(textId, circleId, 'No Face ID profile found. Please register Face ID first.', 'error');
+      return;
+    }
+
+    await loadFaceModels();
+    const video = await startFaceCamera(videoId, circleId);
+    setFaceCaptureState(textId, circleId, isHelmet ? 'Look at the camera with your helmet on.' : 'Look directly at the camera.');
+
+    faceVerifyInterval = setInterval(async () => {
+      try {
+        const descriptor = await readFaceDescriptor(video);
+
+        if (!descriptor) {
+          samples.length = 0;
+          setFaceCaptureState(textId, circleId, 'No face detected. Move closer.', 'scanning');
+          return;
+        }
+
+        const distance = faceapi.euclideanDistance(enrolled, descriptor);
+
+        if (distance < FACE_MATCH_THRESHOLD) {
+          samples.push(distance);
+        } else {
+          samples.length = 0;
+          setFaceCaptureState(textId, circleId, 'Face does not match registered Face ID.', 'error');
+          return;
+        }
+
+        if (samples.length < 4) {
+          setFaceCaptureState(textId, circleId, `Face matched. Confirming ${samples.length}/4...`);
+          return;
+        }
+
+        clearInterval(faceVerifyInterval);
+        faceVerifyInterval = null;
+
+        await saveFaceVerificationToBackend(kind, samples.reduce((sum, value) => sum + value, 0) / samples.length, true);
+        document.getElementById(resultId)?.style.setProperty('display', 'flex');
+        setFaceCaptureState(textId, circleId, 'Identity verified.', 'success');
+
+        setTimeout(() => {
+          stopFaceCamera();
+          if (isHelmet) {
+            completeHelmetVerification(true);
+          } else {
+            completeNoHelmetVerification(true);
+          }
+        }, 650);
+      } catch (err) {
+        console.warn('Face verification read failed:', err);
+      }
+    }, 700);
+  } catch (err) {
+    setFaceCaptureState(textId, circleId, err.message, 'error');
+  }
+}
+
+async function saveFaceVerificationToBackend(kind, distance, verified) {
+  try {
+    await api('/verification/liveness', {
+      method: 'POST',
+      body: JSON.stringify({ kind, distance, verified })
+    });
+  } catch (err) {
+    console.warn('Face verification backend save failed:', err.message);
+  }
+}
+
+async function verifyCurrentFaceOnce(kind) {
+  const isHelmet = kind === 'helmet';
+  const video = document.getElementById(isHelmet ? 'helmet-video' : 'no-helmet-video');
+  const circleId = isHelmet ? 'helmet-camera' : 'no-helmet-camera';
+  const textId = isHelmet ? 'helmet-capture-text' : 'no-helmet-capture-text';
+  const resultId = isHelmet ? 'helmet-result' : 'no-helmet-result';
+
+  try {
+    const enrolled = await loadEnrolledFaceDescriptor();
+
+    if (!enrolled) {
+      setFaceCaptureState(textId, circleId, 'No Face ID profile found. Please register Face ID first.', 'error');
+      return;
+    }
+
+    setFaceCaptureState(textId, circleId, 'Verifying...');
+
+    const distances = [];
+
+    for (let i = 0; i < 3; i += 1) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+      const descriptor = await readFaceDescriptor(video);
+      if (descriptor) distances.push(faceapi.euclideanDistance(enrolled, descriptor));
+    }
+
+    if (distances.length < 2) {
+      setFaceCaptureState(textId, circleId, 'Could not read your face. Try again.', 'error');
+      return;
+    }
+
+    const averageDistance = distances.reduce((sum, value) => sum + value, 0) / distances.length;
+    const verified = averageDistance < FACE_MATCH_THRESHOLD && distances.every(distance => distance < 0.48);
+
+    await saveFaceVerificationToBackend(kind, averageDistance, verified);
+
+    if (!verified) {
+      failVerificationAttempt(kind === 'helmet' ? 'helmet' : 'face');
+      return;
+    }
+
+    document.getElementById(resultId)?.style.setProperty('display', 'flex');
+    setFaceCaptureState(textId, circleId, 'Identity verified.', 'success');
+    stopFaceCamera();
+
+    if (isHelmet) {
+      completeHelmetVerification(true);
+    } else {
+      completeNoHelmetVerification(true);
+    }
+  } catch (err) {
+    setFaceCaptureState(textId, circleId, err.message, 'error');
+  }
+}
 
 function go(id) {
   if (faceRegisterTimer) {
@@ -5676,12 +6049,20 @@ if (currentScreen && currentScreen.id !== id && !isGoingBack) {
 
   target.classList.add('active');
 
-  if (id === 'faceFront') {
-    faceRegisterTimer = setTimeout(() => go('faceTurn'), 1300);
+  if (!['faceFront', 'verifyNoHelmet', 'verifyHelmet'].includes(id)) {
+    stopFaceCamera();
   }
 
-  if (id === 'faceTurn') {
-    faceRegisterTimer = setTimeout(() => go('faceRegistered'), 1300);
+  if (id === 'faceFront') {
+    initFaceEnrollment();
+  }
+
+  if (id === 'verifyNoHelmet') {
+    initFaceVerification('face');
+  }
+
+  if (id === 'verifyHelmet') {
+    initFaceVerification('helmet');
   }
 
   if (id === 'dashboard') {
@@ -7399,7 +7780,11 @@ function restartAfterVerificationCooldown() {
   go('identityCheck');
 }
 let noHelmetReturnTarget = "";
-function completeNoHelmetVerification() {
+function completeNoHelmetVerification(verifiedByFace = false) {
+  if (!verifiedByFace) {
+    verifyCurrentFaceOnce('face');
+    return;
+  }
 
   if (noHelmetReturnTarget === "sendForgotPinCode") {
   noHelmetReturnTarget = "";
@@ -7483,7 +7868,12 @@ function selectRideMotorcycle(index) {
   go('identityCheck');
 }
 
-function completeHelmetVerification() {
+function completeHelmetVerification(verifiedByFace = false) {
+  if (!verifiedByFace) {
+    verifyCurrentFaceOnce('helmet');
+    return;
+  }
+
   if (isVerificationCooldownActive()) {
     showVerificationCooldown();
     return;
@@ -7718,12 +8108,16 @@ async function api(path, options = {}) {
 
   console.log("REGISTER URL:", API_BASE_URL + path);
 
+  const token = localStorage.getItem("token") || localStorage.getItem("motolock_token");
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {})
+  };
+
   const response = await fetch(API_BASE_URL + path, {
   ...options,
-  headers: {
-    "Content-Type": "application/json",
-    ...(options.headers || {})
-  }
+  headers
 });
 
   const data = await response.json();
