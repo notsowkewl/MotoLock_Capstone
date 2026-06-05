@@ -3570,7 +3570,6 @@
           type="text"
           id="email-verification-code"
           maxlength="6"
-          placeholder="123456"
         >
       </div>
 
@@ -3608,7 +3607,6 @@
           type="text"
           id="reset-code"
           maxlength="6"
-          placeholder="123456"
         >
       </div>
 
@@ -3723,7 +3721,6 @@
           type="text"
           id="forgot-pin-code"
           maxlength="6"
-          placeholder="123456"
         >
       </div>
 
@@ -3800,9 +3797,9 @@
       <div class="page center">
         <div class="screen-title"><h2>Connect Device</h2><p>Turn on your MotoLock hardware and enable Bluetooth.</p></div>
         <div class="device-ring"><div class="device-art"><div class="device-lock"><svg class="icon"><use href="#icon-lock"></use></svg></div><strong>MOTOLOCK</strong><small>READY</small></div></div>
-        <div class="card active" onclick="go('deviceConnected')">
+        <div class="card active" onclick="connectMotoLockDevice()">
           <div class="icon-box" style="color: var(--blue);"><svg class="icon"><use href="#icon-bluetooth"></use></svg></div>
-          <div><h3>MotoLock_12A3B4</h3><p>Available Bluetooth device</p></div>
+          <div><h3>MotoLock-Motor</h3><p id="motolock-connect-status">Tap to connect through Bluetooth</p></div>
           <svg class="icon" style="margin-left:auto;"><use href="#icon-arrow-right"></use></svg>
         </div>
         <div class="scan"><span class="scan-loader"></span>Scanning for nearby MotoLock devices...</div>
@@ -3813,8 +3810,8 @@
 
       <div class="page center">
         <div class="success-check"><svg class="icon"><use href="#icon-check"></use></svg></div>
-        <div class="screen-title"><h2>Device Connected!</h2><p>MotoLock_12A3B4 is connected through Bluetooth.</p></div>
-        <div class="card no-hover"><div class="icon-box" style="color:var(--green);"><svg class="icon"><use href="#icon-shield"></use></svg></div><div><h3>Status Ready</h3><p>Bluetooth connected · Battery 86%</p></div></div>
+        <div class="screen-title"><h2>Device Connected!</h2><p>MotoLock-Motor is connected through Bluetooth.</p></div>
+        <div class="card no-hover"><div class="icon-box" style="color:var(--green);"><svg class="icon"><use href="#icon-shield"></use></svg></div><div><h3>Status Ready</h3><p id="motolock-device-summary">Bluetooth connected · Waiting for sensor data</p></div></div>
         <button class="btn" onclick="finishDeviceConnection()">Go to Dashboard</button>
       </div>
     </section>
@@ -3918,7 +3915,6 @@
           <div><label>Phone Number</label><input
   type="tel"
   id="setup-contact-phone"
-  placeholder="09123456789 or +63 923 532 3525"
   oninput="formatPhoneInput(this)"
 ></div>
           <div>
@@ -4037,12 +4033,12 @@
     <section class="screen" id="identityCheck">
 
       <div class="page center">
-        <div class="screen-title"><h2>Unlock Safety Check</h2><p>Complete identity, helmet, and sobriety verification to request ignition unlock.</p></div>
+        <div class="screen-title"><h2>Unlock Safety Check</h2><p>Complete identity, helmet, and sobriety verification to enable the hardware start button.</p></div>
         <div class="ride-list">
           <div class="ride-step"><div class="num">1</div><div><h4>Face Verification</h4><p>No Helmet</p></div></div>
           <div class="ride-step"><div class="num">2</div><div><h4>Face Verification</h4><p>With Helmet</p></div></div>
           <div class="ride-step"><div class="num">3</div><div><h4>Sobriety Test</h4><p>Helmet MQ-3 sensor</p></div></div>
-          <div class="ride-step"><div class="num">4</div><div><h4>Motorcycle Unlocked</h4><p>Ignition access is granted only after passing all checks</p></div></div>
+          <div class="ride-step"><div class="num">4</div><div><h4>Ready To Start</h4><p>Press the MotoLock hardware start button after passing all checks</p></div></div>
         </div>
         <button class="btn" onclick="go('verifyNoHelmet')">Begin Unlock Check</button>
       </div>
@@ -4059,10 +4055,6 @@
         </div>
         <div class="capture" id="no-helmet-capture-text">Position your face in the frame.</div>
         <div class="verification-result" id="no-helmet-result" style="display:none"><svg class="icon"><use href="#icon-check"></use></svg> Face matched with registered Face ID</div>
-        <div class="button-stack">
-          <button class="btn" onclick="completeNoHelmetVerification()">Verify Face</button>
-          <button class="btn btn-soft" onclick="failVerificationAttempt('face')">Simulate: Face Not Matched</button>
-        </div>
       </div>
     </section>
 
@@ -4077,10 +4069,6 @@
         </div>
         <div class="capture" id="helmet-capture-text">Position your face and helmet in the frame.</div>
         <div class="verification-result" id="helmet-result" style="display:none"><svg class="icon"><use href="#icon-check"></use></svg> Helmet and rider face verified</div>
-        <div class="button-stack">
-          <button class="btn" onclick="completeHelmetVerification()">Verify Face</button>
-          <button class="btn btn-soft" onclick="failVerificationAttempt('helmet')">Simulate: Helmet Verification Failed</button>
-        </div>
       </div>
     </section>
 
@@ -4101,7 +4089,7 @@
         </div>
         <div class="reading">
           <div class="sensor-label">Cooldown Remaining</div>
-          <div class="danger-value" id="verification-cooldown-timer">05:00</div>
+          <div class="danger-value" id="verification-cooldown-timer">5:00</div>
         </div>
         <div class="button-stack">
           <button class="btn btn-outline" id="verification-cooldown-retry" onclick="restartAfterVerificationCooldown()" disabled>Try Again Later</button>
@@ -4113,23 +4101,15 @@
     <section class="screen" id="sobrietyTest">
 
       <div class="page center">
-        <div class="screen-title"><h2>Sobriety Test</h2><p>Blow steadily and continuously into the helmet sensor until the reading is complete.</p></div>
+        <div class="screen-title"><h2>Sobriety Test</h2><p>Blow steadily and continuously into the helmet sensor. MotoLock will continue automatically.</p></div>
         <div class="helmet-ring"><div class="helmet-art"></div></div>
         <div class="reading">
           <div class="sensor-label">MQ-3 Sensor</div>
           <h3>BrAC Reading</h3>
-          <div class="waiting">Waiting...</div>
+          <div class="waiting" id="sobriety-reading-value">Waiting...</div>
+          <p id="sobriety-sensor-status" style="margin-top:8px;color:var(--gray);font-size:12px;line-height:1.4;">Waiting for ESP32 sensor data.</p>
         </div>
-        <div class="legal">Legal Limit: <strong>0.05 g/dL</strong></div>
-       <div class="button-stack">
-  <button class="btn" onclick="finishSobrietyTest('passed')">
-    Simulate: Not Intoxicated
-  </button>
-
-  <button class="btn btn-soft" onclick="finishSobrietyTest('failed')">
-    Simulate: Alcohol Detected
-  </button>
-</div>
+        <div class="legal">Legal Limit: <strong>0.050%</strong></div>
       </div>
     </section>
 
@@ -4138,16 +4118,16 @@
       <div class="page">
         <div class="topbar"><span></span><span></span></div>
         <div class="success-check"><svg class="icon"><use href="#icon-check"></use></svg></div>
-        <div class="screen-title"><h2>Motorcycle Unlocked</h2><p>All safety checks passed. Ignition access is now available. You can proceed to the dashboard.</p></div>
+        <div class="screen-title"><h2>You Can Start Ride Now</h2><p>All safety checks passed. Press the hardware start button on MotoLock to start the motorcycle.</p></div>
         <div class="reading">
           <div class="sensor-label">MQ-3 Sensor · BrAC Reading</div>
-          <div class="safe-value">0.00 g/dL</div>
+          <div class="safe-value" id="good-to-ride-brac">0.000%</div>
         </div>
         <div class="checklist">
           <div class="checkitem"><span><svg class="icon"><use href="#icon-check"></use></svg></span>Face verified without helmet</div>
           <div class="checkitem"><span><svg class="icon"><use href="#icon-check"></use></svg></span>Face verified with helmet</div>
           <div class="checkitem"><span><svg class="icon"><use href="#icon-check"></use></svg></span>Alcohol test passed</div>
-          <div class="checkitem"><span><svg class="icon"><use href="#icon-check"></use></svg></span>Ignition unlocked</div>
+          <div class="checkitem"><span><svg class="icon"><use href="#icon-check"></use></svg></span>Hardware start button enabled</div>
         </div>
         <div class="button-stack">
           <button class="btn btn-outline" onclick="go('dashboard')">Proceed to Dashboard</button>
@@ -5380,7 +5360,7 @@
 
     <div class="field" style="margin-bottom:16px">
       <label>Verification Code</label>
-      <input type="text" id="current-email-code" maxlength="6" placeholder="123456">
+      <input type="text" id="current-email-code" maxlength="6">
     </div>
 
     <div class="modal-row">
@@ -5414,7 +5394,7 @@
 
     <div class="field" style="margin-bottom:16px">
       <label>Verification Code</label>
-      <input type="text" id="new-email-code" maxlength="6" placeholder="123456">
+      <input type="text" id="new-email-code" maxlength="6">
     </div>
 
     <div class="modal-row">
@@ -5548,7 +5528,6 @@
   <input
     type="tel"
     id="contact-phone"
-    placeholder="09123456789 or +63 923 532 3525"
     oninput="formatPhoneInput(this)"
   >
 </div>
@@ -5687,12 +5666,31 @@ const FACE_DESCRIPTOR_KEY = 'motolock_face_descriptor';
 const HELMET_FACE_DESCRIPTOR_KEY = 'motolock_helmet_face_descriptor';
 const FACE_MATCH_THRESHOLD = 0.42;
 const HELMET_FACE_MATCH_THRESHOLD = 0.52;
+const HELMET_TO_REGISTERED_FACE_THRESHOLD = 0.62;
 let faceModelsLoaded = false;
 let faceCameraStream = null;
 let faceEnrollInterval = null;
 let faceVerifyInterval = null;
+let helmetDetectionInterval = null;
 let enrolledFaceDescriptor = null;
 let enrolledHelmetFaceDescriptor = null;
+
+function getCurrentUserId() {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return user.id || user.userId || user.email || 'anonymous';
+  } catch (err) {
+    return 'anonymous';
+  }
+}
+
+function getFaceDescriptorKey() {
+  return `${FACE_DESCRIPTOR_KEY}:${getCurrentUserId()}`;
+}
+
+function getHelmetFaceDescriptorKey() {
+  return `${HELMET_FACE_DESCRIPTOR_KEY}:${getCurrentUserId()}`;
+}
 
 async function loadFaceModels() {
   if (faceModelsLoaded) return;
@@ -5726,10 +5724,23 @@ function stopFaceCamera() {
     faceVerifyInterval = null;
   }
 
+  if (helmetDetectionInterval) {
+    clearInterval(helmetDetectionInterval);
+    helmetDetectionInterval = null;
+  }
+
+  stopActiveFaceCameraStream();
+}
+
+function stopActiveFaceCameraStream() {
   if (faceCameraStream) {
     faceCameraStream.getTracks().forEach(track => track.stop());
     faceCameraStream = null;
   }
+
+  document.querySelectorAll('.camera-circle.camera-live').forEach(circle => {
+    circle.classList.remove('camera-live');
+  });
 }
 
 async function startFaceCamera(videoId, circleId) {
@@ -5800,29 +5811,70 @@ function setFaceCaptureState(textId, circleId, message, state = 'scanning') {
 
 function saveLocalFaceDescriptor(descriptor) {
   const serialized = JSON.stringify(Array.from(descriptor));
-  localStorage.setItem(FACE_DESCRIPTOR_KEY, serialized);
+  localStorage.setItem(getFaceDescriptorKey(), serialized);
   enrolledFaceDescriptor = new Float32Array(JSON.parse(serialized));
 }
 
 function saveLocalHelmetFaceDescriptor(descriptor) {
   const serialized = JSON.stringify(Array.from(descriptor));
-  localStorage.setItem(HELMET_FACE_DESCRIPTOR_KEY, serialized);
+  localStorage.setItem(getHelmetFaceDescriptorKey(), serialized);
   enrolledHelmetFaceDescriptor = new Float32Array(JSON.parse(serialized));
+}
+
+function clearLocalFaceProfiles() {
+  localStorage.removeItem(FACE_DESCRIPTOR_KEY);
+  localStorage.removeItem(HELMET_FACE_DESCRIPTOR_KEY);
+  localStorage.removeItem(getFaceDescriptorKey());
+  localStorage.removeItem(getHelmetFaceDescriptorKey());
+  enrolledFaceDescriptor = null;
+  enrolledHelmetFaceDescriptor = null;
+}
+
+function setFaceIdSettingsStatus(isRegistered) {
+  setupStatus.hasFaceId = isRegistered;
+
+  const text = document.getElementById('faceid-status-text');
+  if (text) {
+    text.textContent = isRegistered ? 'Registered' : 'Not Registered';
+  }
+
+  const badge = document.getElementById('faceid-status-badge');
+  if (badge) {
+    badge.classList.toggle('success', isRegistered);
+    badge.classList.toggle('danger', !isRegistered);
+    badge.innerHTML = `
+      <svg class="icon"><use href="#${isRegistered ? 'icon-check' : 'icon-alert'}"></use></svg>
+      ${isRegistered ? 'Active' : 'Not Active'}
+    `;
+  }
+}
+
+async function refreshFaceIdStatus() {
+  try {
+    const profile = await api('/face/me');
+    const isRegistered = Array.isArray(profile.descriptor);
+
+    setFaceIdSettingsStatus(isRegistered);
+
+    if (!isRegistered) {
+      clearLocalFaceProfiles();
+    }
+
+    return isRegistered;
+  } catch (err) {
+    if (/No face profile|No registered Face ID|not found/i.test(err.message || '')) {
+      clearLocalFaceProfiles();
+      setFaceIdSettingsStatus(false);
+      return false;
+    }
+
+    console.warn('Face ID status refresh failed:', err.message);
+    return setupStatus.hasFaceId;
+  }
 }
 
 async function loadEnrolledFaceDescriptor() {
   if (enrolledFaceDescriptor) return enrolledFaceDescriptor;
-
-  const stored = localStorage.getItem(FACE_DESCRIPTOR_KEY);
-
-  if (stored) {
-    try {
-      enrolledFaceDescriptor = new Float32Array(JSON.parse(stored));
-      return enrolledFaceDescriptor;
-    } catch (err) {
-      localStorage.removeItem(FACE_DESCRIPTOR_KEY);
-    }
-  }
 
   try {
     const result = await api('/face/me');
@@ -5842,17 +5894,6 @@ async function loadEnrolledFaceDescriptor() {
 
 async function loadEnrolledHelmetFaceDescriptor() {
   if (enrolledHelmetFaceDescriptor) return enrolledHelmetFaceDescriptor;
-
-  const stored = localStorage.getItem(HELMET_FACE_DESCRIPTOR_KEY);
-
-  if (stored) {
-    try {
-      enrolledHelmetFaceDescriptor = new Float32Array(JSON.parse(stored));
-      return enrolledHelmetFaceDescriptor;
-    } catch (err) {
-      localStorage.removeItem(HELMET_FACE_DESCRIPTOR_KEY);
-    }
-  }
 
   try {
     const result = await api('/face/me');
@@ -5938,7 +5979,55 @@ async function saveHelmetFaceProfileToBackend(descriptor) {
   }
 }
 
-async function initFaceVerification(kind) {
+async function verifyFaceDescriptorWithBackend(kind, descriptor) {
+  try {
+    const result = await api('/face/verify', {
+      method: 'POST',
+      body: JSON.stringify({
+        kind,
+        descriptor: Array.from(descriptor),
+      }),
+    });
+
+    return {
+      verified: result.verified === true,
+      distance: Number(result.registeredDistance ?? result.distance ?? 999),
+      helmetDistance: result.helmetDistance,
+      message: result.message || 'Face does not match registered rider.',
+    };
+  } catch (err) {
+    if (/No registered Face ID|Invalid face descriptor|Unauthorized|No token/i.test(err.message || '')) {
+      console.warn('Backend face verify rejected:', err.message);
+      throw err;
+    }
+
+    console.warn('Backend face verify failed, falling back to DB profile load:', err.message);
+
+    const profile = await api('/face/me');
+    const registeredDescriptor = Array.isArray(profile.descriptor)
+      ? new Float32Array(profile.descriptor)
+      : null;
+
+    if (!registeredDescriptor) {
+      throw new Error('No registered Face ID found.');
+    }
+
+    const registeredDistance = faceapi.euclideanDistance(registeredDescriptor, descriptor);
+    const isHelmet = kind === 'helmet';
+    const threshold = isHelmet ? 0.50 : FACE_MATCH_THRESHOLD;
+
+    return {
+      verified: registeredDistance < threshold,
+      distance: registeredDistance,
+      helmetDistance: null,
+      message: registeredDistance < threshold
+        ? 'Face verified.'
+        : 'Face does not match registered rider.',
+    };
+  }
+}
+
+async function initFaceVerification(kind, options = {}) {
   const isHelmet = kind === 'helmet';
   const videoId = isHelmet ? 'helmet-video' : 'no-helmet-video';
   const circleId = isHelmet ? 'helmet-camera' : 'no-helmet-camera';
@@ -5955,12 +6044,25 @@ async function initFaceVerification(kind) {
       return;
     }
 
+    if (isHelmet && !options.skipHelmetSensorGate && !isHelmetDetectedByHardware()) {
+      waitForHelmetHardwareBeforeFaceId(textId, circleId);
+      return;
+    }
+
     const enrolled = isHelmet
       ? await loadEnrolledHelmetFaceDescriptor()
       : await loadEnrolledFaceDescriptor();
+    const registeredFace = isHelmet
+      ? await loadEnrolledFaceDescriptor()
+      : enrolled;
 
     if (!enrolled && !isHelmet) {
       setFaceCaptureState(textId, circleId, 'No Face ID profile found. Please register Face ID first.', 'error');
+      return;
+    }
+
+    if (isHelmet && !registeredFace) {
+      setFaceCaptureState(textId, circleId, 'No registered Face ID found. Re-register Face ID first.', 'error');
       return;
     }
 
@@ -5978,6 +6080,11 @@ async function initFaceVerification(kind) {
 
     faceVerifyInterval = setInterval(async () => {
       try {
+        if (isHelmet && !isHelmetDetectedByHardware()) {
+          pauseHelmetFaceIdUntilHelmetIsWorn(textId, circleId, resultId);
+          return;
+        }
+
         const descriptor = await readFaceDescriptor(video);
 
         if (!descriptor) {
@@ -5987,6 +6094,16 @@ async function initFaceVerification(kind) {
         }
 
         if (isHelmet && !enrolled) {
+          const backendMatch = await verifyFaceDescriptorWithBackend(kind, descriptor);
+
+          if (!backendMatch.verified) {
+            helmetEnrollSamples.length = 0;
+            setFaceCaptureState(textId, circleId, 'Helmet face does not match the registered rider.', 'error');
+            await saveFaceVerificationToBackend(kind, backendMatch.distance, false);
+            failVerificationAttempt('helmet');
+            return;
+          }
+
           helmetEnrollSamples.push(descriptor);
 
           if (helmetEnrollSamples.length < 8) {
@@ -5995,6 +6112,22 @@ async function initFaceVerification(kind) {
           }
 
           const averaged = averageFaceDescriptors(helmetEnrollSamples.slice(-8));
+          const averagedBackendMatch = await verifyFaceDescriptorWithBackend(kind, averaged);
+          const registeredFaceDistance = averagedBackendMatch.distance;
+
+          if (!averagedBackendMatch.verified || registeredFaceDistance >= HELMET_TO_REGISTERED_FACE_THRESHOLD) {
+            helmetEnrollSamples.length = 0;
+            setFaceCaptureState(
+              textId,
+              circleId,
+              'Helmet face does not match the registered rider.',
+              'error'
+            );
+            await saveFaceVerificationToBackend(kind, registeredFaceDistance, false);
+            failVerificationAttempt('helmet');
+            return;
+          }
+
           saveLocalHelmetFaceDescriptor(averaged);
 
           clearInterval(faceVerifyInterval);
@@ -6013,16 +6146,24 @@ async function initFaceVerification(kind) {
         }
 
         const distance = faceapi.euclideanDistance(enrolled, descriptor);
+        const backendMatch = isHelmet
+          ? await verifyFaceDescriptorWithBackend(kind, descriptor)
+          : { verified: true, distance };
+        const registeredFaceDistance = isHelmet
+          ? backendMatch.distance
+          : distance;
         const threshold = isHelmet ? HELMET_FACE_MATCH_THRESHOLD : FACE_MATCH_THRESHOLD;
+        const matchesRegisteredFace = !isHelmet ||
+          (backendMatch.verified && registeredFaceDistance < HELMET_TO_REGISTERED_FACE_THRESHOLD);
 
-        if (distance < threshold) {
+        if (distance < threshold && matchesRegisteredFace) {
           samples.push(distance);
         } else {
           samples.length = 0;
           setFaceCaptureState(
             textId,
             circleId,
-            isHelmet ? 'Helmet Face ID does not match.' : 'Face does not match registered Face ID.',
+            isHelmet ? 'Helmet face does not match the registered rider.' : 'Face does not match registered Face ID.',
             'error'
           );
           return;
@@ -6050,6 +6191,12 @@ async function initFaceVerification(kind) {
         }, 650);
       } catch (err) {
         console.warn('Face verification read failed:', err);
+        if (isHelmet) {
+          clearInterval(faceVerifyInterval);
+          faceVerifyInterval = null;
+          setFaceCaptureState(textId, circleId, err.message || 'Helmet face verification failed.', 'error');
+          failVerificationAttempt('helmet');
+        }
       }
     }, 700);
   } catch (err) {
@@ -6076,12 +6223,33 @@ async function verifyCurrentFaceOnce(kind) {
   const resultId = isHelmet ? 'helmet-result' : 'no-helmet-result';
 
   try {
+    if (isHelmet && !isHelmetDetectedByHardware()) {
+      setFaceCaptureState(
+        textId,
+        circleId,
+        motolockSensorData.lastUpdated
+          ? 'Helmet is not worn. Please wear helmet.'
+          : 'Waiting for ESP32 helmet sensor data...',
+        'scanning'
+      );
+      sendMotoLockCommand('STATUS').catch(() => {});
+      return;
+    }
+
     const enrolled = isHelmet
       ? await loadEnrolledHelmetFaceDescriptor()
       : await loadEnrolledFaceDescriptor();
+    const registeredFace = isHelmet
+      ? await loadEnrolledFaceDescriptor()
+      : enrolled;
 
     if (!enrolled && !isHelmet) {
       setFaceCaptureState(textId, circleId, 'No Face ID profile found. Please register Face ID first.', 'error');
+      return;
+    }
+
+    if (isHelmet && !registeredFace) {
+      setFaceCaptureState(textId, circleId, 'No registered Face ID found. Re-register Face ID first.', 'error');
       return;
     }
 
@@ -6093,11 +6261,20 @@ async function verifyCurrentFaceOnce(kind) {
     setFaceCaptureState(textId, circleId, 'Verifying...');
 
     const distances = [];
+    const registeredFaceDistances = [];
+    const backendMatches = [];
 
     for (let i = 0; i < 3; i += 1) {
       await new Promise(resolve => setTimeout(resolve, 250));
       const descriptor = await readFaceDescriptor(video);
-      if (descriptor) distances.push(faceapi.euclideanDistance(enrolled, descriptor));
+      if (descriptor) {
+        distances.push(faceapi.euclideanDistance(enrolled, descriptor));
+        if (isHelmet) {
+          const backendMatch = await verifyFaceDescriptorWithBackend(kind, descriptor);
+          backendMatches.push(backendMatch);
+          registeredFaceDistances.push(backendMatch.distance);
+        }
+      }
     }
 
     if (distances.length < 2) {
@@ -6106,13 +6283,33 @@ async function verifyCurrentFaceOnce(kind) {
     }
 
     const averageDistance = distances.reduce((sum, value) => sum + value, 0) / distances.length;
+    const averageRegisteredFaceDistance = registeredFaceDistances.length
+      ? registeredFaceDistances.reduce((sum, value) => sum + value, 0) / registeredFaceDistances.length
+      : averageDistance;
     const threshold = isHelmet ? HELMET_FACE_MATCH_THRESHOLD : FACE_MATCH_THRESHOLD;
     const maxDistance = isHelmet ? 0.58 : 0.48;
-    const verified = averageDistance < threshold && distances.every(distance => distance < maxDistance);
+    const matchesHelmetProfile = averageDistance < threshold && distances.every(distance => distance < maxDistance);
+    const matchesRegisteredFace = !isHelmet ||
+      (
+        backendMatches.every(match => match.verified) &&
+        averageRegisteredFaceDistance < HELMET_TO_REGISTERED_FACE_THRESHOLD &&
+        registeredFaceDistances.every(distance => distance < 0.68)
+      );
+    const verified = matchesHelmetProfile && matchesRegisteredFace;
 
-    await saveFaceVerificationToBackend(kind, averageDistance, verified);
+    await saveFaceVerificationToBackend(
+      kind,
+      isHelmet ? Math.max(averageDistance, averageRegisteredFaceDistance) : averageDistance,
+      verified
+    );
 
     if (!verified) {
+      setFaceCaptureState(
+        textId,
+        circleId,
+        isHelmet ? 'Helmet face does not match the registered rider.' : 'Face does not match registered Face ID.',
+        'error'
+      );
       failVerificationAttempt(kind === 'helmet' ? 'helmet' : 'face');
       return;
     }
@@ -6129,6 +6326,391 @@ async function verifyCurrentFaceOnce(kind) {
   } catch (err) {
     setFaceCaptureState(textId, circleId, err.message, 'error');
   }
+}
+
+const MOTOLOCK_BT_NAME = 'MotoLock-Motor';
+let motolockBluetoothAddress = null;
+let motolockSensorData = {
+  mq3Value: null,
+  brac: null,
+  displayBrac: null,
+  bracText: null,
+  alcoholDetected: false,
+  irDetected: false,
+  locked: true,
+  ignitionEnabled: false,
+  startAuthorized: false,
+  lastUpdated: null,
+};
+let sobrietyCheckInterval = null;
+
+function normalizeBracValue(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return Math.min(Math.max(number, 0), 0.05);
+}
+
+function formatBracPercent(value) {
+  return value === null ? 'Waiting...' : `${value.toFixed(3)}%`;
+}
+
+function getBluetoothSerial() {
+  return window.bluetoothSerial || null;
+}
+
+function setMotoLockConnectStatus(message) {
+  const el = document.getElementById('motolock-connect-status');
+  if (el) el.textContent = message;
+}
+
+function updateMotoLockSensorUi() {
+  const summary = document.getElementById('motolock-device-summary');
+  const reading = document.getElementById('sobriety-reading-value');
+  const status = document.getElementById('sobriety-sensor-status');
+
+  const bracValue = normalizeBracValue(
+    motolockSensorData.displayBrac ?? motolockSensorData.brac
+  );
+
+  if (summary) {
+    summary.textContent = motolockSensorData.lastUpdated
+      ? `Helmet ${motolockSensorData.irDetected ? 'detected' : 'waiting'} · MQ-3 ${motolockSensorData.mq3Value ?? '--'}`
+      : 'Bluetooth connected · Waiting for sensor data';
+  }
+
+  if (reading) {
+    reading.textContent = motolockSensorData.bracText || formatBracPercent(bracValue);
+    reading.className = bracValue !== null && bracValue >= 0.05 ? 'danger-value' : 'safe-value';
+  }
+
+  if (status) {
+    if (!motolockSensorData.lastUpdated) {
+      status.textContent = 'Waiting for ESP32 sensor data.';
+      return;
+    }
+
+    status.textContent = motolockSensorData.alcoholDetected || bracValue >= 0.05
+      ? 'Alcohol detected. Ignition will remain locked.'
+      : motolockSensorData.irDetected
+        ? 'Helmet detected. Alcohol level is below the limit.'
+        : 'Helmet/rider not detected by IR sensor.';
+  }
+}
+
+function stopHardwareSobrietyWatcher() {
+  if (sobrietyCheckInterval) {
+    clearInterval(sobrietyCheckInterval);
+    sobrietyCheckInterval = null;
+  }
+}
+
+function startHardwareSobrietyWatcher() {
+  stopHardwareSobrietyWatcher();
+  updateMotoLockSensorUi();
+  sendMotoLockCommand('STATUS').catch(() => {});
+
+  sobrietyCheckInterval = setInterval(() => {
+    runHardwareSobrietyCheck({ silentWaiting: true });
+  }, 1000);
+}
+
+function isHelmetDetectedByHardware() {
+  return Boolean(motolockSensorData.lastUpdated && motolockSensorData.irDetected);
+}
+
+function pauseHelmetFaceIdUntilHelmetIsWorn(textId, circleId, resultId) {
+  if (faceVerifyInterval) {
+    clearInterval(faceVerifyInterval);
+    faceVerifyInterval = null;
+  }
+
+  if (resultId) {
+    document.getElementById(resultId)?.style.setProperty('display', 'none');
+  }
+
+  stopActiveFaceCameraStream();
+  setFaceCaptureState(textId, circleId, 'Helmet is not worn. Please wear helmet.', 'error');
+  sendMotoLockCommand('STATUS').catch(() => {});
+
+  setTimeout(() => {
+    waitForHelmetHardwareBeforeFaceId(textId, circleId);
+  }, 700);
+}
+
+function waitForHelmetHardwareBeforeFaceId(textId, circleId) {
+  if (helmetDetectionInterval) {
+    clearInterval(helmetDetectionInterval);
+  }
+
+  setFaceCaptureState(
+    textId,
+    circleId,
+    motolockSensorData.lastUpdated
+      ? 'Helmet is not worn. Please wear helmet.'
+      : 'Checking helmet sensor before Face ID...',
+    'scanning'
+  );
+
+  sendMotoLockCommand('STATUS').catch(() => {});
+
+  helmetDetectionInterval = setInterval(() => {
+    sendMotoLockCommand('STATUS').catch(() => {});
+
+    if (isHelmetDetectedByHardware()) {
+      clearInterval(helmetDetectionInterval);
+      helmetDetectionInterval = null;
+      setFaceCaptureState(textId, circleId, 'Helmet detected. Starting Face ID...', 'success');
+
+      setTimeout(() => {
+        initFaceVerification('helmet', { skipHelmetSensorGate: true });
+      }, 500);
+      return;
+    }
+
+    setFaceCaptureState(
+      textId,
+      circleId,
+      motolockSensorData.lastUpdated
+        ? 'Helmet is not worn. Please wear helmet.'
+        : 'Waiting for ESP32 helmet sensor data...',
+      'scanning'
+    );
+  }, 1000);
+}
+
+function parseMotoLockStatus(line) {
+  const msg = line.trim();
+
+  if (!msg) return;
+
+  if (msg === 'LOCKED' || msg === 'UNLOCKED' || msg === 'START_AUTHORIZED') {
+    motolockSensorData.locked = msg === 'LOCKED';
+    motolockSensorData.startAuthorized = msg === 'START_AUTHORIZED';
+    motolockSensorData.lastUpdated = Date.now();
+    updateMotoLockSensorUi();
+    return;
+  }
+
+  const payload = msg.startsWith('STATUS:')
+    ? msg.slice('STATUS:'.length)
+    : msg.startsWith('{')
+      ? msg
+      : null;
+
+  if (!payload) return;
+
+  try {
+    const data = JSON.parse(payload);
+    const incomingBrac = normalizeBracValue(data.displayBrac ?? data.highestBrac ?? data.brac);
+    const displayBrac = incomingBrac === null
+      ? motolockSensorData.displayBrac
+      : Math.max(motolockSensorData.displayBrac ?? 0, incomingBrac);
+
+    motolockSensorData = {
+      ...motolockSensorData,
+      mq3Value: Number.isFinite(Number(data.mq3Value ?? data.mq3))
+        ? Number(data.mq3Value ?? data.mq3)
+        : motolockSensorData.mq3Value,
+      brac: incomingBrac ?? motolockSensorData.brac,
+      displayBrac,
+      bracText: formatBracPercent(displayBrac),
+      alcoholDetected: Boolean(data.alcoholDetected ?? data.alcohol),
+      irDetected: Boolean(data.irDetected ?? data.helmetDetected ?? data.riderDetected),
+      locked: typeof data.locked === 'boolean' ? data.locked : motolockSensorData.locked,
+      ignitionEnabled: Boolean(data.ignitionEnabled ?? data.ignition),
+      startAuthorized: Boolean(data.startAuthorized ?? motolockSensorData.startAuthorized),
+      lastUpdated: Date.now(),
+    };
+
+    updateMotoLockSensorUi();
+  } catch (err) {
+    if (msg.includes('STATUS:')) {
+      console.warn('Ignored partial MotoLock status:', msg);
+    }
+  }
+}
+
+function startMotoLockBluetoothRead() {
+  const bt = getBluetoothSerial();
+  if (!bt) return;
+
+  bt.subscribe(
+    '\n',
+    line => parseMotoLockStatus(line),
+    err => console.warn('Bluetooth subscribe failed:', err)
+  );
+}
+
+function sendMotoLockCommand(command) {
+  return new Promise((resolve, reject) => {
+    const bt = getBluetoothSerial();
+
+    if (!bt) {
+      reject(new Error('Bluetooth Serial plugin is not available.'));
+      return;
+    }
+
+    bt.write(`${command}\n`, resolve, reject);
+  });
+}
+
+function checkMotoLockBluetoothConnection() {
+  return new Promise(resolve => {
+    const bt = getBluetoothSerial();
+
+    if (!bt) {
+      resolve(false);
+      return;
+    }
+
+    bt.isConnected(
+      () => resolve(true),
+      () => resolve(false)
+    );
+  });
+}
+
+async function ensureMotoLockBluetoothConnected() {
+  const connected = await checkMotoLockBluetoothConnection();
+
+  if (!connected) {
+    setupStatus.hasConnectedDevice = false;
+    localStorage.removeItem('motolock_device_connected');
+    return false;
+  }
+
+  setupStatus.hasConnectedDevice = true;
+  localStorage.setItem('motolock_device_connected', '1');
+  startMotoLockBluetoothRead();
+  sendMotoLockCommand('STATUS').catch(() => {});
+  return true;
+}
+
+function connectMotoLockDevice() {
+  const bt = getBluetoothSerial();
+
+  if (!bt) {
+    alert('Bluetooth plugin is not available. Build and run the Android app, not the browser preview.');
+    return;
+  }
+
+  setMotoLockConnectStatus('Checking Bluetooth...');
+
+  bt.isEnabled(
+    () => {
+      setMotoLockConnectStatus('Looking for paired MotoLock-Motor...');
+
+      bt.list(
+        devices => {
+          console.log('Paired Bluetooth devices:', devices);
+
+          const device = devices.find(item =>
+            item.name === MOTOLOCK_BT_NAME ||
+            item.name?.includes('MotoLock') ||
+            item.name?.includes('ESP32') ||
+            item.id === motolockBluetoothAddress
+          );
+
+          if (!device) {
+            setMotoLockConnectStatus('Pair MotoLock-Motor in Android Bluetooth settings first.');
+            alert('MotoLock-Motor is not paired yet. Pair it in Android Bluetooth settings, then try again.');
+            return;
+          }
+
+          motolockBluetoothAddress = device.id || device.address;
+          setMotoLockConnectStatus(`Connecting to ${device.name || MOTOLOCK_BT_NAME}...`);
+
+          connectMotoLockByAddress(motolockBluetoothAddress, device.name || MOTOLOCK_BT_NAME);
+        },
+        err => {
+          console.warn('Bluetooth list failed:', err);
+          setMotoLockConnectStatus('Could not list paired Bluetooth devices.');
+          alert('Bluetooth permission is not allowed yet. On Android, allow Nearby Devices/Bluetooth permission for MotoLock, then try again.');
+        }
+      );
+    },
+    () => {
+      setMotoLockConnectStatus('Bluetooth is off.');
+      alert('Please turn on Bluetooth and try again.');
+    }
+  );
+}
+
+function onMotoLockConnected() {
+  setupStatus.hasConnectedDevice = true;
+  localStorage.setItem('motolock_device_connected', '1');
+  setMotoLockConnectStatus('Connected');
+  startMotoLockBluetoothRead();
+  sendMotoLockCommand('STATUS').catch(() => {});
+  go('deviceConnected');
+}
+
+function connectMotoLockByAddress(address, deviceName) {
+  const bt = getBluetoothSerial();
+
+  if (!bt) return;
+
+  bt.disconnect(
+    () => {},
+    () => {}
+  );
+
+  bt.connect(
+    address,
+    onMotoLockConnected,
+    err => {
+      console.warn('MotoLock secure connect failed:', err);
+
+      if (typeof bt.connectInsecure !== 'function') {
+        setMotoLockConnectStatus('Connection failed. Make sure ESP32 is paired and not connected elsewhere.');
+        alert(`Could not connect to ${deviceName}. Make sure it is powered on, paired, and not connected to another phone.`);
+        return;
+      }
+
+      setMotoLockConnectStatus('Secure connect failed. Trying fallback...');
+
+      bt.connectInsecure(
+        address,
+        onMotoLockConnected,
+        insecureErr => {
+          console.warn('MotoLock insecure connect failed:', insecureErr);
+          setMotoLockConnectStatus('Connection failed. Make sure ESP32 is paired and not connected elsewhere.');
+          alert(`Could not connect to ${deviceName}. Turn ESP32 Bluetooth off/on, pair it in Android settings, then try again.`);
+        }
+      );
+    }
+  );
+}
+
+function runHardwareSobrietyCheck(options = {}) {
+  const bracValue = normalizeBracValue(
+    motolockSensorData.displayBrac ?? motolockSensorData.brac
+  );
+
+  sendMotoLockCommand('STATUS').catch(() => {});
+
+  if (!motolockSensorData.lastUpdated || bracValue === null) {
+    if (!options.silentWaiting) {
+      alert('Waiting for MQ-3 data from the ESP32. Keep the helmet powered on and connected.');
+    }
+    return;
+  }
+
+  if (!motolockSensorData.irDetected) {
+    if (!options.silentWaiting) {
+      alert('Helmet/rider not detected by IR sensor.');
+    }
+    return;
+  }
+
+  stopHardwareSobrietyWatcher();
+
+  if (motolockSensorData.alcoholDetected || bracValue >= 0.05) {
+    finishSobrietyTest('failed');
+    return;
+  }
+
+  finishSobrietyTest('passed');
 }
 
 function go(id) {
@@ -6161,6 +6743,10 @@ if (currentScreen && currentScreen.id !== id && !isGoingBack) {
     stopFaceCamera();
   }
 
+  if (id !== 'sobrietyTest') {
+    stopHardwareSobrietyWatcher();
+  }
+
   if (id === 'faceFront') {
     initFaceEnrollment();
   }
@@ -6171,6 +6757,14 @@ if (currentScreen && currentScreen.id !== id && !isGoingBack) {
 
   if (id === 'verifyHelmet') {
     initFaceVerification('helmet');
+  }
+
+  if (id === 'sobrietyTest') {
+    startHardwareSobrietyWatcher();
+  }
+
+  if (id === 'settings' || id === 'faceIdSettings') {
+    refreshFaceIdStatus();
   }
 
   if (id === 'dashboard') {
@@ -6872,6 +7466,8 @@ async function resendResetCode() {
 function reRegisterFaceId() {
   alert('Re-register Face ID\n\nYou will be redirected to the Face ID registration process.');
 
+  clearLocalFaceProfiles();
+
   go('faceIntro');
 }
 
@@ -6880,6 +7476,7 @@ function removeFaceId() {
     'Remove Face ID?',
     'You will need to register your Face ID again before unlocking your motorcycle.',
     () => {
+      clearLocalFaceProfiles();
       document.getElementById('faceid-status-text').textContent = 'Not Registered';
       showAppPopup('Face ID Removed', 'Your saved Face ID has been removed.');
     }
@@ -6940,8 +7537,17 @@ function limitPinInput(input) {
 function disconnectDevice() {
   showAppConfirm(
     'Disconnect Device?',
-    'MotoLock_12A3B4 will be disconnected from Bluetooth.',
+    'MotoLock-Motor will be disconnected from Bluetooth.',
     () => {
+      sendMotoLockCommand('LOCK').catch(() => {});
+      const bt = getBluetoothSerial();
+      if (bt) {
+        bt.unsubscribe(() => {}, () => {});
+        bt.disconnect(() => {}, () => {});
+      }
+
+      setupStatus.hasConnectedDevice = false;
+      localStorage.removeItem('motolock_device_connected');
       document.getElementById('bluetooth-status-text').textContent = 'Disconnected';
       document.getElementById('bluetooth-status-text').classList.remove('green-text');
       document.getElementById('bluetooth-status-text').classList.add('red-text');
@@ -7189,7 +7795,13 @@ function requestFaceIdPin(action) {
   openModal('m-faceid-pin');
 }
 
-function verifyFaceIdPin() {
+async function removeFaceProfileFromBackend() {
+  await api('/face/me', {
+    method: 'DELETE'
+  });
+}
+
+async function verifyFaceIdPin() {
   const enteredPin = document.getElementById('faceid-pin-input').value.trim();
 
   if (!/^\d{4}$/.test(enteredPin)) {
@@ -7197,32 +7809,40 @@ function verifyFaceIdPin() {
     return;
   }
 
-  if (enteredPin !== savedSecurityPin) {
-    alert('Incorrect PIN\n\nThe Security PIN you entered is incorrect.');
+  try {
+    await api("/setup/pin/verify", {
+      method: "POST",
+      body: JSON.stringify({
+        pin: enteredPin,
+      }),
+    });
+  } catch (err) {
+    console.log(err);
+    alert(err.message || 'Incorrect PIN');
     return;
   }
 
   closeModal('m-faceid-pin');
 
   if (pendingFaceIdAction === 'reregister') {
-  alert('PIN Verified\n\nYou will be redirected to Face ID registration.');
+    alert('PIN Verified\n\nYou will be redirected to Face ID registration.');
 
-  faceIdReturnTarget = 'settings';
-  go('faceIntro');
-}
+    clearLocalFaceProfiles();
+    faceIdReturnTarget = 'settings';
+    go('faceIntro');
+  }
 
   if (pendingFaceIdAction === 'remove') {
-    document.getElementById('faceid-status-text').textContent = 'Not Registered';
+    try {
+      await removeFaceProfileFromBackend();
+      clearLocalFaceProfiles();
+      setFaceIdSettingsStatus(false);
 
-    const badge = document.getElementById('faceid-status-badge');
-    badge.classList.remove('success');
-    badge.classList.add('danger');
-    badge.innerHTML = `
-      <svg class="icon"><use href="#icon-alert"></use></svg>
-      Not Active
-    `;
-
-    alert('Face ID Removed\n\nYour saved Face ID has been removed.');
+      alert('Face ID Removed\n\nYour saved Face ID has been removed.');
+    } catch (err) {
+      console.log(err);
+      alert(err.message || 'Unable to remove Face ID.');
+    }
   }
 
   pendingFaceIdAction = null;
@@ -7239,12 +7859,19 @@ async function completeFaceRegistration() {
       },
     });
 
-    setupStatus.hasFaceId = true;
+    setFaceIdSettingsStatus(true);
 
     if (faceIdReturnTarget === "sendForgotPinCode") {
-  sendForgotPinCode();
-  return;
-}
+      sendForgotPinCode();
+      faceIdReturnTarget = 'createPin';
+      return;
+    }
+
+    if (faceIdReturnTarget === 'unlockMotorcycle') {
+      faceIdReturnTarget = 'createPin';
+      startUnlockCheck();
+      return;
+    }
 
     go(faceIdReturnTarget);
 
@@ -7594,6 +8221,10 @@ async function handleLogin() {
 
     localStorage.setItem("token", result.token);
 localStorage.setItem("user", JSON.stringify(result.user));
+enrolledFaceDescriptor = null;
+enrolledHelmetFaceDescriptor = null;
+localStorage.removeItem(FACE_DESCRIPTOR_KEY);
+localStorage.removeItem(HELMET_FACE_DESCRIPTOR_KEY);
 
 setupStatus = result.setupStatus;
 dashboardRideState = result.dashboardRideState;
@@ -7671,6 +8302,7 @@ async function registerMotorcycleOnboarding() {
 
 function finishDeviceConnection() {
   setupStatus.hasConnectedDevice = true;
+  localStorage.setItem('motolock_device_connected', '1');
   dashboardRideState = 'lockedDefault';
   go('dashboard');
 }
@@ -7911,9 +8543,37 @@ function completeNoHelmetVerification(verifiedByFace = false) {
   go('verifyHelmet');
 }
 
-function startUnlockCheck() {
+async function startUnlockCheck() {
   if (isVerificationCooldownActive()) {
     showVerificationCooldown();
+    return;
+  }
+
+  const hasRegisteredFaceId = await refreshFaceIdStatus();
+
+  if (!hasRegisteredFaceId) {
+    faceIdReturnTarget = 'unlockMotorcycle';
+    nextMissingSetupStep = 'faceIntro';
+    showSetupStatusModal();
+    alert('No Face ID registered. Please create your Face ID before unlocking your motorcycle.');
+    return;
+  }
+
+  const nextRequiredSetupStep = getNextSetupStep();
+
+  if (nextRequiredSetupStep !== 'dashboard' && nextRequiredSetupStep !== 'connectDevice') {
+    nextMissingSetupStep = nextRequiredSetupStep;
+    showSetupStatusModal();
+    return;
+  }
+
+  const hardwareConnected = await ensureMotoLockBluetoothConnected();
+
+  if (!hardwareConnected) {
+    nextMissingSetupStep = 'connectDevice';
+    showSetupStatusModal();
+    go('connectDevice');
+    alert('Connect MotoLock-Motor through Bluetooth before starting unlock.');
     return;
   }
 
@@ -8008,6 +8668,17 @@ function finishSobrietyTest(result) {
   if (result === 'passed') {
     rideCheckStatus.sobrietyPassed = true;
     dashboardRideState = 'unlocked';
+    const goodToRideBrac = document.getElementById('good-to-ride-brac');
+    if (goodToRideBrac) {
+      goodToRideBrac.textContent = motolockSensorData.bracText || formatBracPercent(
+        normalizeBracValue(motolockSensorData.displayBrac ?? motolockSensorData.brac)
+      );
+    }
+
+    sendMotoLockCommand('AUTHORIZE_START').catch(err => {
+      console.warn('MotoLock start authorization failed:', err);
+      alert('Safety checks passed, but the app could not authorize the ESP32 start button. Check Bluetooth connection.');
+    });
     go('goodToRide');
     return;
   }
@@ -8016,6 +8687,7 @@ function finishSobrietyTest(result) {
     rideCheckStatus.sobrietyPassed = false;
     dashboardRideState = 'stillLocked';
     dashboardLockReason = 'alcoholDetected';
+    sendMotoLockCommand('LOCK').catch(() => {});
     sendEmergencyAlert();
     go('alcoholLocked');
   }
@@ -8079,9 +8751,9 @@ function updateDashboardStatus() {
 
   if (dashboardRideState === 'unlocked') {
     card.classList.add('unlocked');
-    title.textContent = 'Motorcycle Unlocked';
+    title.textContent = 'Ready To Start';
     text.textContent =
-      'Face verification, helmet verification, and sobriety test are complete. Ignition access is available.';
+      'Safety checks are complete. Press the MotoLock hardware start button to start the motorcycle.';
     return;
   }
 
@@ -8089,14 +8761,14 @@ function updateDashboardStatus() {
     card.classList.add('unlock-checking');
     title.textContent = 'Unlock Check In Progress';
     text.textContent =
-      'Finish the identity, helmet, and sobriety checks to unlock ignition access.';
+      'Finish the identity, helmet, and sobriety checks to enable the hardware start button.';
     return;
   }
 
   card.classList.add('locked-default');
   title.textContent = 'Motorcycle Locked';
   text.textContent =
-    'Your motorcycle is locked by default. Complete the safety check to unlock ignition access.';
+    'Your motorcycle is locked by default. Complete the safety check to enable the hardware start button.';
 }
 
 function confirmLogout() {
@@ -8304,6 +8976,10 @@ async function validateCreateAccount() {
 
     localStorage.setItem("token", result.token);
     localStorage.setItem("user", JSON.stringify(result.user));
+    enrolledFaceDescriptor = null;
+    enrolledHelmetFaceDescriptor = null;
+    localStorage.removeItem(FACE_DESCRIPTOR_KEY);
+    localStorage.removeItem(HELMET_FACE_DESCRIPTOR_KEY);
 
     resetRideFailureState();
 

@@ -53,7 +53,9 @@ function parseFaceProfile(rawProfile) {
   }
 
   try {
-    const parsed = JSON.parse(rawProfile);
+    const parsed = typeof rawProfile === 'string'
+      ? JSON.parse(rawProfile)
+      : rawProfile;
 
     if (Array.isArray(parsed)) {
       return {
@@ -110,6 +112,28 @@ async function saveFaceProfile(userId, { descriptor, helmetDescriptor }) {
   );
 
   return nextProfile;
+}
+
+function euclideanDistance(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const sum = a.reduce((total, value, index) => {
+    const diff = Number(value) - Number(b[index]);
+    return total + diff * diff;
+  }, 0);
+
+  return Math.sqrt(sum);
+}
+
+async function loadFaceProfile(userId) {
+  const [rows] = await db.query(
+    'SELECT face_descriptor FROM users WHERE id = ?',
+    [userId],
+  );
+
+  return parseFaceProfile(rows[0]?.face_descriptor);
 }
 
 /* GOOGLE LOGIN */
@@ -731,6 +755,87 @@ app.get("/api/face/me", authMiddleware, async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to load face profile."
+    });
+  }
+});
+
+app.delete("/api/face/me", authMiddleware, async (req, res) => {
+  try {
+    await db.query(
+      `
+      UPDATE users
+      SET face_descriptor = NULL,
+          face_enrolled = 0,
+          face_enrolled_at = NULL
+      WHERE id = ?
+      `,
+      [req.user.id]
+    );
+
+    res.json({
+      success: true,
+      message: "Face ID removed."
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to remove face profile."
+    });
+  }
+});
+
+app.post("/api/face/verify", authMiddleware, async (req, res) => {
+  try {
+    const { descriptor, kind } = req.body;
+
+    if (!Array.isArray(descriptor)) {
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        message: "Invalid face descriptor.",
+      });
+    }
+
+    const faceProfile = await loadFaceProfile(req.user.id);
+
+    if (!faceProfile.descriptor) {
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        message: "No registered Face ID found.",
+      });
+    }
+
+    const registeredDistance = euclideanDistance(faceProfile.descriptor, descriptor);
+    const helmetDistance = faceProfile.helmetDescriptor
+      ? euclideanDistance(faceProfile.helmetDescriptor, descriptor)
+      : null;
+    const isHelmet = kind === "helmet";
+    const registeredThreshold = isHelmet ? 0.50 : 0.42;
+    const helmetThreshold = 0.52;
+    const verified = isHelmet
+      ? registeredDistance < registeredThreshold
+      : registeredDistance < registeredThreshold;
+
+    return res.json({
+      success: true,
+      verified,
+      kind: isHelmet ? "helmet" : "face",
+      registeredDistance,
+      helmetDistance,
+      threshold: registeredThreshold,
+      message: verified
+        ? "Face verified."
+        : "Face does not match registered rider.",
+    });
+  } catch (err) {
+    console.log(err);
+
+    return res.status(500).json({
+      success: false,
+      verified: false,
+      message: "Failed to verify face.",
     });
   }
 });
