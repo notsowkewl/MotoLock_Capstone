@@ -578,7 +578,7 @@
       position: relative;
       display: grid;
       place-items: center;
-      background: #f4f6f9;
+      background: #000;
       border: 6px solid #e8ecf2;
       overflow: hidden;
       box-shadow: inset 0 0 0 1px rgba(255,255,255,0.7);
@@ -590,6 +590,7 @@
     }
 
     .face {
+      display: none;
       width: 158px;
       height: 190px;
       border-radius: 50% 50% 44% 44%;
@@ -718,18 +719,6 @@
     @keyframes pop {
       from { transform: scale(0.75); opacity: 0; }
       to { transform: scale(1); opacity: 1; }
-    }
-
-    .profile-preview {
-      width: 106px;
-      height: 122px;
-      border-radius: 18px;
-      margin: 0 auto 24px;
-      background:
-        radial-gradient(circle at 50% 38%, #f1c4a8 0 26%, transparent 27%),
-        linear-gradient(145deg, #11141a 0 40%, #f0c2a7 41% 70%, #11141a 71%);
-      border: 1px solid var(--line);
-      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
     }
 
     .device-ring,
@@ -1424,6 +1413,26 @@
   display: grid;
   gap: 14px;
   padding-bottom: 20px;
+}
+
+.history-empty {
+  border: 1px dashed var(--line);
+  border-radius: 18px;
+  padding: 24px 18px;
+  text-align: center;
+  color: var(--gray);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.history-empty h3 {
+  color: var(--black);
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.history-empty p {
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .ride-card {
@@ -3219,6 +3228,15 @@
   color: var(--green);
 }
 
+.status-card.ride-active {
+  background: linear-gradient(135deg, var(--green-soft), #ffffff);
+  border: 1px solid rgba(32, 164, 85, 0.18);
+}
+
+.status-card.ride-active h3 {
+  color: var(--green);
+}
+
 .status-card.still-locked {
   background: linear-gradient(135deg, var(--red-soft), #ffffff);
   border: 1px solid rgba(237, 28, 36, 0.25);
@@ -3770,7 +3788,6 @@
           <h2>Face ID registered!</h2>
           <p>You can now use your Face ID to verify your identity.</p>
         </div>
-        <div class="profile-preview"></div>
         <button class="btn" onclick="completeFaceRegistration()">Continue</button>
       </div>
     </section>
@@ -3785,7 +3802,6 @@
           <div><h3>MotoLock-Motor</h3><p id="motolock-connect-status">Tap to connect through Bluetooth</p></div>
           <svg class="icon" style="margin-left:auto;"><use href="#icon-arrow-right"></use></svg>
         </div>
-        <div class="scan"><span class="scan-loader"></span>Scanning for nearby MotoLock devices...</div>
       </div>
     </section>
 
@@ -4114,7 +4130,6 @@
         </div>
         <div class="button-stack">
           <button class="btn btn-outline" onclick="go('dashboard')">Proceed to Dashboard</button>
-          <button class="btn btn-soft" onclick="go('sobrietyTest')">Try Again Later</button>
         </div>
       </div>
     </section>
@@ -4229,10 +4244,6 @@
           <div class="card"><div class="icon-box call"><svg class="icon"><use href="#icon-phone"></use></svg></div><div><h3>Call Trusted Contact</h3><p>Ask your primary contact for help.</p></div><svg class="icon" style="margin-left:auto;"><use href="#icon-arrow-right"></use></svg></div>
         </div>
         <div class="button-stack">
-          <button class="btn btn-outline" onclick="go('sobrietyTest')">
-  Try Again Later
-</button>
-
 <button class="btn" onclick="go('dashboard')">
   Back to Dashboard
 </button>
@@ -4266,7 +4277,7 @@
         </div>
         <div>
           <span>Total Rides</span>
-          <strong>8</strong>
+          <strong id="history-total-count">0</strong>
         </div>
       </div>
 
@@ -4278,7 +4289,7 @@
         </div>
         <div>
           <span>Alerts</span>
-          <strong class="red-text">1</strong>
+          <strong class="red-text" id="history-alert-count">0</strong>
         </div>
       </div>
     </div>
@@ -4289,136 +4300,7 @@
       <button onclick="filterHistory(this, 'alert')">Alerts</button>
     </div>
 
-    <div class="history-list">
-      <article class="ride-card" data-status="completed">
-        <div class="ride-card-top">
-          <div>
-            <p class="ride-date">May 27, 2026 · 8:10 AM</p>
-            <h3>ABC1234 · Yamaha NMAX 155</h3>
-          </div>
-
-          <span class="status-pill success">
-            <svg class="icon"><use href="#icon-check"></use></svg>
-            Completed
-          </span>
-        </div>
-
-        <div class="ride-details three">
-  <div>
-    <svg class="icon"><use href="#icon-user"></use></svg>
-    <span>Face<br>Verified</span>
-  </div>
-
-  <div>
-    <svg class="icon"><use href="#icon-helmet"></use></svg>
-    <span>Helmet<br>Verified</span>
-  </div>
-
-  <div>
-    <svg class="icon"><use href="#icon-shield"></use></svg>
-    <span>BrAC<br>0.000%</span>
-  </div>
-</div>
-      </article>
-
-      <article class="ride-card" data-status="completed">
-        <div class="ride-card-top">
-          <div>
-            <p class="ride-date">May 26, 2026 · 6:42 PM</p>
-            <h3>ABC1234 · Yamaha NMAX 155</h3>
-          </div>
-
-          <span class="status-pill success">
-            <svg class="icon"><use href="#icon-check"></use></svg>
-            Completed
-          </span>
-        </div>
-
-       <div class="ride-details three">
-  <div>
-    <svg class="icon"><use href="#icon-user"></use></svg>
-    <span>Face<br>Verified</span>
-  </div>
-
-  <div>
-    <svg class="icon"><use href="#icon-helmet"></use></svg>
-    <span>Helmet<br>Verified</span>
-  </div>
-
-  <div>
-    <svg class="icon"><use href="#icon-shield"></use></svg>
-    <span>BrAC<br>0.000%</span>
-  </div>
-</div>
-      </article>
-
-      <article class="ride-card alert" data-status="alert">
-        <div class="ride-card-top">
-          <div>
-            <p class="ride-date">May 25, 2026 · 9:05 PM</p>
-            <h3>ABC1234 · Yamaha NMAX 155</h3>
-          </div>
-
-          <span class="status-pill danger">
-            <svg class="icon"><use href="#icon-alert"></use></svg>
-            Safety Alert
-          </span>
-        </div>
-
-        <div class="ride-details danger">
-          <div>
-            <svg class="icon"><use href="#icon-alert"></use></svg>
-            <span>Alcohol<br>Detected</span>
-          </div>
-
-          <div>
-            <svg class="icon"><use href="#icon-lock"></use></svg>
-            <span>Still<br>Locked</span>
-          </div>
-
-          <div>
-            <svg class="icon"><use href="#icon-send"></use></svg>
-            <span>Alert<br>Sent</span>
-          </div>
-
-          <div>
-            <svg class="icon"><use href="#icon-shield"></use></svg>
-            <span>BrAC<br>0.050%</span>
-          </div>
-        </div>
-      </article>
-
-      <article class="ride-card" data-status="completed">
-        <div class="ride-card-top">
-          <div>
-            <p class="ride-date">May 24, 2026 · 7:20 AM</p>
-            <h3>ABC1234 · Yamaha NMAX 155</h3>
-          </div>
-
-          <span class="status-pill success">
-            <svg class="icon"><use href="#icon-check"></use></svg>
-            Completed
-          </span>
-        </div>
-
-        <div class="ride-details three">
-  <div>
-    <svg class="icon"><use href="#icon-user"></use></svg>
-    <span>Face<br>Verified</span>
-  </div>
-
-  <div>
-    <svg class="icon"><use href="#icon-helmet"></use></svg>
-    <span>Helmet<br>Verified</span>
-  </div>
-
-  <div>
-    <svg class="icon"><use href="#icon-shield"></use></svg>
-    <span>BrAC<br>0.000%</span>
-  </div>
-</div>
-      </article>
-    </div>
+    <div class="history-list" id="ride-history-list"></div>
   </div>
 </section>
 
@@ -5637,11 +5519,30 @@
   </div>
 </div>
 
+<div id="m-bluetooth-disconnected" class="modal-backdrop">
+  <div class="modal-sheet">
+    <p class="modal-title">MotoLock Disconnected</p>
+    <p class="modal-sub">
+      Bluetooth connection to the ESP32 was lost. Reconnect MotoLock-Motor to continue.
+    </p>
+    <button class="btn" onclick="goToBluetoothReconnect()">Reconnect Bluetooth</button>
+  </div>
+</div>
+
   <script>
-const API_BASE_URL =
-  location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-    ? 'http://192.168.68.111:5001/api'
-    : 'http://192.168.68.111:5001/api';
+const API_BASE_URL = (() => {
+  const savedUrl = localStorage.getItem('motolock_api_base_url');
+
+  if (savedUrl) return savedUrl.replace(/\/$/, '');
+
+  if (window.Capacitor?.isNativePlatform?.()) {
+    return 'http://192.168.8.111:5001/api';
+  }
+
+  const host = location.hostname || 'localhost';
+
+  return `http://${host}:5001/api`;
+})();
     // function pang lipat //
 let faceRegisterTimer = null;
 const FACE_MODEL_URLS = ['https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights', '/models'];
@@ -6320,6 +6221,12 @@ async function verifyCurrentFaceOnce(kind) {
 
 const MOTOLOCK_BT_NAME = 'MotoLock-Motor';
 let motolockBluetoothAddress = null;
+let motolockBluetoothMonitor = null;
+let motolockBluetoothDisconnectHandled = false;
+let motolockBluetoothReturnScreen = null;
+let motolockBluetoothConnectedAt = 0;
+const MOTOLOCK_STATUS_TIMEOUT_MS = 8000;
+const MOTOLOCK_CONNECTION_CHECK_MS = 2500;
 let motolockSensorData = {
   mq3Value: null,
   brac: null,
@@ -6330,6 +6237,10 @@ let motolockSensorData = {
   locked: true,
   ignitionEnabled: false,
   startAuthorized: false,
+  breathTestWaiting: false,
+  breathBlowDetected: false,
+  mq3BaselineReady: false,
+  mq3Stabilizing: false,
   lastUpdated: null,
 };
 let sobrietyCheckInterval = null;
@@ -6338,7 +6249,9 @@ let sobrietyTimeout = null;
 let sobrietyNoBreathInterval = null;
 let sobrietyNoBreathTimeout = null;
 let sobrietyWindowActive = false;
+let sobrietyWaitingForBreath = false;
 let sobrietyReadingCaptured = false;
+let sobrietyDecisionMade = false;
 let sobrietySecondsRemaining = 0;
 let sobrietyNoBreathSecondsRemaining = 0;
 let sobrietyMq3Baseline = null;
@@ -6347,22 +6260,26 @@ let sobrietyBracBaseline = null;
 let sobrietyBracPeak = null;
 let sobrietyBreathSignalCount = 0;
 const SOBRIETY_BLOW_WINDOW_SECONDS = 30;
-const MQ3_BREATH_MIN_RAW_DELTA = 30;
-const MQ3_BREATH_MIN_RATIO_DELTA = 0.05;
-const MQ3_BREATH_MIN_SAMPLES = 1;
-const BRAC_BREATH_MIN_PERCENT = 0.010;
-const BRAC_BREATH_MIN_DELTA = 0.003;
 const BRAC_ALCOHOL_LIMIT_PERCENT = 0.050;
+const BRAC_DISPLAY_MAX_PERCENT = 0.500;
 const SOBRIETY_NO_BREATH_SECONDS = 10;
 
 function normalizeBracValue(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return null;
-  return Math.min(Math.max(number, 0), 0.05);
+  return Math.min(Math.max(number, 0), BRAC_DISPLAY_MAX_PERCENT);
 }
 
 function formatBracPercent(value) {
   return value === null ? 'Waiting...' : `${value.toFixed(3)}%`;
+}
+
+function isBracAtOrOverLimit(value) {
+  const bracValue = normalizeBracValue(value);
+
+  if (bracValue === null) return false;
+
+  return Number(bracValue.toFixed(3)) >= BRAC_ALCOHOL_LIMIT_PERCENT;
 }
 
 function getBluetoothSerial() {
@@ -6372,6 +6289,55 @@ function getBluetoothSerial() {
 function setMotoLockConnectStatus(message) {
   const el = document.getElementById('motolock-connect-status');
   if (el) el.textContent = message;
+}
+
+function getActiveScreenId() {
+  return document.querySelector('.screen.active')?.id || null;
+}
+
+function rememberBluetoothReturnScreen() {
+  const activeScreen = getActiveScreenId();
+  const excludedScreens = new Set([
+    'connectDevice',
+    'deviceConnected',
+    'login',
+    'createAccount',
+    'verifyEmail',
+  ]);
+
+  if (activeScreen && !excludedScreens.has(activeScreen)) {
+    motolockBluetoothReturnScreen = activeScreen;
+  }
+}
+
+function resetMotoLockSensorConnectionState() {
+  motolockSensorData = {
+    ...motolockSensorData,
+    mq3Value: null,
+    brac: null,
+    displayBrac: null,
+    bracText: null,
+    alcoholDetected: false,
+    irDetected: false,
+    locked: true,
+    ignitionEnabled: false,
+    startAuthorized: false,
+    breathTestWaiting: false,
+    breathBlowDetected: false,
+    mq3BaselineReady: false,
+    mq3Stabilizing: false,
+    lastUpdated: null,
+  };
+}
+
+function updateBluetoothSettingsStatus(connected) {
+  const statusText = document.getElementById('bluetooth-status-text');
+
+  if (!statusText) return;
+
+  statusText.textContent = connected ? 'Connected' : 'Disconnected';
+  statusText.classList.toggle('green-text', connected);
+  statusText.classList.toggle('red-text', !connected);
 }
 
 function updateMotoLockSensorUi() {
@@ -6385,22 +6351,45 @@ function updateMotoLockSensorUi() {
   );
 
   if (summary) {
-    summary.textContent = sobrietyWindowActive
+    summary.textContent = sobrietyWindowActive || sobrietyWaitingForBreath
       ? `Helmet ${motolockSensorData.irDetected ? 'detected' : 'waiting'} · MQ-3 ${motolockSensorData.mq3Value ?? '--'}`
       : 'Bluetooth connected · MQ-3 waiting for breath test';
   }
 
   if (reading) {
-    if (!sobrietyWindowActive) {
+    if (sobrietyWaitingForBreath) {
+      reading.textContent = motolockSensorData.mq3Stabilizing
+        ? 'Stabilizing...'
+        : motolockSensorData.mq3BaselineReady
+          ? 'Ready'
+          : 'Baseline...';
+      reading.className = 'waiting';
+    } else if (!sobrietyWindowActive) {
       reading.textContent = 'Waiting...';
       reading.className = 'waiting';
     } else {
       reading.textContent = motolockSensorData.bracText || formatBracPercent(bracValue);
-      reading.className = bracValue !== null && bracValue >= BRAC_ALCOHOL_LIMIT_PERCENT ? 'danger-value' : 'safe-value';
+      reading.className = isBracAtOrOverLimit(bracValue) ? 'danger-value' : 'safe-value';
     }
   }
 
   if (status) {
+    if (sobrietyWaitingForBreath) {
+      if (!motolockSensorData.irDetected) {
+        status.textContent = 'Helmet/rider not detected by IR sensor.';
+      }
+      else if (motolockSensorData.mq3Stabilizing) {
+        status.textContent = 'MQ-3 sensor stabilizing. The 10s ready timer will start when the sensor is ready.';
+      }
+      else if (!motolockSensorData.mq3BaselineReady) {
+        status.textContent = 'Calibrating MQ-3 baseline. The 10s ready timer will start after calibration.';
+      }
+      else {
+        status.textContent = `Get ready. MQ-3 reading starts in ${sobrietyNoBreathSecondsRemaining}s.`;
+      }
+      return;
+    }
+
     if (!sobrietyWindowActive) {
       status.textContent = waitingForFaceChecks
         ? 'MQ-3 waiting. Complete both Face ID checks first.'
@@ -6413,12 +6402,12 @@ function updateMotoLockSensorUi() {
       return;
     }
 
-    status.textContent = bracValue >= BRAC_ALCOHOL_LIMIT_PERCENT
-      ? 'Alcohol detected. Ignition will remain locked.'
+    status.textContent = isBracAtOrOverLimit(bracValue)
+      ? `Alcohol detected. ${sobrietySecondsRemaining}s remaining. Ignition will remain locked.`
       : motolockSensorData.irDetected
         ? sobrietyReadingCaptured
-          ? `Breath detected. ${sobrietySecondsRemaining}s remaining.`
-          : `Please blow within ${sobrietyNoBreathSecondsRemaining}s.`
+          ? `Measuring alcohol. ${sobrietySecondsRemaining}s remaining.`
+          : `Get ready. MQ-3 reading starts in ${sobrietyNoBreathSecondsRemaining}s.`
         : 'Helmet/rider not detected by IR sensor.';
   }
 }
@@ -6443,8 +6432,9 @@ function stopHardwareSobrietyWatcher(options = {}) {
 
   stopNoBreathTimer();
   sobrietyWindowActive = false;
+  sobrietyWaitingForBreath = false;
   if (notifyHardware) {
-    sendMotoLockCommand('BREATH_WAIT').catch(() => {});
+    sendMotoLockCommand('RESET_ALCOHOL').catch(() => {});
   }
 }
 
@@ -6463,6 +6453,7 @@ function stopNoBreathTimer() {
 function startHardwareSobrietyWatcher() {
   stopHardwareSobrietyWatcher({ notifyHardware: false });
   resetSobrietyReadingWindow();
+  sobrietyDecisionMade = false;
 
   if (!rideCheckStatus.noHelmetVerified || !rideCheckStatus.helmetVerified) {
     updateMotoLockSensorUi();
@@ -6471,46 +6462,35 @@ function startHardwareSobrietyWatcher() {
     return;
   }
 
-  sobrietyWindowActive = true;
-  sobrietySecondsRemaining = SOBRIETY_BLOW_WINDOW_SECONDS;
+  sobrietyWaitingForBreath = true;
+  sobrietyWindowActive = false;
+  sobrietyReadingCaptured = false;
+  sobrietySecondsRemaining = 0;
   sobrietyNoBreathSecondsRemaining = SOBRIETY_NO_BREATH_SECONDS;
   updateMotoLockSensorUi();
   sendMotoLockCommand('BREATH_START').catch(() => {});
   sendMotoLockCommand('STATUS').catch(() => {});
 
-  sobrietyCountdownInterval = setInterval(() => {
-    sobrietySecondsRemaining = Math.max(0, sobrietySecondsRemaining - 1);
-    updateMotoLockSensorUi();
-  }, 1000);
-
   sobrietyCheckInterval = setInterval(() => {
     runHardwareSobrietyCheck({ silentWaiting: true });
   }, 1000);
+}
 
-  sobrietyNoBreathInterval = setInterval(() => {
-    if (sobrietyReadingCaptured) {
-      stopNoBreathTimer();
-      updateMotoLockSensorUi();
-      return;
-    }
+function startMeasuredSobrietyWindow() {
+  if (sobrietyWindowActive || sobrietyDecisionMade) return;
 
-    sobrietyNoBreathSecondsRemaining = Math.max(0, sobrietyNoBreathSecondsRemaining - 1);
-    updateMotoLockSensorUi();
-  }, 1000);
-
-  sobrietyNoBreathTimeout = setTimeout(() => {
-    if (!sobrietyReadingCaptured) {
-      restartHelmetVerificationAfterNoBreath();
-    }
-  }, SOBRIETY_NO_BREATH_SECONDS * 1000);
-
-  sobrietyTimeout = setTimeout(() => {
-    runHardwareSobrietyCheck({ forceDecision: true });
-  }, SOBRIETY_BLOW_WINDOW_SECONDS * 1000);
+  stopNoBreathTimer();
+  sobrietyWaitingForBreath = false;
+  sobrietyWindowActive = true;
+  sobrietyReadingCaptured = true;
+  sobrietySecondsRemaining = SOBRIETY_BLOW_WINDOW_SECONDS;
+  updateMotoLockSensorUi();
 }
 
 function resetSobrietyReadingWindow() {
   sobrietyReadingCaptured = false;
+  sobrietyWaitingForBreath = false;
+  sobrietyDecisionMade = false;
   sobrietySecondsRemaining = 0;
   sobrietyNoBreathSecondsRemaining = 0;
   sobrietyMq3Baseline = null;
@@ -6550,29 +6530,7 @@ function trackMq3BreathSignal(rawMq3Value, incomingBrac) {
     }
   }
 
-  const mq3Delta = sobrietyMq3Baseline === null || sobrietyMq3Peak === null
-    ? 0
-    : sobrietyMq3Peak - sobrietyMq3Baseline;
-  const bracDelta = sobrietyBracBaseline === null || sobrietyBracPeak === null
-    ? 0
-    : sobrietyBracPeak - sobrietyBracBaseline;
-  const requiredMq3Delta = sobrietyMq3Baseline === null
-    ? MQ3_BREATH_MIN_RAW_DELTA
-    : Math.max(MQ3_BREATH_MIN_RAW_DELTA, sobrietyMq3Baseline * MQ3_BREATH_MIN_RATIO_DELTA);
-  const hasMq3BreathSignal = false;
-  const hasBracBreathSignal =
-    incomingBrac !== null &&
-    incomingBrac > BRAC_BREATH_MIN_PERCENT;
-
-  if (hasMq3BreathSignal || hasBracBreathSignal) {
-    sobrietyBreathSignalCount += 1;
-  }
-
-  sobrietyReadingCaptured = sobrietyBreathSignalCount >= MQ3_BREATH_MIN_SAMPLES;
-
-  if (sobrietyReadingCaptured) {
-    stopNoBreathTimer();
-  }
+  // Breath detection is owned by ESP32 using ADC delta/slope, not BrAC percent.
 }
 
 function restartHelmetVerificationAfterNoBreath() {
@@ -6660,21 +6618,100 @@ function parseMotoLockStatus(line) {
 
   if (!msg) return;
 
+  const knownEvents = [
+    'RESULT_PASS',
+    'RESULT_FAIL',
+    'BLOW_NOT_DETECTED',
+    'BREATH_DETECTED',
+    'LOCKED',
+    'UNLOCKED',
+    'START_AUTHORIZED',
+    'BREATH_WAITING',
+    'BREATH_WAITING_FOR_BLOW',
+    'BREATH_RESET',
+    'BREATH_STARTED'
+  ];
+
+  if (msg.includes('\n')) {
+    msg.split(/\r?\n/).forEach(part => parseMotoLockStatus(part));
+    return;
+  }
+
+  for (const event of knownEvents) {
+    const eventIndex = msg.indexOf(event);
+
+    if (eventIndex > 0) {
+      parseMotoLockStatus(msg.slice(0, eventIndex));
+      parseMotoLockStatus(event);
+
+      const rest = msg.slice(eventIndex + event.length);
+      if (rest.trim()) parseMotoLockStatus(rest);
+      return;
+    }
+  }
+
+  if (msg === 'RESULT_PASS') {
+    if (!sobrietyDecisionMade) {
+      finishSobrietyTest(
+        isBracAtOrOverLimit(motolockSensorData.displayBrac ?? motolockSensorData.brac)
+          ? 'failed'
+          : 'passed'
+      );
+    }
+    return;
+  }
+
+  if (msg === 'RESULT_FAIL') {
+    if (!sobrietyDecisionMade) {
+      finishSobrietyTest('failed');
+    }
+    return;
+  }
+
+  if (msg === 'BLOW_NOT_DETECTED') {
+    if (!sobrietyDecisionMade) {
+      sobrietyDecisionMade = true;
+      restartHelmetVerificationAfterNoBreath();
+    }
+    return;
+  }
+
+  if (msg === 'BREATH_DETECTED') {
+    startMeasuredSobrietyWindow();
+    sendMotoLockCommand('STATUS').catch(() => {});
+    return;
+  }
+
   if (msg === 'LOCKED' || msg === 'UNLOCKED' || msg === 'START_AUTHORIZED') {
     motolockSensorData.locked = msg === 'LOCKED';
     motolockSensorData.startAuthorized = msg === 'START_AUTHORIZED';
     motolockSensorData.lastUpdated = Date.now();
+    syncRideStateFromHardwareStatus();
     updateMotoLockSensorUi();
     return;
   }
 
-  const payload = msg.startsWith('STATUS:')
+  let payload = msg.startsWith('STATUS:')
     ? msg.slice('STATUS:'.length)
     : msg.startsWith('{')
       ? msg
       : null;
 
   if (!payload) return;
+
+  const firstBrace = payload.indexOf('{');
+  const lastBrace = payload.indexOf('}', firstBrace);
+
+  if (firstBrace !== -1 && lastBrace !== -1) {
+    const jsonPayload = payload.slice(firstBrace, lastBrace + 1);
+    const rest = payload.slice(lastBrace + 1).trim();
+
+    payload = jsonPayload;
+
+    if (rest) {
+      setTimeout(() => parseMotoLockStatus(rest), 0);
+    }
+  }
 
   try {
     const data = JSON.parse(payload);
@@ -6688,12 +6725,28 @@ function parseMotoLockStatus(line) {
     const incomingMq3Value = Number.isFinite(Number(data.mq3Value ?? data.mq3))
       ? Number(data.mq3Value ?? data.mq3)
       : motolockSensorData.mq3Value;
+    const hardwareStatus = data.testStatus || data.status || '';
+    const hardwareRemainingSeconds = Number(data.remainingSeconds);
     const displayBrac = incomingBrac === null
       ? motolockSensorData.displayBrac
       : Math.max(motolockSensorData.displayBrac ?? 0, incomingBrac);
     const alcoholDetected = sobrietyWindowActive && displayBrac !== null
       ? displayBrac >= BRAC_ALCOHOL_LIMIT_PERCENT
       : false;
+    const hardwareBreathDetected = Boolean(data.breathBlowDetected || data.breathTestActive);
+
+    if (sobrietyWaitingForBreath && hardwareBreathDetected) {
+      startMeasuredSobrietyWindow();
+    }
+
+    if (Number.isFinite(hardwareRemainingSeconds)) {
+      if (sobrietyWindowActive) {
+        sobrietySecondsRemaining = Math.max(0, hardwareRemainingSeconds);
+      }
+      else if (sobrietyWaitingForBreath) {
+        sobrietyNoBreathSecondsRemaining = Math.max(0, hardwareRemainingSeconds);
+      }
+    }
 
     trackMq3BreathSignal(incomingMq3Value, incomingBrac);
 
@@ -6704,6 +6757,14 @@ function parseMotoLockStatus(line) {
       displayBrac,
       bracText: sobrietyWindowActive ? formatBracPercent(displayBrac) : null,
       alcoholDetected,
+      testStatus: hardwareStatus,
+      remainingSeconds: Number.isFinite(hardwareRemainingSeconds)
+        ? hardwareRemainingSeconds
+        : motolockSensorData.remainingSeconds,
+      breathTestWaiting: Boolean(data.breathTestWaiting),
+      breathBlowDetected: hardwareBreathDetected,
+      mq3BaselineReady: Boolean(data.mq3BaselineReady),
+      mq3Stabilizing: Boolean(data.mq3Stabilizing),
       irDetected: Boolean(data.irDetected ?? data.helmetDetected ?? data.riderDetected),
       locked: typeof data.locked === 'boolean' ? data.locked : motolockSensorData.locked,
       ignitionEnabled: Boolean(data.ignitionEnabled ?? data.ignition),
@@ -6711,8 +6772,30 @@ function parseMotoLockStatus(line) {
       lastUpdated: Date.now(),
     };
 
-    if (sobrietyWindowActive && motolockSensorData.lastUpdated && !motolockSensorData.irDetected) {
+    syncRideStateFromHardwareStatus();
+
+    if ((sobrietyWindowActive || sobrietyWaitingForBreath) && motolockSensorData.lastUpdated && !motolockSensorData.irDetected) {
       restartHelmetVerificationAfterSobrietyHelmetLoss();
+      return;
+    }
+
+    if (hardwareStatus === 'BLOW_NOT_DETECTED' && !sobrietyDecisionMade) {
+      sobrietyDecisionMade = true;
+      restartHelmetVerificationAfterNoBreath();
+      return;
+    }
+
+    if (hardwareStatus === 'RESULT_PASS' && !sobrietyDecisionMade) {
+      finishSobrietyTest(
+        isBracAtOrOverLimit(displayBrac)
+          ? 'failed'
+          : 'passed'
+      );
+      return;
+    }
+
+    if (hardwareStatus === 'RESULT_FAIL' && !sobrietyDecisionMade) {
+      finishSobrietyTest('failed');
       return;
     }
 
@@ -6731,8 +6814,79 @@ function startMotoLockBluetoothRead() {
   bt.subscribe(
     '\n',
     line => parseMotoLockStatus(line),
-    err => console.warn('Bluetooth subscribe failed:', err)
+    err => {
+      console.warn('Bluetooth subscribe failed:', err);
+      handleMotoLockBluetoothDisconnected('Bluetooth data stream stopped.');
+    }
   );
+}
+
+function startMotoLockConnectionMonitor() {
+  if (motolockBluetoothMonitor) {
+    clearInterval(motolockBluetoothMonitor);
+  }
+
+  motolockBluetoothMonitor = setInterval(async () => {
+    const connected = await checkMotoLockBluetoothConnection();
+
+    if (!connected) {
+      handleMotoLockBluetoothDisconnected('Bluetooth connection was lost.');
+      return;
+    }
+
+    const lastStatusAt = motolockSensorData.lastUpdated || motolockBluetoothConnectedAt;
+    const hasTimedOut =
+      lastStatusAt &&
+      Date.now() - lastStatusAt > MOTOLOCK_STATUS_TIMEOUT_MS;
+
+    if (hasTimedOut) {
+      handleMotoLockBluetoothDisconnected('ESP32 stopped sending status updates.');
+      return;
+    }
+
+    sendMotoLockCommand('STATUS').catch(() => {
+      handleMotoLockBluetoothDisconnected('Could not send Bluetooth status request.');
+    });
+  }, MOTOLOCK_CONNECTION_CHECK_MS);
+}
+
+function stopMotoLockConnectionMonitor() {
+  if (motolockBluetoothMonitor) {
+    clearInterval(motolockBluetoothMonitor);
+    motolockBluetoothMonitor = null;
+  }
+}
+
+function handleMotoLockBluetoothDisconnected(reason = 'Bluetooth connection was lost.') {
+  if (motolockBluetoothDisconnectHandled) return;
+
+  motolockBluetoothDisconnectHandled = true;
+  rememberBluetoothReturnScreen();
+  stopMotoLockConnectionMonitor();
+  stopHardwareSobrietyWatcher({ notifyHardware: false });
+
+  setupStatus.hasConnectedDevice = false;
+  localStorage.removeItem('motolock_device_connected');
+  motolockBluetoothConnectedAt = 0;
+  resetMotoLockSensorConnectionState();
+  updateBluetoothSettingsStatus(false);
+  setMotoLockConnectStatus('Disconnected. Tap to reconnect.');
+  dashboardRideState = 'deviceDisconnected';
+  dashboardLockReason = '';
+  updateDashboardStatus();
+
+  const bt = getBluetoothSerial();
+  if (bt) {
+    bt.unsubscribe(() => {}, () => {});
+  }
+
+  console.warn('MotoLock Bluetooth disconnected:', reason);
+  openModal('m-bluetooth-disconnected');
+}
+
+function goToBluetoothReconnect() {
+  closeModal('m-bluetooth-disconnected');
+  go('connectDevice');
 }
 
 function sendMotoLockCommand(command) {
@@ -6770,12 +6924,16 @@ async function ensureMotoLockBluetoothConnected() {
   if (!connected) {
     setupStatus.hasConnectedDevice = false;
     localStorage.removeItem('motolock_device_connected');
+    updateBluetoothSettingsStatus(false);
     return false;
   }
 
   setupStatus.hasConnectedDevice = true;
   localStorage.setItem('motolock_device_connected', '1');
+  motolockBluetoothConnectedAt = Date.now();
+  updateBluetoothSettingsStatus(true);
   startMotoLockBluetoothRead();
+  startMotoLockConnectionMonitor();
   sendMotoLockCommand('STATUS').catch(() => {});
   return true;
 }
@@ -6833,9 +6991,21 @@ function connectMotoLockDevice() {
 function onMotoLockConnected() {
   setupStatus.hasConnectedDevice = true;
   localStorage.setItem('motolock_device_connected', '1');
+  motolockBluetoothConnectedAt = Date.now();
+  motolockBluetoothDisconnectHandled = false;
   setMotoLockConnectStatus('Connected');
+  updateBluetoothSettingsStatus(true);
   startMotoLockBluetoothRead();
+  startMotoLockConnectionMonitor();
   sendMotoLockCommand('STATUS').catch(() => {});
+
+  if (motolockBluetoothReturnScreen) {
+    const returnScreen = motolockBluetoothReturnScreen;
+    motolockBluetoothReturnScreen = null;
+    go(returnScreen);
+    return;
+  }
+
   go('deviceConnected');
 }
 
@@ -6877,53 +7047,16 @@ function connectMotoLockByAddress(address, deviceName) {
 }
 
 function runHardwareSobrietyCheck(options = {}) {
-  const bracValue = normalizeBracValue(
-    motolockSensorData.displayBrac ?? motolockSensorData.brac
-  );
-
   sendMotoLockCommand('STATUS').catch(() => {});
 
-  if (!sobrietyWindowActive) {
+  if (!sobrietyWindowActive && !sobrietyWaitingForBreath) {
     if (!options.silentWaiting) {
       alert('MQ-3 is waiting. Complete both Face ID checks before the breath test.');
     }
     return;
   }
 
-  if (!options.forceDecision) {
-    updateMotoLockSensorUi();
-    return;
-  }
-
-  if (!motolockSensorData.lastUpdated || bracValue === null || !sobrietyReadingCaptured) {
-    if (!options.silentWaiting) {
-      alert('Waiting for MQ-3 data from the ESP32. Keep the helmet powered on and connected.');
-      restartHelmetVerificationAfterNoBreath();
-    } else {
-      restartHelmetVerificationAfterNoBreath();
-    }
-    return;
-  }
-
-  if (!motolockSensorData.irDetected) {
-    stopHardwareSobrietyWatcher();
-    if (!options.silentWaiting) {
-      alert('Helmet/rider not detected by IR sensor.');
-    } else {
-      alert('Helmet/rider was not detected during the 30-second breath test. Please try again.');
-    }
-    go('sobrietyTest');
-    return;
-  }
-
-  stopHardwareSobrietyWatcher();
-
-  if (bracValue >= BRAC_ALCOHOL_LIMIT_PERCENT) {
-    finishSobrietyTest('failed');
-    return;
-  }
-
-  finishSobrietyTest('passed');
+  updateMotoLockSensorUi();
 }
 
 function go(id) {
@@ -6984,8 +7117,8 @@ if (currentScreen && currentScreen.id !== id && !isGoingBack) {
   if (id === 'dashboard') {
   loadFaceModels().catch(err => console.warn('Face model warmup failed:', err.message));
   loadMotorcycles();
-  updateDashboardStatus();
   updateDashboardMotorcycle();
+  syncDashboardLiveMotorcycleStatus();
 }
 
   if (id === "dashboard" || id === "riderProfile") {
@@ -6997,6 +7130,9 @@ if (currentScreen && currentScreen.id !== id && !isGoingBack) {
 }
 if (id === "motorcycleList") {
   loadMotorcycles();
+}
+if (id === "rideHistory") {
+  loadRideHistory();
 }
 }
 
@@ -7021,6 +7157,11 @@ if (id === "motorcycleList") {
       hasMotorcycle: false,
       hasConnectedDevice: false
 };
+
+function startFaceRegistration(returnTarget = 'createPin') {
+  faceIdReturnTarget = returnTarget;
+  go('faceIntro');
+}
 
 
     // sa pin //
@@ -7272,22 +7413,228 @@ function closeContactSavedPopup() {
   go("motorcycleRegister");
 }
 
+let rideHistoryRecords = [];
+let rideHistoryFilter = 'all';
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatRideHistoryDate(value) {
+  const date = value ? new Date(value) : new Date();
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown date';
+  }
+
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function normalizeRideHistoryRecord(record) {
+  const status = record.status === 'alert' ? 'alert' : 'completed';
+  const brac = normalizeBracValue(record.brac ?? record.finalBrac ?? record.alcoholPercentage) ?? 0;
+
+  return {
+    ...record,
+    status,
+    brac,
+    faceVerified: Boolean(record.faceVerified ?? record.face_verified),
+    helmetVerified: Boolean(record.helmetVerified ?? record.helmet_verified),
+    alcoholDetected: Boolean(record.alcoholDetected ?? record.alcohol_detected),
+    alertSent: Boolean(record.alertSent ?? record.alert_sent),
+    unlockStatus: record.unlockStatus ?? record.unlock_status ?? '',
+    motorcyclePlate: record.motorcyclePlate ?? record.motorcycle_plate ?? 'No plate',
+    motorcycleModel: record.motorcycleModel ?? record.motorcycle_model ?? 'Motorcycle',
+    createdAt: record.createdAt ?? record.created_at,
+  };
+}
+
+function renderRideHistory() {
+  const list = document.getElementById('ride-history-list');
+  const totalCount = document.getElementById('history-total-count');
+  const alertCount = document.getElementById('history-alert-count');
+
+  if (!list) return;
+
+  const normalized = rideHistoryRecords.map(normalizeRideHistoryRecord);
+  const alerts = normalized.filter(record => record.status === 'alert').length;
+  const visibleRecords = rideHistoryFilter === 'all'
+    ? normalized
+    : normalized.filter(record => record.status === rideHistoryFilter);
+
+  if (totalCount) totalCount.textContent = String(normalized.length);
+  if (alertCount) alertCount.textContent = String(alerts);
+
+  if (visibleRecords.length === 0) {
+    list.innerHTML = `
+      <div class="history-empty">
+        <h3>No ride history yet</h3>
+        <p>Completed sobriety tests will appear here after the final MQ-3 result is saved.</p>
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = visibleRecords.map(record => {
+    const bracText = formatBracPercent(record.brac);
+    const motorcycleText = `${escapeHtml(record.motorcyclePlate)} · ${escapeHtml(record.motorcycleModel)}`;
+
+    if (record.status === 'alert') {
+      return `
+        <article class="ride-card alert" data-status="alert">
+          <div class="ride-card-top">
+            <div>
+              <p class="ride-date">${escapeHtml(formatRideHistoryDate(record.createdAt))}</p>
+              <h3>${motorcycleText}</h3>
+            </div>
+
+            <span class="status-pill danger">
+              <svg class="icon"><use href="#icon-alert"></use></svg>
+              Safety Alert
+            </span>
+          </div>
+
+          <div class="ride-details danger">
+            <div>
+              <svg class="icon"><use href="#icon-alert"></use></svg>
+              <span>Alcohol<br>Detected</span>
+            </div>
+
+            <div>
+              <svg class="icon"><use href="#icon-lock"></use></svg>
+              <span>Still<br>Locked</span>
+            </div>
+
+            <div>
+              <svg class="icon"><use href="#icon-send"></use></svg>
+              <span>Alert<br>${record.alertSent ? 'Sent' : 'Pending'}</span>
+            </div>
+
+            <div>
+              <svg class="icon"><use href="#icon-shield"></use></svg>
+              <span>BrAC<br>${escapeHtml(bracText)}</span>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    return `
+      <article class="ride-card" data-status="completed">
+        <div class="ride-card-top">
+          <div>
+            <p class="ride-date">${escapeHtml(formatRideHistoryDate(record.createdAt))}</p>
+            <h3>${motorcycleText}</h3>
+          </div>
+
+          <span class="status-pill success">
+            <svg class="icon"><use href="#icon-check"></use></svg>
+            Completed
+          </span>
+        </div>
+
+        <div class="ride-details three">
+          <div>
+            <svg class="icon"><use href="#icon-user"></use></svg>
+            <span>Face<br>${record.faceVerified ? 'Verified' : 'Pending'}</span>
+          </div>
+
+          <div>
+            <svg class="icon"><use href="#icon-helmet"></use></svg>
+            <span>Helmet<br>${record.helmetVerified ? 'Verified' : 'Pending'}</span>
+          </div>
+
+          <div>
+            <svg class="icon"><use href="#icon-shield"></use></svg>
+            <span>BrAC<br>${escapeHtml(bracText)}</span>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+async function loadRideHistory() {
+  const list = document.getElementById('ride-history-list');
+  if (list) {
+    list.innerHTML = `
+      <div class="history-empty">
+        <h3>Loading ride history</h3>
+        <p>Fetching saved sobriety test logs.</p>
+      </div>
+    `;
+  }
+
+  try {
+    const result = await api('/ride-history', {
+      method: 'GET',
+    });
+
+    rideHistoryRecords = result.records || [];
+    renderRideHistory();
+  } catch (err) {
+    console.log(err);
+    if (list) {
+      list.innerHTML = `
+        <div class="history-empty">
+          <h3>Ride history unavailable</h3>
+          <p>${escapeHtml(err.message || 'Please check the backend connection and try again.')}</p>
+        </div>
+      `;
+    }
+  }
+}
+
+async function saveRideHistoryLog(result) {
+  const passed = result === 'passed';
+  const selectedMotorcycle = motorcycles[selectedRideMotorcycleIndex] || motorcycles[0] || {};
+  const brac = normalizeBracValue(motolockSensorData.displayBrac ?? motolockSensorData.brac) ?? 0;
+
+  try {
+    const response = await api('/ride-history', {
+      method: 'POST',
+      body: JSON.stringify({
+        motorcycleId: selectedMotorcycle.id || null,
+        motorcyclePlate: selectedMotorcycle.plate || 'No plate',
+        motorcycleModel: selectedMotorcycle.model || 'Motorcycle',
+        status: passed ? 'completed' : 'alert',
+        faceVerified: rideCheckStatus.noHelmetVerified === true,
+        helmetVerified: rideCheckStatus.helmetVerified === true,
+        alcoholDetected: !passed,
+        alertSent: !passed,
+        brac,
+        unlockStatus: passed ? 'Ignition access granted' : 'Motor still locked',
+      }),
+    });
+
+    if (response.record) {
+      rideHistoryRecords = [response.record, ...rideHistoryRecords];
+    }
+  } catch (err) {
+    console.warn('Ride history log was not saved:', err);
+  }
+}
+
 function filterHistory(button, filter) {
   document.querySelectorAll('.history-filter button').forEach(btn => {
     btn.classList.remove('active');
   });
 
   button.classList.add('active');
+  rideHistoryFilter = filter;
 
-  document.querySelectorAll('.history-list .ride-card').forEach(card => {
-    const status = card.dataset.status;
-
-    if (filter === 'all' || status === filter) {
-      card.classList.remove('hide');
-    } else {
-      card.classList.add('hide');
-    }
-  });
+  renderRideHistory();
 }
 
 function toggleSwitch(switchElement) {
@@ -7576,9 +7923,7 @@ async function verifyEmailCode() {
 
     alert("Email verified successfully. Account created!");
 
-    faceIdReturnTarget = "createPin";
-
-    go("faceIntro");
+    startFaceRegistration("createPin");
 
   } catch (err) {
 
@@ -7683,7 +8028,7 @@ function reRegisterFaceId() {
 
   clearLocalFaceProfiles();
 
-  go('faceIntro');
+  startFaceRegistration('dashboard');
 }
 
 function removeFaceId() {
@@ -7755,6 +8100,10 @@ function disconnectDevice() {
     'MotoLock-Motor will be disconnected from Bluetooth.',
     () => {
       sendMotoLockCommand('LOCK').catch(() => {});
+      stopMotoLockConnectionMonitor();
+      motolockBluetoothDisconnectHandled = true;
+      motolockBluetoothReturnScreen = null;
+      motolockBluetoothConnectedAt = 0;
       const bt = getBluetoothSerial();
       if (bt) {
         bt.unsubscribe(() => {}, () => {});
@@ -7763,9 +8112,8 @@ function disconnectDevice() {
 
       setupStatus.hasConnectedDevice = false;
       localStorage.removeItem('motolock_device_connected');
-      document.getElementById('bluetooth-status-text').textContent = 'Disconnected';
-      document.getElementById('bluetooth-status-text').classList.remove('green-text');
-      document.getElementById('bluetooth-status-text').classList.add('red-text');
+      resetMotoLockSensorConnectionState();
+      updateBluetoothSettingsStatus(false);
       showAppPopup('Device Disconnected', 'Your MotoLock device has been disconnected.');
     }
   );
@@ -8043,8 +8391,7 @@ async function verifyFaceIdPin() {
     alert('PIN Verified\n\nYou will be redirected to Face ID registration.');
 
     clearLocalFaceProfiles();
-    faceIdReturnTarget = 'settings';
-    go('faceIntro');
+    startFaceRegistration('dashboard');
   }
 
   if (pendingFaceIdAction === 'remove') {
@@ -8402,6 +8749,17 @@ function groupPhoneDigits(digits, groups) {
 
 function isValidPhoneNumber(phone) {
   return /^09\d{9}$/.test(phone) || /^\+63 9\d{2} \d{3} \d{4}$/.test(phone);
+}
+
+function normalizePhoneForApi(phone) {
+  const compactPhone = String(phone || '').trim().replace(/[\s().-]/g, '');
+
+  if (/^09\d{9}$/.test(compactPhone)) return compactPhone;
+  if (/^\+639\d{9}$/.test(compactPhone)) return compactPhone;
+  if (/^639\d{9}$/.test(compactPhone)) return `+${compactPhone}`;
+  if (/^9\d{9}$/.test(compactPhone)) return `0${compactPhone}`;
+
+  return compactPhone;
 }
 
 function getNextSetupStep() {
@@ -8792,7 +9150,7 @@ async function startUnlockCheck() {
     return;
   }
 
-  sendMotoLockCommand('BREATH_WAIT').catch(() => {});
+  sendMotoLockCommand('RESET_ALCOHOL').catch(() => {});
 
   // Reset verification every unlock request. The motorcycle stays locked until all checks pass.
   verificationFailureCount = 0;
@@ -8875,11 +9233,25 @@ function completeHelmetVerification(verifiedByFace = false) {
   go('sobrietyTest');
 }
 
-function finishSobrietyTest(result) {
+async function finishSobrietyTest(result) {
+  if (sobrietyDecisionMade) {
+    return;
+  }
+
+  sobrietyDecisionMade = true;
+  stopHardwareSobrietyWatcher({ notifyHardware: false });
+
   if (!rideCheckStatus.noHelmetVerified || !rideCheckStatus.helmetVerified) {
     alert('Verification Required\n\nPlease complete both face verification steps first.');
     go('identityCheck');
     return;
+  }
+
+  if (
+    result === 'passed' &&
+    isBracAtOrOverLimit(motolockSensorData.displayBrac ?? motolockSensorData.brac)
+  ) {
+    result = 'failed';
   }
 
   if (result === 'passed') {
@@ -8896,6 +9268,7 @@ function finishSobrietyTest(result) {
       console.warn('MotoLock start authorization failed:', err);
       alert('Safety checks passed, but the app could not authorize the ESP32 start button. Check Bluetooth connection.');
     });
+    await saveRideHistoryLog('passed');
     go('goodToRide');
     return;
   }
@@ -8912,6 +9285,7 @@ function finishSobrietyTest(result) {
     }
     sendMotoLockCommand('LOCK').catch(() => {});
     sendEmergencyAlert();
+    await saveRideHistoryLog('failed');
     go('alcoholLocked');
   }
 }
@@ -8920,8 +9294,89 @@ function sendEmergencyAlert() {
   console.log('Emergency alert sent to registered emergency contacts.');
 }
 
-let dashboardRideState = 'lockedDefault';
+let dashboardRideState = 'checking';
 let dashboardLockReason = '';
+
+function applyDashboardStateFromHardwareStatus() {
+  if (!motolockSensorData.lastUpdated) {
+    dashboardRideState = 'statusUnknown';
+    dashboardLockReason = '';
+    updateDashboardStatus();
+    return;
+  }
+
+  dashboardLockReason = '';
+
+  if (motolockSensorData.locked === false) {
+    dashboardRideState = 'rideActive';
+  }
+  else if (motolockSensorData.startAuthorized === true) {
+    dashboardRideState = 'unlocked';
+  }
+  else if (motolockSensorData.locked === true) {
+    dashboardRideState = 'lockedDefault';
+  }
+  else {
+    dashboardRideState = 'statusUnknown';
+  }
+
+  updateDashboardStatus();
+}
+
+function syncRideStateFromHardwareStatus() {
+  if (!motolockSensorData.lastUpdated) return;
+
+  const activeScreen = document.querySelector('.screen.active');
+  const shouldSyncVisibleStatus = ['dashboard', 'goodToRide', 'deviceConnected'].includes(activeScreen?.id);
+
+  if (!shouldSyncVisibleStatus) {
+    if (motolockSensorData.locked === false) {
+      dashboardRideState = 'rideActive';
+      dashboardLockReason = '';
+    }
+    return;
+  }
+
+  applyDashboardStateFromHardwareStatus();
+
+  if (
+    activeScreen?.id === 'goodToRide' &&
+    motolockSensorData.startAuthorized === false &&
+    motolockSensorData.locked !== false
+  ) {
+    go('dashboard');
+    return;
+  }
+}
+
+async function syncDashboardLiveMotorcycleStatus() {
+  dashboardRideState = 'checking';
+  dashboardLockReason = '';
+  updateDashboardStatus();
+
+  const connected = await ensureMotoLockBluetoothConnected();
+
+  if (!connected) {
+    dashboardRideState = 'deviceDisconnected';
+    dashboardLockReason = '';
+    updateDashboardStatus();
+    return;
+  }
+
+  const requestedAt = Date.now();
+  sendMotoLockCommand('STATUS').catch(() => {});
+
+  setTimeout(() => {
+    if (motolockSensorData.lastUpdated && motolockSensorData.lastUpdated >= requestedAt) {
+      applyDashboardStateFromHardwareStatus();
+      return;
+    }
+
+    dashboardRideState = 'statusUnknown';
+    dashboardLockReason = '';
+    updateDashboardStatus();
+  }, 1200);
+}
 
 function updateDashboardStatus() {
   const card = document.getElementById('dashboard-status-card');
@@ -8935,6 +9390,7 @@ function updateDashboardStatus() {
     'locked-default',
     'unlock-checking',
     'unlocked',
+    'ride-active',
     'still-locked'
   );
 
@@ -8969,6 +9425,38 @@ function updateDashboardStatus() {
     title.textContent = 'Setup Required';
     text.textContent =
       'Complete Face ID, PIN, emergency contact, motorcycle, and device setup before requesting ignition unlock.';
+    return;
+  }
+
+  if (dashboardRideState === 'checking') {
+    card.classList.add('unlock-checking');
+    title.textContent = 'Checking Motorcycle Status...';
+    text.textContent =
+      'Syncing with the MotoLock ESP32 before showing the current motorcycle state.';
+    return;
+  }
+
+  if (dashboardRideState === 'deviceDisconnected') {
+    card.classList.add('still-locked');
+    title.textContent = 'Device Disconnected';
+    text.textContent =
+      'MotoLock cannot confirm the motorcycle state. Reconnect Bluetooth to view live status.';
+    return;
+  }
+
+  if (dashboardRideState === 'statusUnknown') {
+    card.classList.add('unlock-checking');
+    title.textContent = 'Status Unknown';
+    text.textContent =
+      'MotoLock could not confirm the live ESP32 state. Reconnect or request status again.';
+    return;
+  }
+
+  if (dashboardRideState === 'rideActive') {
+    card.classList.add('ride-active');
+    title.textContent = 'Ride Active';
+    text.textContent =
+      'The ESP32 reports that the motorcycle starter/relay is currently unlocked or running.';
     return;
   }
 
@@ -9142,12 +9630,9 @@ async function validateCreateAccount() {
     const email =
       document.getElementById("create-email").value.trim();
 
-    const phone =
-      document
-        .getElementById("create-phone")
-        .value
-        .trim()
-        .replace(/\s+/g, "");
+    const phone = normalizePhoneForApi(
+      document.getElementById("create-phone").value
+    );
 
     const password =
       document.getElementById("create-password").value;
@@ -9173,6 +9658,11 @@ async function validateCreateAccount() {
 
     if (password !== confirmPassword) {
       alert("Passwords do not match.");
+      return;
+    }
+
+    if (!(/^09\d{9}$/.test(phone) || /^\+639\d{9}$/.test(phone))) {
+      alert("Please enter a valid Philippine phone number.");
       return;
     }
 

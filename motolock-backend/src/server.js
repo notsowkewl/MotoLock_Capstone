@@ -44,6 +44,22 @@ function generateToken(user) {
   );
 }
 
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function normalizePhilippinePhone(phone) {
+  const rawPhone = String(phone || '').trim();
+  const compactPhone = rawPhone.replace(/[\s().-]/g, '');
+
+  if (/^09\d{9}$/.test(compactPhone)) return compactPhone;
+  if (/^\+639\d{9}$/.test(compactPhone)) return compactPhone;
+  if (/^639\d{9}$/.test(compactPhone)) return `+${compactPhone}`;
+  if (/^9\d{9}$/.test(compactPhone)) return `0${compactPhone}`;
+
+  return compactPhone;
+}
+
 function parseFaceProfile(rawProfile) {
   if (!rawProfile) {
     return {
@@ -80,6 +96,45 @@ function parseFaceProfile(rawProfile) {
       helmetDescriptor: null,
     };
   }
+}
+
+async function ensureRideHistoryTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ride_history (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      motorcycle_id INT NULL,
+      motorcycle_plate VARCHAR(32) NOT NULL,
+      motorcycle_model VARCHAR(128) NOT NULL,
+      status ENUM('completed', 'alert') NOT NULL,
+      face_verified TINYINT(1) NOT NULL DEFAULT 0,
+      helmet_verified TINYINT(1) NOT NULL DEFAULT 0,
+      alcohol_detected TINYINT(1) NOT NULL DEFAULT 0,
+      alert_sent TINYINT(1) NOT NULL DEFAULT 0,
+      brac DECIMAL(6, 3) NOT NULL DEFAULT 0.000,
+      unlock_status VARCHAR(80) NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_ride_history_user_created (user_id, created_at),
+      INDEX idx_ride_history_user_status (user_id, status)
+    )
+  `);
+}
+
+function mapRideHistoryRecord(record) {
+  return {
+    id: record.id,
+    motorcycleId: record.motorcycle_id,
+    motorcyclePlate: record.motorcycle_plate,
+    motorcycleModel: record.motorcycle_model,
+    status: record.status,
+    faceVerified: Boolean(record.face_verified),
+    helmetVerified: Boolean(record.helmet_verified),
+    alcoholDetected: Boolean(record.alcohol_detected),
+    alertSent: Boolean(record.alert_sent),
+    brac: Number(record.brac),
+    unlockStatus: record.unlock_status,
+    createdAt: record.created_at,
+  };
 }
 
 async function saveFaceProfile(userId, { descriptor, helmetDescriptor }) {
@@ -270,18 +325,27 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const {
       fullName,
-      email,
-      phone,
+      email: rawEmail,
+      phone: rawPhone,
       password,
       pin, 
     } = req.body;
+    const email = normalizeEmail(rawEmail);
+    const phone = normalizePhilippinePhone(rawPhone);
 
     const pinHash = pin ? await bcrypt.hash(pin, 10) : null;
 
-    if (!fullName || !email || !password) {
+    if (!fullName || !email || !phone || !password) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields',
+      });
+    }
+
+    if (!(/^09\d{9}$/.test(phone) || /^\+639\d{9}$/.test(phone))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid phone number format. Use 09XXXXXXXXX or +639XXXXXXXXX.',
       });
     }
 
@@ -312,7 +376,13 @@ if (existingPhone.length) {
     const passwordHash = await bcrypt.hash(password, 10);
     const verificationCode =
       Math.floor(100000 + Math.random() * 900000).toString();
-    const [result] = await db.query(
+    const connection = await db.getConnection();
+    let insertedUserId = null;
+
+    try {
+      await connection.beginTransaction();
+
+      const [result] = await connection.query(
   `
   INSERT INTO users
 (
@@ -336,7 +406,9 @@ VALUES (?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
   ],
 );
 
-  await transporter.sendMail({
+      insertedUserId = result.insertId;
+
+      await transporter.sendMail({
   from: process.env.EMAIL_USER,
   to: email,
   subject: 'MotoLock Email Verification',
@@ -351,8 +423,16 @@ VALUES (?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
   `,
 });
 
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+
     const token = generateToken({
-      id: result.insertId,
+      id: insertedUserId,
       email,
       role: 'rider',
     });
@@ -361,7 +441,7 @@ VALUES (?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
       success: true,
       token,
       user: {
-        id: result.insertId,
+        id: insertedUserId,
         fullName,
         email,
         phone,
@@ -371,16 +451,24 @@ VALUES (?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
   console.log(err);
 
   if (err.code === 'ER_DUP_ENTRY') {
+    const duplicateTarget = /unique_phone|phone/i.test(err.sqlMessage || '')
+      ? 'Phone number'
+      : 'Email';
+
     return res.status(400).json({
       success: false,
-      message: 'Email or phone number already exists',
+      message: `${duplicateTarget} already exists`,
     });
   }
 
   if (err.code === 'ER_CHECK_CONSTRAINT_VIOLATED') {
+    const constraintMessage = /email/i.test(err.sqlMessage || '')
+      ? 'Invalid email format'
+      : 'Invalid phone number format. Use 09XXXXXXXXX or +639XXXXXXXXX.';
+
     return res.status(400).json({
       success: false,
-      message: 'Invalid phone number format',
+      message: constraintMessage,
     });
   }
 
@@ -395,10 +483,12 @@ VALUES (?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
 app.post('/api/auth/login', async (req, res) => {
   try {
     const {email, password} = req.body;
+    const loginId = (email || '').trim();
+    const phoneLoginId = normalizePhilippinePhone(loginId);
 
     const [users] = await db.query(
-      'SELECT * FROM users WHERE email = ?',
-      [email],
+      'SELECT * FROM users WHERE email = ? OR phone = ? LIMIT 1',
+      [loginId, phoneLoginId],
     );
 
     if (!users.length) {
@@ -1009,6 +1099,168 @@ app.delete('/api/motorcycles/:id', authMiddleware, async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Server error',
+    });
+  }
+});
+
+app.get('/api/ride-history', authMiddleware, async (req, res) => {
+  try {
+    const requestedFilter = String(req.query.filter || 'all').toLowerCase();
+    const filter = ['completed', 'alert'].includes(requestedFilter)
+      ? requestedFilter
+      : null;
+    const queryParams = [req.user.id];
+    let whereClause = 'WHERE user_id = ?';
+
+    if (filter) {
+      whereClause += ' AND status = ?';
+      queryParams.push(filter);
+    }
+
+    const [records] = await db.query(
+      `
+      SELECT *
+      FROM ride_history
+      ${whereClause}
+      ORDER BY created_at DESC, id DESC
+      `,
+      queryParams,
+    );
+
+    const [summaryRows] = await db.query(
+      `
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN status = 'alert' THEN 1 ELSE 0 END) AS alerts
+      FROM ride_history
+      WHERE user_id = ?
+      `,
+      [req.user.id],
+    );
+
+    return res.json({
+      success: true,
+      records: records.map(mapRideHistoryRecord),
+      summary: {
+        total: Number(summaryRows[0]?.total || 0),
+        alerts: Number(summaryRows[0]?.alerts || 0),
+      },
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({
+      success: false,
+      message: err.sqlMessage || 'Failed to load ride history',
+    });
+  }
+});
+
+app.post('/api/ride-history', authMiddleware, async (req, res) => {
+  try {
+    const {
+      motorcycleId,
+      motorcyclePlate,
+      motorcycleModel,
+      status,
+      faceVerified,
+      helmetVerified,
+      alcoholDetected,
+      alertSent,
+      brac,
+      unlockStatus,
+    } = req.body;
+
+    if (!['completed', 'alert'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid ride history status',
+      });
+    }
+
+    const finalBrac = Number(brac);
+
+    if (!Number.isFinite(finalBrac) || finalBrac < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid BrAC value',
+      });
+    }
+
+    let resolvedMotorcycleId = Number.isFinite(Number(motorcycleId))
+      ? Number(motorcycleId)
+      : null;
+    let resolvedPlate = String(motorcyclePlate || '').trim();
+    let resolvedModel = String(motorcycleModel || '').trim();
+
+    if (resolvedMotorcycleId) {
+      const [motorcycles] = await db.query(
+        `
+        SELECT id, plate_number, model
+        FROM motorcycles
+        WHERE id = ? AND user_id = ?
+        LIMIT 1
+        `,
+        [resolvedMotorcycleId, req.user.id],
+      );
+
+      if (motorcycles.length > 0) {
+        resolvedPlate = motorcycles[0].plate_number;
+        resolvedModel = motorcycles[0].model;
+      } else {
+        resolvedMotorcycleId = null;
+      }
+    }
+
+    if (!resolvedPlate) resolvedPlate = 'No plate';
+    if (!resolvedModel) resolvedModel = 'Motorcycle';
+
+    const [result] = await db.query(
+      `
+      INSERT INTO ride_history
+      (
+        user_id,
+        motorcycle_id,
+        motorcycle_plate,
+        motorcycle_model,
+        status,
+        face_verified,
+        helmet_verified,
+        alcohol_detected,
+        alert_sent,
+        brac,
+        unlock_status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        req.user.id,
+        resolvedMotorcycleId,
+        resolvedPlate,
+        resolvedModel,
+        status,
+        faceVerified === true ? 1 : 0,
+        helmetVerified === true ? 1 : 0,
+        alcoholDetected === true ? 1 : 0,
+        alertSent === true ? 1 : 0,
+        finalBrac.toFixed(3),
+        String(unlockStatus || (status === 'completed' ? 'Ignition access granted' : 'Motor still locked')).trim(),
+      ],
+    );
+
+    const [records] = await db.query(
+      'SELECT * FROM ride_history WHERE id = ? AND user_id = ? LIMIT 1',
+      [result.insertId, req.user.id],
+    );
+
+    return res.json({
+      success: true,
+      record: mapRideHistoryRecord(records[0]),
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({
+      success: false,
+      message: err.sqlMessage || 'Failed to save ride history',
     });
   }
 });
@@ -1755,6 +2007,15 @@ app.post('/api/profile/email-change/verify-new-code', authMiddleware, async (req
   }
 });
 
-app.listen(process.env.PORT || 5001, "0.0.0.0", () => {
-  console.log(`MotoLock backend running on port ${process.env.PORT || 5001}`);
+async function startServer() {
+  await ensureRideHistoryTable();
+
+  app.listen(process.env.PORT || 5001, "0.0.0.0", () => {
+    console.log(`MotoLock backend running on port ${process.env.PORT || 5001}`);
+  });
+}
+
+startServer().catch(err => {
+  console.error('Failed to start MotoLock backend:', err);
+  process.exit(1);
 });
