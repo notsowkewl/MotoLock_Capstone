@@ -6259,7 +6259,7 @@ let sobrietyMq3Peak = null;
 let sobrietyBracBaseline = null;
 let sobrietyBracPeak = null;
 let sobrietyBreathSignalCount = 0;
-const SOBRIETY_BLOW_WINDOW_SECONDS = 30;
+const SOBRIETY_BLOW_WINDOW_SECONDS = 15;
 const BRAC_ALCOHOL_LIMIT_PERCENT = 0.050;
 const BRAC_DISPLAY_MAX_PERCENT = 0.500;
 const SOBRIETY_NO_BREATH_SECONDS = 10;
@@ -6536,7 +6536,7 @@ function trackMq3BreathSignal(rawMq3Value, incomingBrac) {
 function restartHelmetVerificationAfterNoBreath() {
   stopHardwareSobrietyWatcher();
   resetSobrietyReadingWindow();
-  alert('No Breath Detected\n\nPlease complete With Helmet Face ID again, then blow steadily during the next 30-second test.');
+  alert('No Breath Detected\n\nPlease complete With Helmet Face ID again, then blow steadily during the next 15-second test.');
   rideCheckStatus.helmetVerified = false;
   go('verifyHelmet');
 }
@@ -6621,6 +6621,7 @@ function parseMotoLockStatus(line) {
   const knownEvents = [
     'RESULT_PASS',
     'RESULT_FAIL',
+    'ALCOHOL_DETECTED',
     'BLOW_NOT_DETECTED',
     'BREATH_DETECTED',
     'LOCKED',
@@ -6662,6 +6663,13 @@ function parseMotoLockStatus(line) {
   }
 
   if (msg === 'RESULT_FAIL') {
+    if (!sobrietyDecisionMade) {
+      finishSobrietyTest('failed');
+    }
+    return;
+  }
+
+  if (msg === 'ALCOHOL_DETECTED') {
     if (!sobrietyDecisionMade) {
       finishSobrietyTest('failed');
     }
@@ -6715,12 +6723,13 @@ function parseMotoLockStatus(line) {
 
   try {
     const data = JSON.parse(payload);
-    const incomingBrac = sobrietyWindowActive
-      ? Math.max(
-          normalizeBracValue(data.displayBrac) ?? 0,
-          normalizeBracValue(data.highestBrac) ?? 0,
-          normalizeBracValue(data.brac) ?? 0
-        )
+    const rawIncomingBrac = Math.max(
+      normalizeBracValue(data.displayBrac) ?? 0,
+      normalizeBracValue(data.highestBrac) ?? 0,
+      normalizeBracValue(data.brac) ?? 0
+    );
+    const incomingBrac = sobrietyWindowActive || sobrietyWaitingForBreath
+      ? rawIncomingBrac
       : null;
     const incomingMq3Value = Number.isFinite(Number(data.mq3Value ?? data.mq3))
       ? Number(data.mq3Value ?? data.mq3)
@@ -6730,8 +6739,9 @@ function parseMotoLockStatus(line) {
     const displayBrac = incomingBrac === null
       ? motolockSensorData.displayBrac
       : Math.max(motolockSensorData.displayBrac ?? 0, incomingBrac);
-    const alcoholDetected = sobrietyWindowActive && displayBrac !== null
-      ? displayBrac >= BRAC_ALCOHOL_LIMIT_PERCENT
+    const hardwareAlcoholDetected = Boolean(data.alcoholDetected ?? data.alcohol_detected);
+    const alcoholDetected = (sobrietyWindowActive || sobrietyWaitingForBreath) && displayBrac !== null
+      ? isBracAtOrOverLimit(displayBrac) || hardwareAlcoholDetected
       : false;
     const hardwareBreathDetected = Boolean(data.breathBlowDetected || data.breathTestActive);
 
@@ -6774,6 +6784,14 @@ function parseMotoLockStatus(line) {
 
     syncRideStateFromHardwareStatus();
 
+    if (
+      (alcoholDetected || hardwareStatus === 'ALCOHOL_DETECTED' || hardwareStatus === 'RESULT_FAIL') &&
+      !sobrietyDecisionMade
+    ) {
+      finishSobrietyTest('failed');
+      return;
+    }
+
     if ((sobrietyWindowActive || sobrietyWaitingForBreath) && motolockSensorData.lastUpdated && !motolockSensorData.irDetected) {
       restartHelmetVerificationAfterSobrietyHelmetLoss();
       return;
@@ -6791,11 +6809,6 @@ function parseMotoLockStatus(line) {
           ? 'failed'
           : 'passed'
       );
-      return;
-    }
-
-    if (hardwareStatus === 'RESULT_FAIL' && !sobrietyDecisionMade) {
-      finishSobrietyTest('failed');
       return;
     }
 
