@@ -1,0 +1,111 @@
+/*
+   ESP32-C3 SUPER MINI
+   TRANSMITTER
+   IR SENSOR + MQ-3 SENSOR
+
+   MQ-3 only reads when IR sensor is triggered.
+*/
+
+#include <WiFi.h>
+#include <esp_now.h>
+
+// ================= PINS =================
+#define IR_SENSOR_PIN 4
+#define MQ3_PIN       0
+
+// ================= SETTINGS =================
+#define ALCOHOL_THRESHOLD 2500
+
+// Replace with your RECEIVER ESP32 MAC Address
+uint8_t receiverMAC[] = {0x00, 0x4B, 0x12, 0x9A, 0xF0, 0x3C};
+
+// ================= DATA STRUCTURE =================
+typedef struct struct_message {
+  int mq3Value;
+  bool alcoholDetected;
+  bool irDetected;
+} struct_message;
+
+struct_message data;
+
+esp_now_peer_info_t peerInfo;
+
+// ================= SEND CALLBACK =================
+void OnDataSent(const wifi_tx_info_t *info,
+                esp_now_send_status_t status) {
+
+  Serial.print("Send Status: ");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "SUCCESS" : "FAILED");
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(IR_SENSOR_PIN, INPUT);
+  pinMode(MQ3_PIN, INPUT);
+
+  WiFi.mode(WIFI_STA);
+
+  Serial.println();
+  Serial.print("TRANSMITTER MAC ADDRESS: ");
+  Serial.println(WiFi.macAddress());
+
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("ESP-NOW INIT FAILED!");
+    return;
+  }
+
+  esp_now_register_send_cb(OnDataSent);
+
+  memcpy(peerInfo.peer_addr, receiverMAC, 6);
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("FAILED TO ADD PEER!");
+    return;
+  }
+
+  Serial.println("TRANSMITTER READY");
+}
+
+void loop() {
+  bool irState = digitalRead(IR_SENSOR_PIN);
+
+  int mq3Raw = 0;
+  bool alcoholDetected = false;
+
+  // MQ-3 ONLY READS WHEN IR IS TRIGGERED
+  if (irState == LOW) {
+    mq3Raw = analogRead(MQ3_PIN);
+
+    if (mq3Raw >= ALCOHOL_THRESHOLD) {
+      alcoholDetected = true;
+    } else {
+      alcoholDetected = false;
+    }
+  } 
+  else {
+    mq3Raw = 0;
+    alcoholDetected = false;
+  }
+
+  data.mq3Value = mq3Raw;
+  data.alcoholDetected = alcoholDetected;
+  data.irDetected = irState;
+
+  esp_now_send(receiverMAC,
+               (uint8_t *)&data,
+               sizeof(data));
+
+  Serial.print("IR: ");
+  Serial.print(irState ? "TRIGGERED" : "NOT TRIGGERED");
+
+  Serial.print(" | MQ3 RAW: ");
+  Serial.print(mq3Raw);
+
+  Serial.print(" | Alcohol: ");
+  Serial.println(alcoholDetected ? "YES" : "NO");
+
+  delay(300);
+}

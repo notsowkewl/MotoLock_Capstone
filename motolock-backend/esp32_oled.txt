@@ -1,0 +1,1412 @@
+/*
+   ESP32 DEV MODULE
+   RECEIVER
+
+   FINAL VERSION
+   ----------------------------------------
+   FEATURES:
+   - ESP-NOW Receiver
+   - OLED Display
+   - Relay Control
+   - Alcohol Detection
+   - Rider Detection
+   - Unlock Button
+   - Reset Button
+   - Ignition Switch Required
+   - Ignition Status LED
+   - Manual Override Mode
+   - Manual Override LED
+   - 5 Second Long Buzz on Manual Override
+   - Blinking OLED on Manual Override
+
+   MANUAL OVERRIDE:
+   ----------------------------------------
+   Hold starter button for 10 seconds
+   while ignition is ON.
+
+   Manual Override:
+   - ignition must remain ON
+   - ignition OFF = relay OFF + system reset
+*/
+
+#include "BluetoothSerial.h"
+BluetoothSerial SerialBT;
+#include <string.h>
+#include <WiFi.h>
+#include <esp_now.h>
+
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// =====================================================
+// OLED
+// =====================================================
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+
+Adafruit_SSD1306 display(
+  SCREEN_WIDTH,
+  SCREEN_HEIGHT,
+  &Wire,
+  OLED_RESET
+);
+
+// =====================================================
+// PINS
+// =====================================================
+
+#define RELAY_PIN            26
+#define BUZZER_PIN           27
+#define SWITCH_PIN           25
+#define RESET_BUTTON_PIN     33
+
+#define IGNITION_SWITCH_PIN  32
+#define IGNITION_LED_PIN     14
+
+#define OVERRIDE_LED_PIN     13
+
+// =====================================================
+// RELAY STATES
+// =====================================================
+
+#define RELAY_ON   HIGH
+#define RELAY_OFF  LOW
+
+// =====================================================
+// MANUAL OVERRIDE SETTINGS
+// =====================================================
+
+#define MANUAL_OVERRIDE_HOLD_TIME 5000
+
+#define HELMET_DATA_TIMEOUT 5000
+
+// =====================================================
+// DATA STRUCTURE
+// =====================================================
+
+typedef struct struct_message {
+
+  int mq3Value;
+  bool alcoholDetected;
+  bool irDetected;
+
+} struct_message;
+
+struct_message receivedData = {0, false, HIGH};
+
+// =====================================================
+// VARIABLES
+// =====================================================
+
+bool motorLocked = true;
+
+bool buttonDisabled = true;
+
+bool ignitionEnabled = false;
+
+bool lastIgnitionEnabled = false;
+
+bool appStartAuthorized = false;
+
+bool lastButtonState = HIGH;
+
+bool manualOverride = false;
+
+bool breathTestActive = false;
+
+bool breathTestWaiting = false;
+
+bool breathBlowDetected = false;
+
+bool mq3BaselineReady = false;
+
+bool mq3Stabilizing = false;
+
+bool starterButtonHeld = false;
+
+bool sobrietyDecisionSent = false;
+
+unsigned long starterHoldStart = 0;
+
+unsigned long lastReceiveTime = 0;
+
+unsigned long lastBtStatusSend = 0;
+
+unsigned long breathWaitStart = 0;
+
+unsigned long breathMeasureStart = 0;
+
+unsigned long breathReadyStart = 0;
+
+float highestBrac = 0.000;
+
+float finalBrac = 0.000;
+
+bool hasFinalBrac = false;
+
+const char* breathStatus = "IDLE";
+
+int breathRemainingSeconds = 0;
+
+char pendingBtEvent[24] = "";
+
+bool hasFreshHelmetData() {
+
+  return lastReceiveTime != 0 &&
+         millis() - lastReceiveTime <= HELMET_DATA_TIMEOUT;
+}
+
+bool isHelmetDetected() {
+
+  return hasFreshHelmetData() &&
+         receivedData.irDetected == LOW;
+}
+
+float mq3Baseline = 0.0;
+
+float mq3CleanBaseline = 0.0;
+
+int mq3BaselineSamples = 0;
+
+int mq3CleanBaselineSamples = 0;
+
+const int MQ3_BASELINE_MIN_SAMPLES = 8;
+
+const int MQ3_CLEAN_BASELINE_MIN_SAMPLES = 12;
+
+const int MQ3_BLOW_DELTA_THRESHOLD = 90;
+
+const int MQ3_BLOW_SLOPE_THRESHOLD = 45;
+
+const int MQ3_BLOW_SLOPE_MIN_SAMPLES = 2;
+
+const int MQ3_BASELINE_STABLE_DELTA = 18;
+
+const int MQ3_RECOVERY_DELTA_THRESHOLD = 110;
+
+const int MQ3_ALCOHOL_DEADBAND = 35;
+
+int lastMq3Value = 0;
+
+int mq3SlopeRiseCount = 0;
+
+const unsigned long BREATH_WAIT_WINDOW_MS = 10000;
+
+const unsigned long BREATH_MEASURE_WINDOW_MS = 30000;
+
+const unsigned long BREATH_READY_GRACE_MS = 1200;
+
+const float BRAC_LIMIT_PERCENT = 0.05;
+
+const float BRAC_DISPLAY_MAX_PERCENT = 0.50;
+
+bool isBreathStatus(const char* status) {
+
+  return strcmp(breathStatus, status) == 0;
+}
+
+float roundBracForDecision(float brac) {
+
+  return round(brac * 1000.0) / 1000.0;
+}
+
+bool isBracOverLimit(float brac) {
+
+  return roundBracForDecision(brac) >= BRAC_LIMIT_PERCENT;
+}
+
+void queueBluetoothEvent(const char* event) {
+
+  strncpy(pendingBtEvent, event, sizeof(pendingBtEvent) - 1);
+  pendingBtEvent[sizeof(pendingBtEvent) - 1] = '\0';
+}
+
+void flushBluetoothEvent() {
+
+  if (pendingBtEvent[0] == '\0') {
+    return;
+  }
+
+  SerialBT.println(pendingBtEvent);
+  pendingBtEvent[0] = '\0';
+}
+
+float absFloat(float value) {
+
+  return value < 0 ? -value : value;
+}
+
+float getEffectiveMq3Baseline() {
+
+  if (mq3BaselineSamples > 0) {
+    return mq3Baseline;
+  }
+
+  if (mq3CleanBaselineSamples >= MQ3_CLEAN_BASELINE_MIN_SAMPLES) {
+    return mq3CleanBaseline;
+  }
+
+  return receivedData.mq3Value;
+}
+
+float convertToAlcoholPercent(int mq3Value) {
+
+  float baseline = getEffectiveMq3Baseline();
+
+  float delta = mq3Value - baseline - MQ3_ALCOHOL_DEADBAND;
+
+  if (delta < 0) delta = 0;
+
+  float usableRange = 4095.0 - baseline;
+
+  if (usableRange < 1) usableRange = 1;
+
+  float percent = (delta / usableRange) * BRAC_DISPLAY_MAX_PERCENT;
+
+  if (percent > BRAC_DISPLAY_MAX_PERCENT) percent = BRAC_DISPLAY_MAX_PERCENT;
+
+  if (percent < 0) percent = 0;
+
+  return percent;
+}
+
+bool isMq3RecoveredForNewTest(int mq3Value) {
+
+  if (mq3CleanBaselineSamples < MQ3_CLEAN_BASELINE_MIN_SAMPLES) {
+    return true;
+  }
+
+  return mq3Value <= (mq3CleanBaseline + MQ3_RECOVERY_DELTA_THRESHOLD);
+}
+
+void updateCleanMq3Baseline() {
+
+  if (breathTestWaiting || breathTestActive) {
+    return;
+  }
+
+  int mq3Value = receivedData.mq3Value;
+
+  if (mq3Value <= 0) {
+    return;
+  }
+
+  if (mq3CleanBaselineSamples == 0) {
+    mq3CleanBaseline = mq3Value;
+    mq3CleanBaselineSamples = 1;
+    return;
+  }
+
+  if (mq3CleanBaselineSamples >= MQ3_CLEAN_BASELINE_MIN_SAMPLES &&
+      mq3Value > mq3CleanBaseline + MQ3_RECOVERY_DELTA_THRESHOLD) {
+    return;
+  }
+
+  mq3CleanBaseline = (mq3CleanBaseline * 0.97) + (mq3Value * 0.03);
+
+  if (mq3CleanBaselineSamples < MQ3_CLEAN_BASELINE_MIN_SAMPLES) {
+    mq3CleanBaselineSamples++;
+  }
+}
+
+void resetBreathBaseline() {
+
+  mq3Baseline = receivedData.mq3Value;
+
+  mq3BaselineSamples = 0;
+
+  mq3BaselineReady = false;
+
+  mq3Stabilizing = false;
+
+  breathBlowDetected = false;
+
+  mq3SlopeRiseCount = 0;
+
+  breathReadyStart = 0;
+
+  highestBrac = 0.000;
+
+  finalBrac = 0.000;
+
+  hasFinalBrac = false;
+}
+
+void updateBreathBaseline() {
+
+  if (!breathTestWaiting || breathTestActive) {
+    return;
+  }
+
+  if (mq3BaselineReady) {
+    return;
+  }
+
+  int mq3Value = receivedData.mq3Value;
+
+  if (!isMq3RecoveredForNewTest(mq3Value)) {
+    mq3Stabilizing = true;
+    mq3BaselineReady = false;
+    mq3BaselineSamples = 0;
+    mq3Baseline = mq3Value;
+    return;
+  }
+
+  mq3Stabilizing = false;
+
+  if (mq3BaselineSamples == 0) {
+    mq3Baseline = mq3Value;
+    mq3BaselineSamples = 1;
+    return;
+  }
+
+  if (absFloat(mq3Value - mq3Baseline) > MQ3_BASELINE_STABLE_DELTA) {
+    mq3Baseline = mq3Value;
+    mq3BaselineSamples = 1;
+    mq3BaselineReady = false;
+    return;
+  }
+
+  mq3Baseline = (mq3Baseline * 0.90) + (mq3Value * 0.10);
+
+  if (mq3BaselineSamples < MQ3_BASELINE_MIN_SAMPLES) {
+    mq3BaselineSamples++;
+  }
+
+  mq3BaselineReady = mq3BaselineSamples >= MQ3_BASELINE_MIN_SAMPLES;
+}
+
+bool isBreathBlowStarted(int mq3Value) {
+
+  if (!breathTestWaiting || breathTestActive || !mq3BaselineReady || mq3Stabilizing) {
+    return false;
+  }
+
+  if (breathWaitStart == 0 ||
+      millis() - breathReadyStart < BREATH_READY_GRACE_MS) {
+    return false;
+  }
+
+  int delta = mq3Value - mq3Baseline;
+  int slope = mq3Value - lastMq3Value;
+
+  if (delta >= MQ3_BLOW_DELTA_THRESHOLD) {
+    return true;
+  }
+
+  if (delta >= MQ3_ALCOHOL_DEADBAND &&
+      slope >= MQ3_BLOW_SLOPE_THRESHOLD) {
+    mq3SlopeRiseCount++;
+  }
+  else if (slope <= 0) {
+    mq3SlopeRiseCount = 0;
+  }
+
+  return mq3SlopeRiseCount >= MQ3_BLOW_SLOPE_MIN_SAMPLES;
+}
+
+void startDetectedBreathTest() {
+
+  breathTestWaiting = false;
+
+  breathTestActive = true;
+
+  breathBlowDetected = true;
+
+  sobrietyDecisionSent = false;
+
+  breathMeasureStart = millis();
+
+  breathRemainingSeconds = BREATH_MEASURE_WINDOW_MS / 1000;
+
+  breathStatus = "BLOW_DETECTED";
+
+  highestBrac = 0.000;
+
+  queueBluetoothEvent("BREATH_DETECTED");
+}
+
+void stopBreathTest() {
+
+  breathTestWaiting = false;
+
+  breathTestActive = false;
+
+  breathBlowDetected = false;
+
+  mq3BaselineReady = false;
+
+  mq3Stabilizing = false;
+
+  breathWaitStart = 0;
+
+  breathMeasureStart = 0;
+
+  breathReadyStart = 0;
+
+  breathRemainingSeconds = 0;
+
+  breathStatus = "IDLE";
+
+  sobrietyDecisionSent = false;
+
+  mq3SlopeRiseCount = 0;
+
+  highestBrac = 0.000;
+}
+
+void finishSobrietyResult(bool failed) {
+
+  finalBrac = roundBracForDecision(highestBrac);
+
+  hasFinalBrac = true;
+
+  breathTestWaiting = false;
+
+  breathTestActive = false;
+
+  breathRemainingSeconds = 0;
+
+  breathStatus = failed ? "RESULT_FAIL" : "RESULT_PASS";
+
+  sobrietyDecisionSent = true;
+
+  if (failed) {
+    motorLocked = true;
+    buttonDisabled = true;
+    appStartAuthorized = false;
+    digitalWrite(RELAY_PIN, RELAY_OFF);
+    queueBluetoothEvent("RESULT_FAIL");
+  }
+  else {
+    queueBluetoothEvent("RESULT_PASS");
+  }
+}
+
+void updateSobrietyTestState() {
+
+  if (!breathTestWaiting && !breathTestActive) {
+    return;
+  }
+
+  unsigned long now = millis();
+
+  if (breathTestWaiting) {
+    if (mq3Stabilizing) {
+      breathStatus = "SENSOR_STABILIZING";
+      breathWaitStart = 0;
+      breathRemainingSeconds = BREATH_WAIT_WINDOW_MS / 1000;
+      return;
+    }
+
+    if (!mq3BaselineReady) {
+      breathStatus = "BASELINE_READING";
+      breathWaitStart = 0;
+      breathRemainingSeconds = BREATH_WAIT_WINDOW_MS / 1000;
+      return;
+    }
+
+    if (breathWaitStart == 0) {
+      breathWaitStart = now;
+      breathReadyStart = now;
+      lastMq3Value = receivedData.mq3Value;
+      mq3SlopeRiseCount = 0;
+    }
+
+    breathStatus = "WAITING_FOR_BLOW";
+
+    unsigned long elapsed = now - breathWaitStart;
+
+    if (elapsed >= BREATH_WAIT_WINDOW_MS) {
+      startDetectedBreathTest();
+      return;
+    }
+
+    breathRemainingSeconds =
+      (BREATH_WAIT_WINDOW_MS - elapsed + 999) / 1000;
+
+    return;
+  }
+
+  if (breathTestActive) {
+    if (breathMeasureStart == 0) {
+      breathMeasureStart = now;
+    }
+
+    breathStatus = "MEASURING_ALCOHOL";
+
+    unsigned long elapsed = now - breathMeasureStart;
+
+    if (elapsed >= BREATH_MEASURE_WINDOW_MS) {
+      finishSobrietyResult(isBracOverLimit(highestBrac));
+      return;
+    }
+
+    breathRemainingSeconds =
+      (BREATH_MEASURE_WINDOW_MS - elapsed + 999) / 1000;
+  }
+}
+
+bool isAlcoholLimitDetected() {
+
+  float currentBrac =
+    convertToAlcoholPercent(receivedData.mq3Value);
+
+  return isBracOverLimit(currentBrac);
+}
+
+void sendBluetoothStatus() {
+
+  updateSobrietyTestState();
+
+  float brac = convertToAlcoholPercent(receivedData.mq3Value);
+
+  if (breathTestActive && brac > highestBrac) {
+    highestBrac = brac;
+  }
+
+  flushBluetoothEvent();
+
+  String status = "STATUS:{";
+  status += "\"mq3Value\":";
+  status += receivedData.mq3Value;
+  status += ",\"brac\":";
+  status += String(brac, 3);
+  status += ",\"highestBrac\":";
+  status += String(highestBrac, 3);
+  status += ",\"displayBrac\":";
+  status += String(hasFinalBrac ? finalBrac : highestBrac, 3);
+  status += ",\"testStatus\":\"";
+  status += breathStatus;
+  status += "\"";
+  status += ",\"remainingSeconds\":";
+  status += breathRemainingSeconds;
+  status += ",\"mq3Baseline\":";
+  status += String(mq3Baseline, 1);
+  status += ",\"mq3CleanBaseline\":";
+  status += String(mq3CleanBaseline, 1);
+  status += ",\"mq3BaselineReady\":";
+  status += mq3BaselineReady ? "true" : "false";
+  status += ",\"mq3Stabilizing\":";
+  status += mq3Stabilizing ? "true" : "false";
+  status += ",\"breathTestWaiting\":";
+  status += breathTestWaiting ? "true" : "false";
+  status += ",\"breathBlowDetected\":";
+  status += breathBlowDetected ? "true" : "false";
+  status += ",\"alcoholDetected\":";
+  status += isAlcoholLimitDetected() ? "true" : "false";
+  status += ",\"irDetected\":";
+  status += isHelmetDetected() ? "true" : "false";
+  status += ",\"locked\":";
+  status += motorLocked ? "true" : "false";
+  status += ",\"ignitionEnabled\":";
+  status += ignitionEnabled ? "true" : "false";
+  status += ",\"startAuthorized\":";
+  status += appStartAuthorized ? "true" : "false";
+  status += ",\"breathTestActive\":";
+  status += breathTestActive ? "true" : "false";
+  status += "}";
+
+  SerialBT.println(status);
+}
+// =====================================================
+// BUZZER FUNCTION
+// =====================================================
+
+void buzz(int times) {
+
+  for (int i = 0; i < times; i++) {
+
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(150);
+
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(150);
+  }
+}
+
+// =====================================================
+// OLED DISPLAY FUNCTION
+// =====================================================
+
+void showStatus() {
+
+  // =================================================
+  // MANUAL OVERRIDE SCREEN
+  // =================================================
+
+  if (manualOverride) {
+
+    static bool blinkState = true;
+
+    static unsigned long lastBlink = 0;
+
+    // Toggle every 0.5 second
+    if (millis() - lastBlink >= 500) {
+
+      blinkState = !blinkState;
+
+      lastBlink = millis();
+    }
+
+    display.clearDisplay();
+
+    // Only show text during ON state
+    if (blinkState) {
+
+      display.setTextColor(SSD1306_WHITE);
+
+      display.setTextSize(2);
+
+      display.setCursor(0, 10);
+
+      display.println("MANUAL");
+
+      display.println("OVERRIDE!!!");
+    }
+
+    display.display();
+
+    return;
+  }
+
+  display.clearDisplay();
+
+  display.setTextColor(SSD1306_WHITE);
+
+  display.setTextSize(1);
+
+  // TITLE
+  display.setCursor(0, 0);
+  display.println("MOTOLOCK SYSTEM");
+
+  // IR STATUS
+  display.setCursor(0, 10);
+
+  display.print("HELMET: ");
+
+  if (isHelmetDetected()) {
+    display.println("DETECTED");
+  }
+  else {
+    display.println("WAITING");
+  }
+
+  // MQ3 VALUE
+  display.setCursor(0, 20);
+
+  display.print("ALC: ");
+
+  if (breathTestWaiting && !breathTestActive) {
+
+    display.println(
+      mq3Stabilizing ?
+      "STABILIZE" :
+      "BASELINE"
+    );
+  }
+  else if (breathTestActive) {
+
+    float alcoholPercent =
+      convertToAlcoholPercent(receivedData.mq3Value);
+
+    if (alcoholPercent > highestBrac) {
+      highestBrac = alcoholPercent;
+    }
+
+    display.print(highestBrac, 3);
+    display.println("% BAC");
+  }
+  else if (hasFinalBrac) {
+
+    display.print(finalBrac, 3);
+    display.println("% BAC");
+  }
+  else {
+
+    display.println("WAITING");
+  }
+
+  // IGNITION
+  display.setCursor(0, 30);
+
+  display.print("IGN: ");
+
+  display.println(
+    ignitionEnabled ?
+    "ON" :
+    "OFF"
+  );
+
+  // STATUS
+  display.setCursor(0, 45);
+
+  // WAITING
+  if (!isHelmetDetected()) {
+
+    display.println("WAITING FOR RIDER");
+    display.println("MOTOR LOCKED");
+  }
+
+  // SENSOR STABILIZING / BASELINE
+  else if (breathTestWaiting &&
+           !breathTestActive) {
+
+    if (mq3Stabilizing) {
+      display.println("SENSOR STABILIZE");
+      display.println("PLEASE WAIT");
+    }
+    else {
+      display.println(
+        mq3BaselineReady ?
+        "BLOW NOW" :
+        "CALIBRATING..."
+      );
+      display.print("BASE:");
+      display.println((int)mq3Baseline);
+    }
+  }
+
+  // DRUNK
+  else if (breathTestActive &&
+           buttonDisabled &&
+           isAlcoholLimitDetected()) {
+
+    display.println("ALCOHOL DETECTED");
+    display.println("BUTTON DISABLED");
+  }
+
+  // IGNITION OFF
+  else if (!ignitionEnabled &&
+           motorLocked) {
+
+    display.println("TURN IGNITION ON");
+    display.println("TO START");
+  }
+
+  // WAITING FOR APP AUTHORIZATION
+  else if (!appStartAuthorized) {
+
+    display.println("WAITING APP");
+    display.println("AUTHORIZATION");
+  }
+
+  // SAFE BUT LOCKED
+  else if (motorLocked) {
+
+    display.println("PRESS BUTTON");
+    display.println("TO START");
+  }
+
+  // UNLOCKED
+  else {
+
+    display.println("MOTOR UNLOCKED");
+    display.println("DRIVE SAFE");
+  }
+
+  display.display();
+}
+
+// =====================================================
+// ESP-NOW RECEIVE CALLBACK
+// =====================================================
+
+void OnDataRecv(const esp_now_recv_info_t *info,
+                const uint8_t *incomingData,
+                int len) {
+
+  memcpy(&receivedData,
+         incomingData,
+         sizeof(receivedData));
+
+  lastReceiveTime = millis();
+
+  updateCleanMq3Baseline();
+
+  updateBreathBaseline();
+
+  float currentBrac =
+  convertToAlcoholPercent(receivedData.mq3Value);
+
+  lastMq3Value = receivedData.mq3Value;
+
+if (breathTestActive && currentBrac > highestBrac) {
+  highestBrac = currentBrac;
+}
+
+  updateSobrietyTestState();
+
+  // =================================================
+  // MANUAL OVERRIDE ACTIVE
+  // =================================================
+
+  if (manualOverride) {
+
+    showStatus();
+
+    return;
+  }
+
+  // =================================================
+  // RELAY ONLY STAYS ON WHILE IGNITION IS ON
+  // =================================================
+
+  if (!motorLocked) {
+
+    if (digitalRead(IGNITION_SWITCH_PIN) == LOW) {
+
+      digitalWrite(RELAY_PIN, RELAY_ON);
+    }
+    else {
+
+      motorLocked = true;
+
+      buttonDisabled = true;
+
+      digitalWrite(RELAY_PIN, RELAY_OFF);
+    }
+
+    showStatus();
+
+    return;
+  }
+
+  // =================================================
+  // RIDER DETECTED
+  // =================================================
+
+  if (isHelmetDetected()) {
+
+    // ALCOHOL DETECTED
+    float currentBrac =
+  convertToAlcoholPercent(receivedData.mq3Value);
+
+if (isBreathStatus("RESULT_FAIL")) {
+
+  motorLocked = true;
+
+  buttonDisabled = true;
+
+  appStartAuthorized = false;
+
+  digitalWrite(RELAY_PIN, RELAY_OFF);
+}
+
+    // SAFE
+    else {
+
+      motorLocked = true;
+
+      if (appStartAuthorized &&
+          digitalRead(IGNITION_SWITCH_PIN) == LOW) {
+
+        buttonDisabled = false;
+      }
+      else {
+
+        buttonDisabled = true;
+      }
+
+      digitalWrite(RELAY_PIN, RELAY_OFF);
+    }
+  }
+
+  // NO RIDER
+  else {
+
+    motorLocked = true;
+
+    buttonDisabled = true;
+
+    appStartAuthorized = false;
+
+    digitalWrite(RELAY_PIN, RELAY_OFF);
+  }
+
+  showStatus();
+}
+
+// =====================================================
+// SETUP
+// =====================================================
+
+void setup() {
+Serial.begin(115200);
+pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, RELAY_OFF);
+
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+
+// =====================================================
+// CLASSIC BLUETOOTH
+// =====================================================
+
+SerialBT.begin("MotoLock-Motor");
+
+Serial.println("Bluetooth Started");
+  
+
+  pinMode(RELAY_PIN, OUTPUT);
+
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  pinMode(SWITCH_PIN, INPUT_PULLUP);
+
+  pinMode(RESET_BUTTON_PIN, INPUT_PULLUP);
+
+  pinMode(IGNITION_SWITCH_PIN, INPUT_PULLUP);
+
+  pinMode(IGNITION_LED_PIN, OUTPUT);
+
+  pinMode(OVERRIDE_LED_PIN, OUTPUT);
+
+  digitalWrite(RELAY_PIN, RELAY_OFF);
+
+  digitalWrite(BUZZER_PIN, LOW);
+
+  digitalWrite(IGNITION_LED_PIN, LOW);
+
+  digitalWrite(OVERRIDE_LED_PIN, LOW);
+
+  // OLED INIT
+  Wire.begin(21, 22);
+
+  if (!display.begin(
+        SSD1306_SWITCHCAPVCC,
+        0x3C
+      )) {
+
+    while (true);
+  }
+
+  display.clearDisplay();
+
+  display.setTextSize(1);
+
+  display.setTextColor(SSD1306_WHITE);
+
+  display.setCursor(0, 0);
+
+  display.println("SYSTEM STARTING...");
+
+  display.display();
+
+  // WIFI
+  WiFi.mode(WIFI_STA);
+
+  // ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    return;
+  }
+
+  esp_now_register_recv_cb(OnDataRecv);
+
+  delay(1500);
+
+  showStatus();
+}
+
+// =====================================================
+// LOOP
+// =====================================================
+
+void loop() {
+
+if (SerialBT.available()) {
+
+  String msg = SerialBT.readStringUntil('\n');
+  msg.trim();
+
+  Serial.print("Received: ");
+  Serial.println(msg);
+
+  if (msg == "STATUS") {
+
+    sendBluetoothStatus();
+  }
+
+  if (msg == "LOCK") {
+
+    motorLocked = true;
+
+    buttonDisabled = true;
+
+    appStartAuthorized = false;
+
+    stopBreathTest();
+
+    digitalWrite(RELAY_PIN, RELAY_OFF);
+
+    SerialBT.println("LOCKED");
+
+    sendBluetoothStatus();
+  }
+
+  if (msg == "BREATH_WAIT") {
+
+    breathTestWaiting = false;
+
+    breathTestActive = false;
+
+    breathStatus = "IDLE";
+
+    breathRemainingSeconds = 0;
+
+    highestBrac = 0.000;
+
+    finalBrac = 0.000;
+
+    hasFinalBrac = false;
+
+    SerialBT.println("BREATH_WAITING");
+
+    sendBluetoothStatus();
+
+    showStatus();
+  }
+
+  if (msg == "BREATH_START") {
+
+    breathTestWaiting = true;
+
+    breathTestActive = false;
+
+    breathWaitStart = 0;
+
+    breathMeasureStart = 0;
+
+    breathReadyStart = 0;
+
+    breathRemainingSeconds = BREATH_WAIT_WINDOW_MS / 1000;
+
+    breathStatus = "BASELINE_READING";
+
+    sobrietyDecisionSent = false;
+
+    resetBreathBaseline();
+
+    SerialBT.println("BREATH_WAITING_FOR_BLOW");
+
+    sendBluetoothStatus();
+
+    showStatus();
+  }
+
+  if (msg == "RESET_ALCOHOL") {
+
+    stopBreathTest();
+
+    finalBrac = 0.000;
+
+    hasFinalBrac = false;
+
+    SerialBT.println("BREATH_RESET");
+
+    sendBluetoothStatus();
+
+    showStatus();
+  }
+
+  if (msg == "AUTHORIZE_START" ||
+      msg == "UNLOCK") {
+
+    if (isHelmetDetected() &&
+        !isAlcoholLimitDetected() &&
+        ignitionEnabled) {
+
+      appStartAuthorized = true;
+
+      motorLocked = true;
+
+      buttonDisabled = false;
+
+      digitalWrite(RELAY_PIN, RELAY_OFF);
+
+      SerialBT.println("START_AUTHORIZED");
+    }
+    else {
+
+      motorLocked = true;
+
+      buttonDisabled = true;
+
+      appStartAuthorized = false;
+
+      stopBreathTest();
+
+      digitalWrite(RELAY_PIN, RELAY_OFF);
+
+      SerialBT.println("LOCKED");
+    }
+
+    sendBluetoothStatus();
+  }
+}
+  // =================================================
+  // RESET BUTTON
+  // =================================================
+
+  if (digitalRead(RESET_BUTTON_PIN) == LOW) {
+
+    delay(50);
+
+    if (digitalRead(RESET_BUTTON_PIN) == LOW) {
+
+      ESP.restart();
+    }
+  }
+
+  // =================================================
+  // IGNITION SWITCH
+  // =================================================
+
+  if (digitalRead(IGNITION_SWITCH_PIN) == LOW) {
+
+    ignitionEnabled = true;
+
+    digitalWrite(IGNITION_LED_PIN, HIGH);
+
+    // Manual Override Active
+    if (manualOverride) {
+
+      motorLocked = false;
+
+      digitalWrite(RELAY_PIN, RELAY_ON);
+    }
+  }
+  else {
+
+    ignitionEnabled = false;
+
+    digitalWrite(IGNITION_LED_PIN, LOW);
+
+    digitalWrite(RELAY_PIN, RELAY_OFF);
+
+    // Manual override requires ignition ON.
+    // If ignition OFF, reset system.
+    if (manualOverride) {
+
+      delay(300);
+
+      ESP.restart();
+    }
+
+    motorLocked = true;
+
+    buttonDisabled = true;
+
+    appStartAuthorized = false;
+
+    stopBreathTest();
+  }
+
+  // OLED refresh
+  if (ignitionEnabled != lastIgnitionEnabled) {
+
+    showStatus();
+
+    lastIgnitionEnabled = ignitionEnabled;
+  }
+
+  updateSobrietyTestState();
+
+  // =================================================
+  // MANUAL OVERRIDE LED
+  // =================================================
+
+  if (manualOverride) {
+
+    // Blink every 0.5 second
+    if ((millis() / 500) % 2 == 0) {
+
+      digitalWrite(OVERRIDE_LED_PIN, HIGH);
+    }
+    else {
+
+      digitalWrite(OVERRIDE_LED_PIN, LOW);
+    }
+  }
+  else {
+
+    digitalWrite(OVERRIDE_LED_PIN, LOW);
+  }
+
+  // =================================================
+  // START BUTTON
+  // =================================================
+
+  bool buttonState = digitalRead(SWITCH_PIN);
+
+  // BUTTON HOLD DETECTION
+  if (buttonState == LOW &&
+      !starterButtonHeld) {
+
+    starterButtonHeld = true;
+
+    starterHoldStart = millis();
+  }
+
+  // BUTTON RELEASED
+  if (buttonState == HIGH) {
+
+    starterButtonHeld = false;
+  }
+
+  // =================================================
+  // LONG PRESS = MANUAL OVERRIDE
+  // =================================================
+
+  if (starterButtonHeld &&
+    (millis() - starterHoldStart >= MANUAL_OVERRIDE_HOLD_TIME) &&
+    ignitionEnabled &&
+    !manualOverride) {
+
+  if (isAlcoholLimitDetected()) {
+    manualOverride = false;
+    motorLocked = true;
+    buttonDisabled = true;
+    appStartAuthorized = false;
+
+    digitalWrite(RELAY_PIN, RELAY_OFF);
+    digitalWrite(OVERRIDE_LED_PIN, LOW);
+
+    buzz(5);
+
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.println("OVERRIDE BLOCKED");
+    display.println("ALCOHOL DETECTED");
+    display.println("MOTOR LOCKED");
+    display.display();
+
+    starterButtonHeld = false;
+    return;
+  }
+
+    manualOverride = true;
+
+    motorLocked = false;
+
+    buttonDisabled = false;
+
+    digitalWrite(RELAY_PIN, RELAY_ON);
+
+    // 5 SECOND LONG BUZZ
+    digitalWrite(BUZZER_PIN, HIGH);
+
+    delay(5000);
+
+    digitalWrite(BUZZER_PIN, LOW);
+
+    showStatus();
+
+    starterButtonHeld = false;
+
+    return;
+  }
+
+  // =================================================
+  // NORMAL BUTTON PRESS
+  // =================================================
+
+  if (lastButtonState == HIGH &&
+      buttonState == LOW) {
+
+    delay(50);
+
+    // MANUAL OVERRIDE ACTIVE
+    if (manualOverride) {
+
+      if (ignitionEnabled) {
+
+        motorLocked = false;
+
+        digitalWrite(RELAY_PIN, RELAY_ON);
+      }
+      else {
+
+        digitalWrite(RELAY_PIN, RELAY_OFF);
+      }
+
+      showStatus();
+
+      lastButtonState = buttonState;
+
+      return;
+    }
+
+    // DRUNK / DISABLED
+    if (buttonDisabled) {
+
+      buzz(5);
+
+      digitalWrite(RELAY_PIN, RELAY_OFF);
+
+      motorLocked = true;
+
+      if (isAlcoholLimitDetected() ||
+          !isHelmetDetected() ||
+          !ignitionEnabled) {
+
+        appStartAuthorized = false;
+      }
+    }
+
+    // SAFE
+    else {
+
+      if (ignitionEnabled) {
+
+        motorLocked = false;
+
+        digitalWrite(RELAY_PIN, RELAY_ON);
+
+        buzz(2);
+      }
+      else {
+
+        motorLocked = true;
+
+        digitalWrite(RELAY_PIN, RELAY_OFF);
+
+        buzz(5);
+      }
+    }
+
+    showStatus();
+  }
+
+  lastButtonState = buttonState;
+
+  if (millis() - lastBtStatusSend >= 1000) {
+
+    sendBluetoothStatus();
+
+    lastBtStatusSend = millis();
+  }
+
+  // =================================================
+  // FAILSAFE
+  // =================================================
+
+  if (millis() - lastReceiveTime > HELMET_DATA_TIMEOUT &&
+      lastReceiveTime != 0 &&
+      motorLocked &&
+      !manualOverride) {
+
+    buttonDisabled = true;
+
+    appStartAuthorized = false;
+
+    digitalWrite(RELAY_PIN, RELAY_OFF);
+
+    showStatus();
+  }
+}
