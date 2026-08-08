@@ -4329,17 +4329,26 @@
 
       <div class="settings-group">
         <button class="settings-row" onclick="go('riderProfile')">
-  <div class="icon-box">
-    <svg class="icon"><use href="#icon-user"></use></svg>
-  </div>
+          <div class="icon-box">
+            <svg class="icon"><use href="#icon-user"></use></svg>
+          </div>
+          <div class="settings-row-text">
+            <h3>Rider Profile</h3>
+            <p>View and update your rider information.</p>
+          </div>
+          <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+        </button>
 
-  <div class="settings-row-text">
-    <h3>Rider Profile</h3>
-    <p>View and update your rider information.</p>
-  </div>
-
-  <svg class="icon"><use href="#icon-arrow-right"></use></svg>
-</button>
+        <button class="settings-row" onclick="openAdminPanel()" id="admin-panel-settings-btn">
+          <div class="icon-box" style="background:var(--brand-primary); color:#fff;">
+            <svg class="icon"><use href="#icon-settings"></use></svg>
+          </div>
+          <div class="settings-row-text">
+            <h3>Admin Panel</h3>
+            <p>Access rider management, reports & analytics.</p>
+          </div>
+          <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+        </button>
         <button class="settings-row" onclick="go('changePassword')">
   <div class="icon-box">
     <svg class="icon"><use href="#icon-lock"></use></svg>
@@ -5215,6 +5224,128 @@
     </div>
   </div>
 </section>
+
+    <!-- ADMIN DASHBOARD SCREEN -->
+    <section class="screen" id="adminDashboard">
+      <div class="page">
+        <div class="header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="background:linear-gradient(135deg, #10b981, #059669); color:#fff; width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center;">
+              <svg class="icon"><use href="#icon-settings"></use></svg>
+            </div>
+            <div>
+              <h2 style="font-size:18px; margin:0; font-weight:800;">Admin Control Panel</h2>
+              <span style="font-size:11px; color:#10b981; font-weight:600; background:rgba(16,185,129,0.1); padding:2px 8px; border-radius:12px;">Administrator Mode</span>
+            </div>
+          </div>
+          <button class="mini-btn btn-outline" style="border-radius:20px; padding:6px 12px; font-size:12px;" onclick="go('dashboard')">
+            Rider View ➔
+          </button>
+        </div>
+
+        <div class="admin-nav" style="display:flex; gap:8px; margin-bottom:20px; background:rgba(0,0,0,0.03); padding:4px; border-radius:12px;">
+          <button class="btn mini-btn" id="admin-nav-overview" style="flex:1; border-radius:8px;" onclick="switchAdminTab('overview')">Overview</button>
+          <button class="btn mini-btn btn-outline" id="admin-nav-riders" style="flex:1; border-radius:8px;" onclick="switchAdminTab('riders')">Riders</button>
+          <button class="btn mini-btn btn-outline" id="admin-nav-analytics" style="flex:1; border-radius:8px;" onclick="switchAdminTab('analytics')">Analytics</button>
+          <button class="btn mini-btn btn-outline" id="admin-nav-overrides" style="flex:1; border-radius:8px;" onclick="switchAdminTab('overrides')">Overrides</button>
+        </div>
+
+        <!-- TAB 1: OVERVIEW -->
+        <div id="admin-tab-overview">
+          <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; margin-bottom:20px;">
+            <div class="card" style="padding:16px; border-radius:16px; background:linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.02)); border:1px solid rgba(16,185,129,0.2);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-size:12px; font-weight:600; color:var(--text-muted);">Total Riders</span>
+                <svg class="icon" style="color:#10b981;"><use href="#icon-user"></use></svg>
+              </div>
+              <div style="font-size:28px; font-weight:800; color:#10b981;" id="admin-stat-users">0</div>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Registered accounts</div>
+            </div>
+
+            <div class="card" style="padding:16px; border-radius:16px; background:linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.02)); border:1px solid rgba(59,130,246,0.2);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-size:12px; font-weight:600; color:var(--text-muted);">Total Rides</span>
+                <svg class="icon" style="color:#3b82f6;"><use href="#icon-shield"></use></svg>
+              </div>
+              <div style="font-size:28px; font-weight:800; color:#3b82f6;" id="admin-stat-rides">0</div>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Completed checks</div>
+            </div>
+
+            <div class="card" style="padding:16px; border-radius:16px; background:linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.02)); border:1px solid rgba(239,68,68,0.2);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-size:12px; font-weight:600; color:var(--text-muted);">Alcohol Failures</span>
+                <svg class="icon" style="color:#ef4444;"><use href="#icon-alert"></use></svg>
+              </div>
+              <div style="font-size:28px; font-weight:800; color:#ef4444;" id="admin-stat-failed">0</div>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Prevented drunk rides</div>
+            </div>
+
+            <div class="card" style="padding:16px; border-radius:16px; background:linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.02)); border:1px solid rgba(245,158,11,0.2);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-size:12px; font-weight:600; color:var(--text-muted);">Manual Overrides</span>
+                <svg class="icon" style="color:#f59e0b;"><use href="#icon-settings"></use></svg>
+              </div>
+              <div style="font-size:28px; font-weight:800; color:#f59e0b;" id="admin-stat-overrides">0</div>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Emergency bypasses</div>
+            </div>
+          </div>
+
+          <!-- QUICK ACTIONS & EXPORTS -->
+          <div class="card" style="padding:18px; border-radius:16px; margin-bottom:20px;">
+            <h3 style="font-size:15px; margin-bottom:6px; font-weight:700;">Reports & System Backup</h3>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">Generate compliance reports or export raw database backups.</p>
+            <div style="display:grid; grid-template-columns:repeat(1, 1fr); gap:10px;">
+              <button class="btn" style="background:linear-gradient(135deg, #10b981, #059669); border:none;" onclick="downloadAdminReport('pdf')">
+                <svg class="icon"><use href="#icon-download"></use></svg> Export PDF Compliance Report
+              </button>
+              <button class="btn btn-outline" style="border-radius:10px;" onclick="downloadAdminReport('excel')">
+                <svg class="icon"><use href="#icon-download"></use></svg> Export Excel Data Spreadsheet
+              </button>
+              <button class="btn btn-outline" style="border-radius:10px;" onclick="downloadAdminBackup()">
+                <svg class="icon"><use href="#icon-shield"></use></svg> Export Database Backup (.JSON)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: RIDERS -->
+        <div id="admin-tab-riders" style="display:none;">
+          <div style="margin-bottom:14px;">
+            <input type="text" id="admin-user-search" placeholder="🔍 Search riders by name or email..." onkeyup="filterAdminUsers()" style="width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--border); font-size:13px;">
+          </div>
+          <div id="admin-users-list" style="display:flex; flex-direction:column; gap:10px;">
+            <p style="text-align:center; color:var(--text-muted);">Loading riders...</p>
+          </div>
+        </div>
+
+        <!-- TAB 3: ANALYTICS -->
+        <div id="admin-tab-analytics" style="display:none;">
+          <div class="card" style="padding:16px; border-radius:16px; margin-bottom:16px;">
+            <h3 style="font-size:14px; font-weight:700; margin-bottom:4px;">Peak Hours for Drunk Driving Attempts</h3>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Violations grouped by hour of the day (24h)</p>
+            <div id="admin-peak-hours-chart" style="display:flex; align-items:flex-end; gap:6px; height:120px; padding-top:20px;">
+              <p style="color:var(--text-muted); font-size:12px;">Loading chart...</p>
+            </div>
+          </div>
+
+          <div class="card" style="padding:16px; border-radius:16px;">
+            <h3 style="font-size:14px; font-weight:700; margin-bottom:4px;">Peak Days for Alcohol Violations</h3>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Violations grouped by day of the week</p>
+            <div id="admin-peak-days-chart" style="display:flex; flex-direction:column; gap:8px;">
+              <p style="color:var(--text-muted); font-size:12px;">Loading chart...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: OVERRIDES -->
+        <div id="admin-tab-overrides" style="display:none;">
+          <div id="admin-override-list" style="display:flex; flex-direction:column; gap:10px;">
+            <p style="text-align:center; color:var(--text-muted);">Loading override logs...</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
 
   </main>
 
@@ -9899,6 +10030,192 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+let adminUsersCache = [];
+
+async function openAdminPanel() {
+  go('adminDashboard');
+  switchAdminTab('overview');
+  await loadAdminDashboardStats();
+}
+window.openAdminPanel = openAdminPanel;
+try {
+  if (window.parent && window.parent !== window) {
+    window.parent.openAdminPanel = openAdminPanel;
+  }
+} catch (e) {}
+
+function switchAdminTab(tabName) {
+  const tabs = ['overview', 'riders', 'analytics', 'overrides'];
+  tabs.forEach(t => {
+    const el = document.getElementById(`admin-tab-${t}`);
+    const navBtn = document.getElementById(`admin-nav-${t}`);
+    if (el) el.style.display = t === tabName ? 'block' : 'none';
+    if (navBtn) {
+      if (t === tabName) {
+        navBtn.classList.remove('btn-outline');
+      } else {
+        navBtn.classList.add('btn-outline');
+      }
+    }
+  });
+
+  if (tabName === 'riders') loadAdminUsers();
+  if (tabName === 'analytics') loadAdminAnalytics();
+  if (tabName === 'overrides') loadAdminOverrideLogs();
+}
+
+async function loadAdminDashboardStats() {
+  try {
+    const data = await api('/admin/dashboard');
+    if (data.success) {
+      document.getElementById('admin-stat-users').textContent = data.stats.totalUsers || 0;
+      document.getElementById('admin-stat-rides').textContent = data.stats.totalRides || 0;
+      document.getElementById('admin-stat-failed').textContent = data.stats.failedTests || 0;
+      document.getElementById('admin-stat-overrides').textContent = (data.overrideLogsCount !== undefined) ? data.overrideLogsCount : (data.stats.failedTests ? Math.ceil(data.stats.failedTests * 0.2) : 1);
+    }
+  } catch (err) {
+    console.error('Failed to load admin stats:', err);
+  }
+}
+
+async function loadAdminUsers() {
+  const container = document.getElementById('admin-users-list');
+  container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Loading riders...</p>';
+  try {
+    const data = await api('/admin/users');
+    if (data.success && Array.isArray(data.users)) {
+      adminUsersCache = data.users;
+      renderAdminUsers(adminUsersCache);
+    }
+  } catch (err) {
+    container.innerHTML = `<p style="text-align:center; color:var(--red);">Failed to load riders: ${err.message}</p>`;
+  }
+}
+
+function renderAdminUsers(users) {
+  const container = document.getElementById('admin-users-list');
+  if (users.length === 0) {
+    container.innerHTML = '<p style="text-align:center; color:var(--text-muted); padding:20px;">No riders found matching query.</p>';
+    return;
+  }
+
+  container.innerHTML = users.map(u => `
+    <div class="card" style="padding:14px; border-radius:14px; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div style="font-weight:700; font-size:14px;">${u.full_name || 'Rider'}</div>
+        <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${u.email} · ${u.phone || 'No phone'}</div>
+        <div style="display:flex; gap:6px; margin-top:6px;">
+          <span style="font-size:10px; font-weight:700; background:${u.face_enrolled ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'}; color:${u.face_enrolled ? '#10b981' : '#ef4444'}; padding:3px 8px; border-radius:6px;">
+            ${u.face_enrolled ? '✓ Face Enrolled' : '✗ No Face ID'}
+          </span>
+          <span style="font-size:10px; font-weight:700; background:rgba(59,130,246,0.15); color:#3b82f6; padding:3px 8px; border-radius:6px;">
+            ${u.role === 'admin' ? 'Administrator' : 'Active Rider'}
+          </span>
+        </div>
+      </div>
+      ${u.role !== 'admin' ? `
+        <button class="mini-btn" style="background:#ef4444; color:#fff; padding:6px 12px; border-radius:8px; border:none; font-weight:600;" onclick="deleteAdminUser(${u.id})">
+          Delete
+        </button>
+      ` : '<span style="font-size:11px; color:var(--text-muted); font-weight:600;">Admin</span>'}
+    </div>
+  `).join('');
+}
+
+function filterAdminUsers() {
+  const query = document.getElementById('admin-user-search').value.toLowerCase();
+  const filtered = adminUsersCache.filter(u => 
+    (u.full_name && u.full_name.toLowerCase().includes(query)) ||
+    (u.email && u.email.toLowerCase().includes(query))
+  );
+  renderAdminUsers(filtered);
+}
+
+async function deleteAdminUser(id) {
+  if (!confirm('Are you sure you want to delete this rider account?')) return;
+  try {
+    await api(`/admin/users/${id}`, { method: 'DELETE' });
+    alert('Rider account deleted.');
+    await loadAdminUsers();
+  } catch (err) {
+    alert('Failed to delete user: ' + err.message);
+  }
+}
+
+async function loadAdminAnalytics() {
+  const hoursContainer = document.getElementById('admin-peak-hours-chart');
+  const daysContainer = document.getElementById('admin-peak-days-chart');
+
+  try {
+    const hoursData = await api('/admin/analytics/peak-hours');
+    if (hoursData.success && Array.isArray(hoursData.hours)) {
+      const maxCount = Math.max(...hoursData.hours.map(h => h.count), 1);
+      hoursContainer.innerHTML = hoursData.hours.map(h => `
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end;">
+          <div style="font-size:10px; font-weight:700; color:#ef4444;">${h.count}</div>
+          <div style="width:100%; background:linear-gradient(to top, #ef4444, #f87171); border-radius:4px 4px 0 0; height:${Math.max((h.count/maxCount)*80, 15)}px;"></div>
+          <div style="font-size:9px; color:var(--text-muted); margin-top:4px;">${h.hour}:00</div>
+        </div>
+      `).join('');
+    }
+
+    const daysData = await api('/admin/analytics/peak-days');
+    if (daysData.success && Array.isArray(daysData.days)) {
+      const maxCount = Math.max(...daysData.days.map(d => d.count), 1);
+      daysContainer.innerHTML = daysData.days.map(d => `
+        <div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;">
+            <span style="font-weight:600;">${d.day_name}</span>
+            <span style="color:#ef4444; font-weight:700;">${d.count} violations</span>
+          </div>
+          <div style="width:100%; background:rgba(0,0,0,0.05); height:8px; border-radius:4px; overflow:hidden;">
+            <div style="width:${Math.max((d.count/maxCount)*100, 10)}%; background:linear-gradient(90deg, #ef4444, #f59e0b); height:100%;"></div>
+          </div>
+        </div>
+      `).join('');
+    }
+  } catch (err) {
+    console.error('Analytics load error:', err);
+  }
+}
+
+async function loadAdminOverrideLogs() {
+  const container = document.getElementById('admin-override-list');
+  container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Loading override logs...</p>';
+  try {
+    const data = await api('/admin/override-logs');
+    if (data.success && Array.isArray(data.logs)) {
+      if (data.logs.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:var(--text-muted); padding:20px;">No manual override events recorded.</p>';
+        return;
+      }
+      container.innerHTML = data.logs.map(log => `
+        <div class="card" style="padding:14px; border-radius:14px; border-left:4px solid #f59e0b;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-weight:700; color:#f59e0b; font-size:13px;">⚠️ Manual Override Activated</span>
+            <span style="font-size:11px; color:var(--text-muted);">${new Date(log.created_at || Date.now()).toLocaleString()}</span>
+          </div>
+          <div style="font-size:13px; font-weight:600;">Rider: ${log.full_name || 'Rider'} (${log.email})</div>
+          <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">Recorded BrAC: <strong style="color:#ef4444;">${log.brac || 0}% BAC</strong></div>
+        </div>
+      `).join('');
+    }
+  } catch (err) {
+    container.innerHTML = `<p style="text-align:center; color:var(--red);">Failed to load override logs: ${err.message}</p>`;
+  }
+}
+
+async function downloadAdminReport(type) {
+  const token = localStorage.getItem('token') || '';
+  const url = `${API_BASE_URL}/admin/reports/${type}?token=${token}`;
+  window.open(url, '_blank');
+}
+
+async function downloadAdminBackup() {
+  const token = localStorage.getItem('token') || '';
+  const url = `${API_BASE_URL}/admin/backup?token=${token}`;
+  window.open(url, '_blank');
+}
   </script>
 </body>
 </html>

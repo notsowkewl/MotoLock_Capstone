@@ -10,6 +10,14 @@ export default defineConfig({
     react(),
     legacy()
   ],
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        admin: 'admin.html',
+      }
+    }
+  },
   test: {
     globals: true,
     environment: 'jsdom',

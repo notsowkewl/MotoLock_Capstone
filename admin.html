@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MotoLock - Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card: #151c2c;
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --green: #1fa35b;
+      --red: #ed1c24;
+      --yellow: #f59e0b;
+      --blue: #2563eb;
+      --sidebar: #0e1320;
+      --shadow: rgba(0, 0, 0, 0.4);
+      --input-bg: #0b0f19;
+    }
+
+    body.light-mode {
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --border: rgba(0, 0, 0, 0.08);
+      --text: #1f2937;
+      --muted: #6b7280;
+      --sidebar: #ffffff;
+      --shadow: rgba(0, 0, 0, 0.06);
+      --input-bg: #f9fafb;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Outfit', sans-serif; transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; overflow: hidden; }
+    select option { background-color: var(--card); color: var(--text); }
+  </style>
+</head>
+<body>
+  <div id="admin-root" style="width: 100%; display: flex;"></div>
+  <script type="module" src="/src/admin/main.tsx"></script>
+</body>
+</html>

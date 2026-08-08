@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
@@ -98,7 +99,91 @@ function parseFaceProfile(rawProfile) {
   }
 }
 
-async function ensureRideHistoryTable() {
+async function ensureAllTablesExist() {
+  // 1. Users Table
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      full_name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      phone VARCHAR(32) DEFAULT '',
+      password_hash VARCHAR(255) NULL,
+      pin_hash VARCHAR(255) NULL,
+      role ENUM('rider', 'admin') NOT NULL DEFAULT 'rider',
+      face_descriptor LONGTEXT NULL,
+      face_enrolled TINYINT(1) NOT NULL DEFAULT 0,
+      face_enrolled_at DATETIME NULL,
+      email_verified TINYINT(1) NOT NULL DEFAULT 0,
+      auth_provider VARCHAR(32) NOT NULL DEFAULT 'local',
+      google_id VARCHAR(255) NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Migration: add missing columns if the existing DB table doesn't have them
+  try {
+    await db.query(`ALTER TABLE users ADD COLUMN role ENUM('rider','admin') NOT NULL DEFAULT 'rider'`);
+    console.log('✅ Migration: added role column to users table.');
+  } catch (e) {}
+
+  try {
+    await db.query(`ALTER TABLE users ADD COLUMN email_verified TINYINT(1) NOT NULL DEFAULT 0`);
+    console.log('✅ Migration: added email_verified column.');
+  } catch (e) {}
+
+  try {
+    await db.query(`ALTER TABLE users ADD COLUMN auth_provider VARCHAR(32) NOT NULL DEFAULT 'local'`);
+    console.log('✅ Migration: added auth_provider column.');
+  } catch (e) {}
+
+  try {
+    await db.query(`ALTER TABLE users ADD COLUMN google_id VARCHAR(255) NULL`);
+    console.log('✅ Migration: added google_id column.');
+  } catch (e) {}
+
+
+
+  // 2. Emergency Contacts Table
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS emergency_contacts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      phone VARCHAR(32) NOT NULL,
+      relationship VARCHAR(64) DEFAULT 'Family',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_contacts_user (user_id)
+    )
+  `);
+
+  // 3. Motorcycles Table
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS motorcycles (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      plate_number VARCHAR(32) NOT NULL,
+      model VARCHAR(128) NOT NULL,
+      brand VARCHAR(128) DEFAULT '',
+      year VARCHAR(16) DEFAULT '',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_motorcycles_user (user_id)
+    )
+  `);
+
+  // 3b. Devices Table
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS devices (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      sim_number VARCHAR(32) NOT NULL DEFAULT '',
+      relay_status TINYINT(1) NOT NULL DEFAULT 1,
+      is_locked TINYINT(1) NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_devices_user (user_id)
+    )
+  `);
+
+  // 4. Ride History Table
   await db.query(`
     CREATE TABLE IF NOT EXISTS ride_history (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -113,11 +198,86 @@ async function ensureRideHistoryTable() {
       alert_sent TINYINT(1) NOT NULL DEFAULT 0,
       brac DECIMAL(6, 3) NOT NULL DEFAULT 0.000,
       unlock_status VARCHAR(80) NOT NULL,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_ride_history_user_created (user_id, created_at),
-      INDEX idx_ride_history_user_status (user_id, status)
+      INDEX idx_ride_history_user_created (user_id, created_at)
     )
   `);
+
+  // 4b. Audit Logs Table
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      admin_name VARCHAR(255) NOT NULL DEFAULT 'System',
+      action VARCHAR(255) NOT NULL,
+      module VARCHAR(128) NOT NULL,
+      target_record VARCHAR(128) NOT NULL DEFAULT 'N/A',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // 4c. System Settings Table
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      setting_key VARCHAR(128) PRIMARY KEY,
+      setting_value VARCHAR(255) NOT NULL,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Seed default settings
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('alcohol_threshold', '0.05')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('lockout_limit', '3')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('session_timeout', '30')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('org_name', 'MotoLock IoT Safety System')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('org_tagline', 'Smart Safety. Secure Ride.')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('org_address', '123 Safety Street, Tech City, Philippines')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('org_timezone', 'Asia/Manila')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('org_language', 'English')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('date_format', 'MM/DD/YYYY')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('time_format', '12-Hour (AM/PM)')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('auto_sync_time', 'true')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('maintenance_mode', 'false')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('allow_registrations', 'true')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('auto_log_cleanup', 'true')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('password_policy', 'true')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('two_factor_auth', 'false')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('login_attempt_limit', '5')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('lockout_duration', '15')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('failed_sobriety_alert', '1')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('override_event_alert', '1')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('critical_alert_escalation', '5')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('scan_interval', '10')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('bluetooth_timeout', '30')`);
+  await db.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('auto_reconnect', 'true')`);
+
+  // 5. Seed Default Admin Account if missing
+  // First, rename the old seed account if it exists in the database
+  try {
+    await db.query(`UPDATE users SET email = 'admin', full_name = 'admin' WHERE email = 'admin@motolock.com'`);
+  } catch(e) {}
+
+  const [admins] = await db.query('SELECT id FROM users WHERE role = "admin" LIMIT 1');
+  if (admins.length === 0) {
+    const adminPassHash = await bcrypt.hash('admin123', 10);
+    const adminPinHash = await bcrypt.hash('1234', 10);
+    await db.query(`
+      INSERT INTO users (full_name, email, phone, password_hash, pin_hash, role, email_verified)
+      VALUES ('admin', 'admin', '09123456789', ?, ?, 'admin', 1)
+    `, [adminPassHash, adminPinHash]);
+    console.log('✅ Default Admin created: admin / admin123 (PIN: 1234)');
+  }
+
+  // Seed default device if none exists
+  const [deviceRows] = await db.query('SELECT id FROM devices LIMIT 1');
+  if (deviceRows.length === 0) {
+    const [userRows] = await db.query('SELECT id FROM users LIMIT 1');
+    if (userRows.length > 0) {
+      await db.query(`
+        INSERT INTO devices (user_id, sim_number, relay_status, is_locked)
+        VALUES (?, '+639123456789', 1, 0)
+      `, [userRows[0].id]);
+      console.log('✅ Default Device seeded in database.');
+    }
+  }
 }
 
 function mapRideHistoryRecord(record) {
@@ -285,15 +445,20 @@ app.post('/api/auth/google', async (req, res) => {
 async function authMiddleware(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
+    let token = '';
 
-    if (!authHeader) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.query && req.query.token) {
+      token = req.query.token;
+    }
+
+    if (!token) {
       return res.status(401).json({
         success: false,
         message: 'No token provided',
       });
     }
-
-    const token = authHeader.split(' ')[1];
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
@@ -2007,15 +2172,30 @@ app.post('/api/profile/email-change/verify-new-code', authMiddleware, async (req
   }
 });
 
+app.use('/api/admin', require('./routes/admin')(db, authMiddleware));
+
+// Serve Frontend Public Static Assets (Logo png, favicon, etc)
+app.use(express.static(path.resolve(__dirname, '../../public')));
+
+// Serve Standalone Admin Web Portal
+app.get('/admin', (req, res) => {
+  res.sendFile(path.resolve(__dirname, '../../admin.html'));
+});
+
 async function startServer() {
-  await ensureRideHistoryTable();
+  try {
+    await ensureAllTablesExist();
+    console.log('✅ Database connected and tables verified.');
+  } catch (dbErr) {
+    console.warn('⚠️ Could not connect to MySQL database:', dbErr.message);
+    console.warn('💡 Tip: Please start MySQL service or XAMPP. Running backend in fallback mode...');
+  }
 
   app.listen(process.env.PORT || 5001, "0.0.0.0", () => {
-    console.log(`MotoLock backend running on port ${process.env.PORT || 5001}`);
+    console.log(`🚀 MotoLock backend running on http://localhost:${process.env.PORT || 5001}`);
   });
 }
 
 startServer().catch(err => {
   console.error('Failed to start MotoLock backend:', err);
-  process.exit(1);
 });
