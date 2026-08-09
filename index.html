@@ -3297,8 +3297,30 @@
 }
 
     @media (max-width: 460px) {
-      body { padding: 0; background: white; }
       .phone { width: 100vw; height: 100vh; border: none; border-radius: 0; box-shadow: none; }
+    }
+    .offline-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background: var(--orange-soft);
+      color: var(--orange);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 8px 12px;
+      text-align: center;
+      z-index: 1000;
+      border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.4; }
+      50% { opacity: 1; }
+      100% { opacity: 0.4; }
     }
   </style>
 </head>
@@ -3337,6 +3359,12 @@
   </svg>
 
   <main class="phone">
+    <!-- Offline status notification banner -->
+    <div class="offline-bar" id="network-status-badge">
+      <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--orange); animation: pulse 1.5s infinite;"></span>
+      Offline Mode — Logs will sync when connection returns
+    </div>
+
     <section class="screen active" id="login">
 
       <div class="page center">
@@ -3910,7 +3938,16 @@
         <div class="screen-title"><h2>Add Trusted Contact</h2><p>This person will receive emergency alerts when needed.</p></div>
         <div class="avatar"><svg class="icon"><use href="#icon-user"></use></svg><div class="avatar-add"><svg class="icon"><use href="#icon-plus"></use></svg></div></div>
         <div class="form">
-          <div><label>Full Name</label><input type="text" id="setup-contact-name" placeholder="Enter contact full name"></div>
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <label>Full Name</label>
+              <button type="button" onclick="selectContactFromPhone('setup-contact-name', 'setup-contact-phone')" style="border:none; background:transparent; color:var(--red); font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; padding:0 0 6px;">
+                <svg class="icon" style="width:14px; height:14px;"><use href="#icon-user"></use></svg>
+                Import Contact
+              </button>
+            </div>
+            <input type="text" id="setup-contact-name" placeholder="Enter contact full name">
+          </div>
           <div><label>Phone Number</label><input
   type="tel"
   id="setup-contact-phone"
@@ -5515,7 +5552,13 @@
     <input type="hidden" id="contact-role" value="Primary Contact">
 
     <div class="field" style="margin-bottom:12px">
-      <label>Full Name</label>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <label>Full Name</label>
+        <button type="button" onclick="selectContactFromPhone('contact-name', 'contact-phone')" style="border:none; background:transparent; color:var(--red); font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; padding:0 0 6px;">
+          <svg class="icon" style="width:14px; height:14px;"><use href="#icon-user"></use></svg>
+          Import Contact
+        </button>
+      </div>
       <input type="text" id="contact-name" placeholder="Enter full name">
     </div>
 
@@ -7508,6 +7551,37 @@ async function verifyLoginPin() {
   }
 }
 
+// select contact from phone
+async function selectContactFromPhone(nameInputId, phoneInputId) {
+  if (!navigator.contacts || !navigator.contacts.select) {
+    alert("Contact Picker is not natively supported on this browser or OS.\n\nPlease enter the emergency contact details manually.");
+    return;
+  }
+  try {
+    const props = ['name', 'tel'];
+    const opts = { multiple: false };
+    const contacts = await navigator.contacts.select(props, opts);
+    if (contacts && contacts.length > 0) {
+      const contact = contacts[0];
+      const name = contact.name && contact.name[0] ? contact.name[0] : '';
+      let phone = contact.tel && contact.tel[0] ? contact.tel[0] : '';
+      
+      // Clean up phone number format if needed (e.g. +63 to 0)
+      phone = phone.replace(/^\+63/, '0').replace(/[-\s()]/g, '');
+
+      const nameField = document.getElementById(nameInputId);
+      const phoneField = document.getElementById(phoneInputId);
+      if (nameField) nameField.value = name;
+      if (phoneField) {
+        phoneField.value = phone;
+        formatPhoneInput(phoneField);
+      }
+    }
+  } catch (err) {
+    console.warn("Contact selector cancelled or failed:", err);
+  }
+}
+
 // save contact
 async function saveContact() {
   try {
@@ -7745,28 +7819,72 @@ async function saveRideHistoryLog(result) {
   const selectedMotorcycle = motorcycles[selectedRideMotorcycleIndex] || motorcycles[0] || {};
   const brac = normalizeBracValue(motolockSensorData.displayBrac ?? motolockSensorData.brac) ?? 0;
 
+  const logPayload = {
+    motorcycleId: selectedMotorcycle.id || null,
+    motorcyclePlate: selectedMotorcycle.plate || 'No plate',
+    motorcycleModel: selectedMotorcycle.model || 'Motorcycle',
+    status: passed ? 'completed' : 'alert',
+    faceVerified: rideCheckStatus.noHelmetVerified === true,
+    helmetVerified: rideCheckStatus.helmetVerified === true,
+    alcoholDetected: !passed,
+    alertSent: !passed,
+    brac,
+    unlockStatus: passed ? 'Ignition access granted' : 'Motor still locked',
+  };
+
+  // If offline, queue the log in local storage and add to UI
+  if (!navigator.onLine) {
+    console.log("Device is offline. Queuing ride log locally:", logPayload);
+    const offlineLogsStr = localStorage.getItem("ml_offline_rides") || "[]";
+    let offlineLogs = [];
+    try {
+      offlineLogs = JSON.parse(offlineLogsStr);
+    } catch (e) {
+      offlineLogs = [];
+    }
+    offlineLogs.push(logPayload);
+    localStorage.setItem("ml_offline_rides", JSON.stringify(offlineLogs));
+
+    // Prepend a mock record for instant UI feedback
+    const mockRecord = {
+      ...logPayload,
+      id: "offline-" + Date.now(),
+      created_at: new Date().toISOString()
+    };
+    rideHistoryRecords = [mockRecord, ...rideHistoryRecords];
+    renderRideHistory();
+    return;
+  }
+
   try {
     const response = await api('/ride-history', {
       method: 'POST',
-      body: JSON.stringify({
-        motorcycleId: selectedMotorcycle.id || null,
-        motorcyclePlate: selectedMotorcycle.plate || 'No plate',
-        motorcycleModel: selectedMotorcycle.model || 'Motorcycle',
-        status: passed ? 'completed' : 'alert',
-        faceVerified: rideCheckStatus.noHelmetVerified === true,
-        helmetVerified: rideCheckStatus.helmetVerified === true,
-        alcoholDetected: !passed,
-        alertSent: !passed,
-        brac,
-        unlockStatus: passed ? 'Ignition access granted' : 'Motor still locked',
-      }),
+      body: JSON.stringify(logPayload),
     });
 
     if (response.record) {
       rideHistoryRecords = [response.record, ...rideHistoryRecords];
     }
   } catch (err) {
-    console.warn('Ride history log was not saved:', err);
+    console.warn('Ride history log was not saved on server. Queuing locally:', err);
+    // Fallback queue on request error
+    const offlineLogsStr = localStorage.getItem("ml_offline_rides") || "[]";
+    let offlineLogs = [];
+    try {
+      offlineLogs = JSON.parse(offlineLogsStr);
+    } catch (e) {
+      offlineLogs = [];
+    }
+    offlineLogs.push(logPayload);
+    localStorage.setItem("ml_offline_rides", JSON.stringify(offlineLogs));
+
+    const mockRecord = {
+      ...logPayload,
+      id: "offline-" + Date.now(),
+      created_at: new Date().toISOString()
+    };
+    rideHistoryRecords = [mockRecord, ...rideHistoryRecords];
+    renderRideHistory();
   }
 }
 
@@ -9740,9 +9858,9 @@ async function verifyNewEmailCode() {
 }
 
 async function api(path, options = {}) {
-
   console.log("REGISTER URL:", API_BASE_URL + path);
 
+  const method = (options.method || "GET").toUpperCase();
   const token = localStorage.getItem("token") || localStorage.getItem("motolock_token");
   const headers = {
     "Content-Type": "application/json",
@@ -9750,19 +9868,109 @@ async function api(path, options = {}) {
     ...(options.headers || {})
   };
 
-  const response = await fetch(API_BASE_URL + path, {
-  ...options,
-  headers
-});
-
-  const data = await response.json();
-
-  if (!response.ok || data.success === false) {
-    throw new Error(data.message || "Request failed");
+  // If offline and request is GET, attempt to serve from local storage cache
+  if (!navigator.onLine && method === "GET") {
+    const cached = localStorage.getItem("ml_cache_" + path);
+    if (cached) {
+      console.log("Serving cached data for:", path);
+      return JSON.parse(cached);
+    }
+    throw new Error("You are currently offline. Please reconnect to access this page.");
   }
 
-  return data;
+  try {
+    const response = await fetch(API_BASE_URL + path, {
+      ...options,
+      headers
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || data.success === false) {
+      throw new Error(data.message || "Request failed");
+    }
+
+    // Cache successful GET responses
+    if (method === "GET") {
+      localStorage.setItem("ml_cache_" + path, JSON.stringify(data));
+    }
+
+    return data;
+  } catch (err) {
+    // If network failed and method is GET, try cache fallback
+    if (method === "GET") {
+      const cached = localStorage.getItem("ml_cache_" + path);
+      if (cached) {
+        console.log("Network request failed. Serving cached data for:", path);
+        return JSON.parse(cached);
+      }
+    }
+    throw err;
+  }
 }
+
+// Background offline synchronization pipeline
+async function syncOfflineRideLogs() {
+  if (!navigator.onLine) return;
+  const token = localStorage.getItem("token") || localStorage.getItem("motolock_token");
+  if (!token) return;
+
+  const offlineLogsStr = localStorage.getItem("ml_offline_rides");
+  if (!offlineLogsStr) return;
+
+  let offlineLogs = [];
+  try {
+    offlineLogs = JSON.parse(offlineLogsStr);
+  } catch (e) {
+    localStorage.removeItem("ml_offline_rides");
+    return;
+  }
+
+  if (offlineLogs.length === 0) return;
+
+  console.log(`Attempting to synchronize ${offlineLogs.length} offline logs...`);
+  const remainingLogs = [];
+
+  for (const log of offlineLogs) {
+    try {
+      await fetch(API_BASE_URL + "/ride-history", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(log)
+      });
+    } catch (err) {
+      console.warn("Failed to sync log item, retaining in queue:", err);
+      remainingLogs.push(log);
+    }
+  }
+
+  if (remainingLogs.length > 0) {
+    localStorage.setItem("ml_offline_rides", JSON.stringify(remainingLogs));
+  } else {
+    localStorage.removeItem("ml_offline_rides");
+    console.log("All offline ride logs successfully synchronized!");
+    loadRideHistory().catch(() => {});
+  }
+}
+
+// Bind online/offline window listeners
+window.addEventListener("online", () => {
+  const badge = document.getElementById("network-status-badge");
+  if (badge) badge.style.display = "none";
+  syncOfflineRideLogs();
+});
+
+window.addEventListener("offline", () => {
+  const badge = document.getElementById("network-status-badge");
+  if (badge) badge.style.display = "flex";
+});
+
+// Run initial sync on script load
+setTimeout(syncOfflineRideLogs, 2000);
+
 
 async function validateCreateAccount() {
 

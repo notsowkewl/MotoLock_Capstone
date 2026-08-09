@@ -47,12 +47,13 @@ const CustomSelect = ({
   onChange,
   style
 }: {
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; disabled?: boolean }[];
   value: string;
   onChange: (val: string) => void;
   style?: React.CSSProperties;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [filterText, setFilterText] = useState('');
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   const selectedOption = options.find(o => o.value === value) || options[0];
@@ -66,6 +67,29 @@ const CustomSelect = ({
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
+
+  // Reset filter when closed
+  useEffect(() => {
+    if (!isOpen) {
+      setFilterText('');
+    }
+  }, [isOpen]);
+
+  const filteredOptions = options.filter((opt, idx) => {
+    if (!filterText) return true;
+    if (opt.disabled) {
+      let hasMatch = false;
+      for (let i = idx + 1; i < options.length; i++) {
+        if (options[i].disabled) break;
+        if (options[i].label.toLowerCase().includes(filterText.toLowerCase())) {
+          hasMatch = true;
+          break;
+        }
+      }
+      return hasMatch;
+    }
+    return opt.label.toLowerCase().includes(filterText.toLowerCase());
+  });
 
   return (
     <div
@@ -119,37 +143,66 @@ const CustomSelect = ({
           boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
           zIndex: 9999,
           overflow: 'hidden',
-          maxHeight: '220px',
-          overflowY: 'auto'
+          maxHeight: '340px',
+          display: 'flex',
+          flexDirection: 'column'
         }}>
-          {options.map(opt => (
-            <div
-              key={opt.value}
-              onClick={(e) => {
-                e.stopPropagation();
-                onChange(opt.value);
-                setIsOpen(false);
-              }}
-              style={{
-                padding: '10px 16px',
-                background: opt.value === value ? 'var(--border)' : 'transparent',
-                color: 'var(--text)',
-                fontSize: '13px',
-                transition: 'background 0.2s',
-                textAlign: 'left'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--border)';
-              }}
-              onMouseLeave={(e) => {
-                if (opt.value !== value) {
-                  e.currentTarget.style.background = 'transparent';
-                }
-              }}
-            >
-              {opt.label}
+          {options.length > 5 && (
+            <div style={{ padding: '8px', borderBottom: '1px solid var(--border)', background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
+              <input
+                type="text"
+                placeholder="Type to filter..."
+                value={filterText}
+                onChange={e => setFilterText(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  color: 'var(--text)',
+                  fontSize: '12px',
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
+              />
             </div>
-          ))}
+          )}
+          <div style={{ overflowY: 'auto', flex: 1, maxHeight: '260px' }}>
+            {filteredOptions.map(opt => (
+              <div
+                key={opt.value}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (opt.disabled) return;
+                  onChange(opt.value);
+                  setIsOpen(false);
+                }}
+                style={{
+                  padding: opt.disabled ? '8px 16px' : '10px 16px',
+                  background: opt.disabled ? 'rgba(128,128,128,0.03)' : (opt.value === value ? 'var(--border)' : 'transparent'),
+                  color: opt.disabled ? 'var(--red)' : 'var(--text)',
+                  fontSize: opt.disabled ? '11px' : '13px',
+                  fontWeight: opt.disabled ? 700 : 'normal',
+                  transition: opt.disabled ? 'none' : 'background 0.2s',
+                  textAlign: 'left',
+                  cursor: opt.disabled ? 'default' : 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  if (!opt.disabled) {
+                    e.currentTarget.style.background = 'var(--border)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!opt.disabled && opt.value !== value) {
+                    e.currentTarget.style.background = 'transparent';
+                  }
+                }}
+              >
+                {opt.label}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -197,8 +250,29 @@ export default function AdminApp() {
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [newPin, setNewPin] = useState('');
   const [newRole, setNewRole] = useState('rider');
+
+  // Manage Rider Form States
+  const [selectedRider, setSelectedRider] = useState<any>(null);
+  const [manageTab, setManageTab] = useState<'profile' | 'motorcycles' | 'contacts'>('profile');
+  
+  // Profile edit states
+  const [editFullName, setEditFullName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editRole, setEditRole] = useState('rider');
+
+  // Contact add states
+  const [newContactName, setNewContactName] = useState('');
+  const [newContactPhone, setNewContactPhone] = useState('');
+  const [newContactRole, setNewContactRole] = useState('Primary Contact');
+
+  // Motorcycle add states
+  const [newPlateNumber, setNewPlateNumber] = useState('');
+  const [newMotorcycleModel, setNewMotorcycleModel] = useState('');
+  const [newMotorcycleYear, setNewMotorcycleYear] = useState('');
+  const [newMotorcycleColor, setNewMotorcycleColor] = useState('');
+
 
   // Settings Edit states
   const [alcoholThreshold, setAlcoholThreshold] = useState('0.05');
@@ -229,12 +303,26 @@ export default function AdminApp() {
   const [autoReconnect, setAutoReconnect] = useState(localStorage.getItem('set_autoReconnect') !== 'false');
 
   // Reports Filter states
-  const [reportType, setReportType] = useState('rides');
+  const [reportType, setReportType] = useState('sobriety-test');
   const [reportStatus, setReportStatus] = useState('all');
   const [reportAlcohol, setReportAlcohol] = useState('all');
   const [reportRole, setReportRole] = useState('all');
+
+  const RIDER_REPORT_TYPES = ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg'];
+  const handleSetReportType = (val: string) => {
+    setReportType(val);
+    // Auto-lock role to 'rider' for rider-specific reports
+    if (RIDER_REPORT_TYPES.includes(val)) {
+      setReportRole('rider');
+    } else {
+      setReportRole('all');
+    }
+  };
   const [reportStart, setReportStart] = useState('');
   const [reportEnd, setReportEnd] = useState('');
+  const [reportPreview, setReportPreview] = useState<any[] | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [generatedReportType, setGeneratedReportType] = useState('sobriety-test');
 
   // Apply visual theme class on change
   useEffect(() => {
@@ -458,7 +546,6 @@ export default function AdminApp() {
         setNewEmail('');
         setNewPhone('');
         setNewPassword('');
-        setNewPin('');
         loadAllData();
       }
     } catch (err: any) {
@@ -479,6 +566,138 @@ export default function AdminApp() {
       }
     });
   };
+
+  // Manage Rider actions
+  const handleManageRider = (rider: any) => {
+    setSelectedRider(rider);
+    setEditFullName(rider.full_name || '');
+    setEditEmail(rider.email || '');
+    setEditPhone(rider.phone || '');
+    setEditRole(rider.role || 'rider');
+    setManageTab('profile');
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editFullName || !editEmail || !editPhone) {
+      showCustomAlert('Missing Fields', 'Please complete all profile fields.');
+      return;
+    }
+    try {
+      await apiFetch(`/admin/users/${selectedRider.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          fullName: editFullName,
+          email: editEmail,
+          phone: editPhone,
+          role: editRole
+        })
+      });
+      showCustomAlert('Success', 'Profile updated successfully.');
+      triggerAuditLog(`Updated rider profile for ${editEmail}`, 'Riders Directory', editEmail);
+      
+      const updated = riders.map(r => r.id === selectedRider.id ? { ...r, full_name: editFullName, email: editEmail, phone: editPhone, role: editRole } : r);
+      setRiders(updated);
+      setSelectedRider(null);
+      loadAllData();
+    } catch (err: any) {
+      showCustomAlert('Update Error', err.message);
+    }
+  };
+
+  const handleAddMotorcycle = async () => {
+    if (!newPlateNumber || !newMotorcycleModel || !newMotorcycleYear || !newMotorcycleColor) {
+      showCustomAlert('Missing Fields', 'Please enter all motorcycle details.');
+      return;
+    }
+    try {
+      const res = await apiFetch('/admin/motorcycles', {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: selectedRider.id,
+          plateNumber: newPlateNumber,
+          model: newMotorcycleModel,
+          year: newMotorcycleYear,
+          color: newMotorcycleColor
+        })
+      });
+      if (res.success) {
+        showCustomAlert('Success', 'Motorcycle registered successfully.');
+        setNewPlateNumber('');
+        setNewMotorcycleModel('');
+        setNewMotorcycleYear('');
+        setNewMotorcycleColor('');
+        
+        const updatedMotorcycles = [...(selectedRider.motorcycles || []), res.motorcycle];
+        const newSelected = { ...selectedRider, motorcycles: updatedMotorcycles };
+        setSelectedRider(newSelected);
+        setRiders(riders.map(r => r.id === selectedRider.id ? newSelected : r));
+        loadAllData();
+      }
+    } catch (err: any) {
+      showCustomAlert('Registry Error', err.message);
+    }
+  };
+
+  const handleDeleteMotorcycle = async (id: number) => {
+    try {
+      await apiFetch(`/admin/motorcycles/${id}`, { method: 'DELETE' });
+      
+      const updatedMotorcycles = (selectedRider.motorcycles || []).filter((m: any) => m.id !== id);
+      const newSelected = { ...selectedRider, motorcycles: updatedMotorcycles };
+      setSelectedRider(newSelected);
+      setRiders(riders.map(r => r.id === selectedRider.id ? newSelected : r));
+      loadAllData();
+    } catch (err: any) {
+      showCustomAlert('Delete Error', err.message);
+    }
+  };
+
+  const handleAddContact = async () => {
+    if (!newContactName || !newContactPhone) {
+      showCustomAlert('Missing Fields', 'Please enter contact name and phone number.');
+      return;
+    }
+    try {
+      const res = await apiFetch('/admin/contacts', {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: selectedRider.id,
+          name: newContactName,
+          phone: newContactPhone,
+          role: newContactRole
+        })
+      });
+      if (res.success) {
+        showCustomAlert('Success', 'Contact added successfully.');
+        setNewContactName('');
+        setNewContactPhone('');
+        
+        const updatedContacts = [...(selectedRider.contacts || []), res.contact];
+        const newSelected = { ...selectedRider, contacts: updatedContacts };
+        setSelectedRider(newSelected);
+        setRiders(riders.map(r => r.id === selectedRider.id ? newSelected : r));
+        loadAllData();
+      }
+    } catch (err: any) {
+      showCustomAlert('Add Error', err.message);
+    }
+  };
+
+  const handleDeleteContact = async (id: number) => {
+    try {
+      await apiFetch(`/admin/contacts/${id}`, { method: 'DELETE' });
+      
+      const updatedContacts = (selectedRider.contacts || []).filter((c: any) => c.id !== id);
+      const newSelected = { ...selectedRider, contacts: updatedContacts };
+      setSelectedRider(newSelected);
+      setRiders(riders.map(r => r.id === selectedRider.id ? newSelected : r));
+      loadAllData();
+    } catch (err: any) {
+      showCustomAlert('Delete Error', err.message);
+    }
+  };
+
 
   // Update Config Threshold Trigger
   const handleSaveSettings = async () => {
@@ -502,13 +721,88 @@ export default function AdminApp() {
     }
   };
 
+  // Generate report preview
+  const handleGenerateReport = () => {
+    setIsGeneratingReport(true);
+    // Snapshot the current report type so the preview won't change if the dropdown changes later
+    const frozenType = reportType;
+    setGeneratedReportType(frozenType);
+    setTimeout(() => {
+      let filtered: any[] = [];
+      const start = reportStart ? new Date(reportStart) : null;
+      const end = reportEnd ? new Date(reportEnd) : null;
+
+      const isRides = ['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(frozenType);
+
+      const isUsers = ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(frozenType);
+
+      if (isRides) {
+        filtered = overrides.filter(o => {
+          const oDate = new Date(o.created_at);
+          if (start && oDate < start) return false;
+          if (end && oDate > end) return false;
+          if (reportStatus === 'completed' && o.status !== 'unlocked') return false;
+          if (reportStatus === 'alert' && parseFloat(o.brac) < 0.05) return false;
+          if (reportAlcohol === '1' && parseFloat(o.brac) < 0.05) return false;
+          if (reportAlcohol === '0' && parseFloat(o.brac) >= 0.05) return false;
+          return true;
+        });
+      } else if (isUsers) {
+        filtered = riders.filter(r => {
+          const rDate = new Date(r.created_at || Date.now());
+          if (start && rDate < start) return false;
+          if (end && rDate > end) return false;
+          if (reportRole !== 'all' && r.role !== reportRole) return false;
+          return true;
+        });
+      } else if (frozenType.includes('override') || frozenType.includes('access')) {
+        filtered = overrides.filter(o => {
+          const oDate = new Date(o.created_at);
+          if (start && oDate < start) return false;
+          if (end && oDate > end) return false;
+          return o.unlock_status?.toLowerCase().includes('override');
+        });
+      } else if (frozenType.includes('audit') || frozenType.includes('system') || frozenType.includes('config')) {
+        filtered = auditLogs.filter(a => {
+          const aDate = new Date(a.created_at);
+          if (start && aDate < start) return false;
+          if (end && aDate > end) return false;
+          return true;
+        });
+      } else if (frozenType.includes('device') || frozenType.includes('helmet') || frozenType.includes('motorcycle-reg')) {
+        filtered = devices.map((d, index) => ({
+          ...d,
+          id: d.id || index,
+          full_name: riders.find(r => r.id === d.user_id)?.full_name || 'Unassigned',
+          created_at: new Date().toISOString()
+        }));
+      } else {
+        filtered = overrides.filter(o => {
+          const oDate = new Date(o.created_at);
+          if (start && oDate < start) return false;
+          if (end && oDate > end) return false;
+          return true;
+        });
+      }
+
+      setReportPreview(filtered);
+      setIsGeneratingReport(false);
+    }, 600);
+  };
+
   // Export pdf / excel
   const exportReport = (format: 'pdf' | 'excel') => {
-    let url = `${API}/admin/reports/${format}?token=${token}&reportType=${reportType}`;
-    if (reportType === 'rides') {
+    const isRides = ['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(reportType);
+
+    const isUsers = ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(reportType);
+
+    const mappedType = isRides ? 'rides' : (isUsers ? 'users' : 'overrides');
+
+    let url = `${API}/admin/reports/${format}?token=${token}&reportType=${mappedType}`;
+    if (mappedType === 'rides') {
       if (reportStatus !== 'all') url += `&status=${reportStatus}`;
       if (reportAlcohol !== 'all') url += `&alcohol=${reportAlcohol}`;
-    } else if (reportType === 'users') {
+    } else if (mappedType === 'users') {
       if (reportRole !== 'all') url += `&role=${reportRole}`;
     }
     if (reportStart) url += `&startDate=${reportStart}`;
@@ -584,15 +878,14 @@ export default function AdminApp() {
       title: 'Main',
       items: [
         { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-        { id: 'live-monitoring', label: 'Live Monitoring', icon: 'monitoring' },
-        { id: 'live-map', label: 'Live Map', icon: 'map' }
+        { id: 'live-monitoring', label: 'Live Monitoring', icon: 'monitoring' }
       ]
     },
     {
       title: 'Safety Management',
       items: [
         { id: 'riders', label: 'Riders', icon: 'riders' },
-        { id: 'devices', label: 'Motorcycles & Devices', icon: 'devices' },
+        { id: 'devices', label: 'MotoLock Devices', icon: 'devices' },
         { id: 'sobriety', label: 'Sobriety Tests', icon: 'sobriety' },
         { id: 'identity', label: 'Identity Verification', icon: 'identity' },
         { id: 'alerts', label: 'Alerts & Incidents', icon: 'alerts' }
@@ -679,13 +972,27 @@ export default function AdminApp() {
 
       {/* MAIN CONTENT VIEW */}
       <main style={styles.mainContent}>
-        {loading && <div style={styles.loadingBanner}>Loading real-time database records...</div>}
 
         {/* Global Top Bar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
           <div>
             <h2 style={{ margin: 0, textTransform: 'capitalize', color: 'var(--text)', fontSize: '20px', fontWeight: 800 }}>
-              {activeTab === 'dashboard' ? 'System Dashboard' : activeTab.replace('-', ' ')}
+              {
+                {
+                  dashboard: 'Dashboard',
+                  'live-monitoring': 'Live Monitoring',
+                  'live-map': 'Live Map',
+                  riders: 'Riders',
+                  devices: 'MotoLock Devices',
+                  sobriety: 'Sobriety Tests',
+                  identity: 'Identity Verification',
+                  alerts: 'Alerts & Incidents',
+                  'audit-logs': 'Audit Logs',
+                  reports: 'Reports',
+                  backup: 'Backup & Restore',
+                  settings: 'Settings'
+                }[activeTab] || activeTab.replace('-', ' ')
+              }
             </h2>
           </div>
           
@@ -1124,9 +1431,6 @@ export default function AdminApp() {
         {/* Tab 2: Live Monitoring */}
         {activeTab === 'live-monitoring' && (
           <div>
-            <div style={styles.viewHeader}>
-              <h2>Registered MotoLock Hardware States</h2>
-            </div>
             <div style={styles.card}>
               {!devices.length ? (
                 <div style={styles.emptyState}>No devices registered in the system.</div>
@@ -1166,46 +1470,21 @@ export default function AdminApp() {
           </div>
         )}
 
-        {/* Tab 3: Live Map */}
-        {activeTab === 'live-map' && (
-          <div>
-            <div style={styles.viewHeader}>
-              <h2>Geographical Tracking Interface</h2>
-            </div>
-            <div style={styles.card}>
-              <div style={styles.emptyState}>
-                <span style={{ display: 'block', marginBottom: 12 }}>
-                  <Icon name="map" size={32} color="var(--muted)" />
-                </span>
-                <strong>Location unavailable.</strong><br />
-                No GPS coordinates are stored in the database. Fake positions are disabled.
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Tab 4: Riders */}
         {activeTab === 'riders' && (
           <div>
-            <div style={styles.viewHeader}>
-              <h2>Rider Accounts Directory</h2>
-              <button onClick={() => setShowAddUser(true)} style={styles.actionBtn}>
-                <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
-                  <Icon name="users" size={14} />
-                </span>
-                Add User
-              </button>
-            </div>
-
             <div style={{ ...styles.card, marginBottom: 20 }}>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-                <input
-                  type="text"
-                  placeholder="Search user name or email..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  style={styles.input}
-                />
+              <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                  <input
+                    type="text"
+                    placeholder="Search user name or email..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    style={styles.input}
+                  />
+                </div>
                 <CustomSelect
                   options={[
                     { value: 'all', label: 'All Roles' },
@@ -1226,6 +1505,12 @@ export default function AdminApp() {
                   onChange={val => setRiderFaceFilter(val)}
                   style={{ width: '160px' }}
                 />
+                <button onClick={() => setShowAddUser(true)} style={{ ...styles.actionBtn, height: '44px', whiteSpace: 'nowrap' }}>
+                  <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
+                    <Icon name="users" size={14} />
+                  </span>
+                  Add User
+                </button>
               </div>
 
               <table style={styles.table}>
@@ -1234,6 +1519,8 @@ export default function AdminApp() {
                     <th style={styles.tableHeader}>Full Name</th>
                     <th style={styles.tableHeader}>Email Address</th>
                     <th style={styles.tableHeader}>Mobile Number</th>
+                    <th style={styles.tableHeader}>Registered Motorcycles</th>
+                    <th style={styles.tableHeader}>Emergency Contacts</th>
                     <th style={styles.tableHeader}>Role</th>
                     <th style={styles.tableHeader}>Face ID Profile</th>
                     <th style={styles.tableHeader}>Actions</th>
@@ -1256,6 +1543,29 @@ export default function AdminApp() {
                         <td style={styles.tableCell}>{r.email}</td>
                         <td style={styles.tableCell}>{maskPhone(r.phone)}</td>
                         <td style={styles.tableCell}>
+                          {r.motorcycles && r.motorcycles.length > 0 ? (
+                            r.motorcycles.map((m: any, mIdx: number) => (
+                              <div key={mIdx} style={{ fontSize: '11px', marginBottom: '2px' }}>
+                                <code>{m.plate_number}</code> - {m.model}
+                              </div>
+                            ))
+                          ) : (
+                            <span style={{ color: 'var(--muted)', fontSize: '11px' }}>None</span>
+                          )}
+                        </td>
+                        <td style={styles.tableCell}>
+                          {r.contacts && r.contacts.length > 0 ? (
+                            r.contacts.map((c: any, cIdx: number) => (
+                              <div key={cIdx} style={{ fontSize: '11px', marginBottom: '4px', borderBottom: cIdx < r.contacts.length - 1 ? '1px solid var(--border)' : 'none', paddingBottom: '2px' }}>
+                                <strong>{c.name}</strong> ({maskPhone(c.phone)})
+                                <div style={{ fontSize: '10px', color: 'var(--muted)' }}>{c.role}</div>
+                              </div>
+                            ))
+                          ) : (
+                            <span style={{ color: 'var(--muted)', fontSize: '11px' }}>None</span>
+                          )}
+                        </td>
+                        <td style={styles.tableCell}>
                           <span style={{
                             padding: '3px 8px',
                             borderRadius: 4,
@@ -1269,16 +1579,24 @@ export default function AdminApp() {
                         </td>
                         <td style={styles.tableCell}>{r.face_enrolled ? '✅ Face Loaded' : '❌ Missing'}</td>
                         <td style={styles.tableCell}>
-                          {r.role !== 'admin' ? (
+                          <div style={{ display: 'flex', gap: 6 }}>
                             <button
-                              onClick={() => handleDeleteUser(r.id, r.email)}
-                              style={styles.delBtn}
+                              onClick={() => handleManageRider(r)}
+                              style={{ ...styles.actionBtn, padding: '6px 12px', fontSize: '11px', height: 'auto' }}
                             >
-                              Delete Account
+                              Edit
                             </button>
-                          ) : (
-                            <span style={{ fontSize: 12, color: 'var(--muted)' }}>Protected</span>
-                          )}
+                            {r.role !== 'admin' ? (
+                              <button
+                                onClick={() => handleDeleteUser(r.id, r.email)}
+                                style={{ ...styles.delBtn, padding: '6px 12px', fontSize: '11px', height: 'auto' }}
+                              >
+                                Delete
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: 11, color: 'var(--muted)', alignSelf: 'center' }}>Protected</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1288,12 +1606,9 @@ export default function AdminApp() {
           </div>
         )}
 
-        {/* Tab 5: Motorcycles & Devices */}
+        {/* Tab 5: MotoLock Devices */}
         {activeTab === 'devices' && (
           <div>
-            <div style={styles.viewHeader}>
-              <h2>Hardware Components Control</h2>
-            </div>
              <div style={styles.card}>
                <table style={styles.table}>
                  <thead>
@@ -1329,9 +1644,6 @@ export default function AdminApp() {
         {/* Tab 6: Sobriety Tests */}
         {activeTab === 'sobriety' && (
           <div>
-            <div style={styles.viewHeader}>
-              <h2>Sobriety Breathalyzer Audit Logs</h2>
-            </div>
             <div style={styles.card}>
               <table style={styles.table}>
                 <thead>
@@ -1369,9 +1681,6 @@ export default function AdminApp() {
         {/* Tab 7: Identity Verification */}
         {activeTab === 'identity' && (
           <div>
-            <div style={styles.viewHeader}>
-              <h2>Identity verification Log</h2>
-            </div>
             <div style={styles.card}>
               <table style={styles.table}>
                 <thead>
@@ -1400,9 +1709,6 @@ export default function AdminApp() {
         {/* Tab 8: Alerts & Incidents */}
         {activeTab === 'alerts' && (
           <div>
-            <div style={styles.viewHeader}>
-              <h2>Critical Safety Alerts & Incidents</h2>
-            </div>
             <div style={styles.card}>
               <table style={styles.table}>
                 <thead>
@@ -1446,25 +1752,93 @@ export default function AdminApp() {
         {/* Tab 10: Reports */}
         {activeTab === 'reports' && (
           <div>
-            <div style={styles.viewHeader}>
-              <h2>Official Compliance Reports</h2>
-            </div>
             <div style={styles.card}>
               <div style={styles.formRow}>
                 <div style={{ flex: 1 }}>
-                  <label style={styles.label}>Content Category</label>
+                  <label style={styles.label}>Report Type</label>
                   <CustomSelect
                     options={[
-                      { value: 'rides', label: 'Ride Compliance Session Logs' },
-                      { value: 'users', label: 'User Directory List' },
-                      { value: 'overrides', label: 'Manual Overrides Audit Sheet' }
+                      { value: 'cat-safety', label: 'SAFETY & SOBRIETY', disabled: true },
+                      { value: 'sobriety-test', label: 'Sobriety Test Report' },
+                      { value: 'alcohol-detection', label: 'Alcohol Detection Report' },
+                      { value: 'failed-sobriety', label: 'Failed Sobriety & Lockout Report' },
+                      { value: 'rider-safety', label: 'Rider Safety Summary' },
+                      { value: 'sobriety-trend', label: 'Sobriety Trend Report' },
+                      
+                      { value: 'cat-riders', label: 'RIDERS', disabled: true },
+                      { value: 'rider-master', label: 'Rider Master List' },
+                      { value: 'rider-activity', label: 'Rider Activity Report' },
+                      { value: 'rider-safety-hist', label: 'Rider Safety History' },
+                      { value: 'rider-incident-hist', label: 'Rider Incident History' },
+                      { value: 'rider-reg', label: 'Rider Registration Report' },
+                      
+                      { value: 'cat-motorcycles', label: 'MOTORCYCLES & DEVICES', disabled: true },
+                      { value: 'motorcycle-reg', label: 'Motorcycle Registry Report' },
+                      { value: 'device-inventory', label: 'MotoLock Device Inventory' },
+                      { value: 'helmet-unit', label: 'Helmet Unit Report' },
+                      { value: 'motorcycle-unit', label: 'Motorcycle Unit Report' },
+                      { value: 'device-pairing', label: 'Device Pairing Report' },
+                      { value: 'device-connection', label: 'Device Connection Status Report' },
+                      { value: 'device-fault', label: 'Device Fault & Failure Report' },
+                      
+                      { value: 'cat-identity', label: 'IDENTITY VERIFICATION', disabled: true },
+                      { value: 'identity-verif', label: 'Identity Verification Report' },
+                      { value: 'failed-verif', label: 'Failed Verification Report' },
+                      { value: 'verif-attempt', label: 'Verification Attempt History' },
+                      { value: 'liveness-verif', label: 'Liveness Verification Report' },
+                      
+                      { value: 'cat-alerts', label: 'ALERTS & INCIDENTS', disabled: true },
+                      { value: 'alert-summary', label: 'Alert Summary Report' },
+                      { value: 'safety-incident', label: 'Safety Incident Report' },
+                      { value: 'critical-incident', label: 'Critical Incident Report' },
+                      { value: 'resolved-incident', label: 'Resolved Incident Report' },
+                      { value: 'incident-resolution', label: 'Incident Resolution Report' },
+                      { value: 'alert-trend', label: 'Alert Trend Report' },
+                      
+                      { value: 'cat-location', label: 'LOCATION & GPS', disabled: true },
+                      { value: 'gps-activity', label: 'GPS Activity Report' },
+                      { value: 'incident-loc', label: 'Incident Location Report' },
+                      { value: 'lockout-loc', label: 'Lockout Location Report' },
+                      { value: 'last-known-loc', label: 'Last Known Location Report' },
+                      
+                      { value: 'cat-override', label: 'OVERRIDE & ACCESS', disabled: true },
+                      { value: 'manual-override', label: 'Manual Override Report' },
+                      { value: 'override-history', label: 'Override History Report' },
+                      { value: 'ignition-override', label: 'Ignition Override Report' },
+                      { value: 'failed-access', label: 'Failed Access Attempt Report' },
+                      
+                      { value: 'cat-admin', label: 'ADMINISTRATION', disabled: true },
+                      { value: 'admin-list', label: 'Administrator/User List' },
+                      { value: 'user-activity', label: 'User Activity Report' },
+                      { value: 'role-permission', label: 'Role & Permission Report' },
+                      { value: 'login-history', label: 'Login History Report' },
+                      { value: 'failed-login', label: 'Failed Login Report' },
+                      { value: 'account-status', label: 'Account Status Report' },
+                      
+                      { value: 'cat-audit', label: 'AUDIT & SYSTEM', disabled: true },
+                      { value: 'audit-trail', label: 'Audit Trail Report' },
+                      { value: 'system-activity', label: 'System Activity Report' },
+                      { value: 'config-change', label: 'Configuration Change Report' },
+                      { value: 'system-event', label: 'System Event Report' },
+                      { value: 'system-health', label: 'System Health Report' },
+                      
+                      { value: 'cat-backup', label: 'BACKUP & MAINTENANCE', disabled: true },
+                      { value: 'backup-history', label: 'Backup History Report' },
+                      { value: 'backup-status', label: 'Backup Status Report' },
+                      { value: 'restore-history', label: 'Restore History Report' },
+                      { value: 'maintenance-activity', label: 'Maintenance Activity Report' },
+                      { value: 'system-maintenance', label: 'System Maintenance Report' },
+                      
+                      { value: 'cat-comprehensive', label: 'COMPREHENSIVE', disabled: true },
+                      { value: 'comp-safety', label: 'Comprehensive MotoLock Safety Report' },
+                      { value: 'comp-system', label: 'Comprehensive MotoLock System Report' }
                     ]}
                     value={reportType}
-                    onChange={val => setReportType(val)}
+                    onChange={val => handleSetReportType(val)}
                   />
                 </div>
  
-                {reportType === 'rides' && (
+                {['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(reportType) && (
                   <>
                     <div style={{ flex: 1 }}>
                       <label style={styles.label}>Ride Security Status</label>
@@ -1493,7 +1867,7 @@ export default function AdminApp() {
                   </>
                 )}
  
-                {reportType === 'users' && (
+                {['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(reportType) && (
                   <>
                     <div style={{ flex: 1 }}>
                       <label style={styles.label}>Role filter</label>
@@ -1503,15 +1877,16 @@ export default function AdminApp() {
                           { value: 'rider', label: 'Riders' },
                           { value: 'admin', label: 'Administrators' }
                         ]}
-                        value={reportRole}
-                        onChange={val => setReportRole(val)}
+                        value={RIDER_REPORT_TYPES.includes(reportType) ? 'rider' : reportRole}
+                        onChange={val => !RIDER_REPORT_TYPES.includes(reportType) && setReportRole(val)}
                       />
                     </div>
                     <div style={{ flex: 1 }}></div>
                   </>
                 )}
 
-                {reportType === 'overrides' && (
+                {!['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(reportType) &&
+                 !['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(reportType) && (
                   <>
                     <div style={{ flex: 1 }}></div>
                     <div style={{ flex: 1 }}></div>
@@ -1541,29 +1916,139 @@ export default function AdminApp() {
               </div>
 
               <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-                <button onClick={() => exportReport('pdf')} style={styles.actionBtn}>
-                  <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
-                    <Icon name="reports" size={14} />
-                  </span>
-                  Export PDF Report
-                </button>
-                <button onClick={() => exportReport('excel')} style={styles.actionBtn}>
-                  <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
-                    <Icon name="analytics" size={14} />
-                  </span>
-                  Export Excel Sheet
+                <button 
+                  onClick={handleGenerateReport} 
+                  disabled={isGeneratingReport}
+                  style={{ ...styles.actionBtn, background: 'var(--red)', color: '#fff', border: 'none', height: 44, padding: '0 24px' }}
+                >
+                  {isGeneratingReport ? 'Generating...' : 'Generate Report'}
                 </button>
               </div>
             </div>
+
+            {/* PREVIEW CONTAINER */}
+            {isGeneratingReport && (
+              <div style={{ ...styles.card, marginTop: 24, textAlign: 'center', padding: 40 }}>
+                <div style={{ color: 'var(--muted)', fontSize: 14 }}>🔄 Compiling database records and generating preview safety sheets...</div>
+              </div>
+            )}
+
+            {!isGeneratingReport && reportPreview !== null && (
+              <div style={{ ...styles.card, marginTop: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+                  <div>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
+                      Report Preview
+                    </h3>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      Generated {reportPreview.length} matching record(s)
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <button onClick={() => exportReport('pdf')} style={styles.actionBtn}>
+                      <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
+                        <Icon name="reports" size={14} />
+                      </span>
+                      Export PDF
+                    </button>
+                    <button onClick={() => exportReport('excel')} style={styles.actionBtn}>
+                      <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
+                        <Icon name="analytics" size={14} />
+                      </span>
+                      Export Excel
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr>
+                        {['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(generatedReportType) ? (
+                          <>
+                            <th style={styles.tableHeader}>Date</th>
+                            <th style={styles.tableHeader}>Rider</th>
+                            <th style={styles.tableHeader}>BrAC Level</th>
+                            <th style={styles.tableHeader}>Sobriety Status</th>
+                            <th style={styles.tableHeader}>Ignition State</th>
+                          </>
+                        ) : ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(generatedReportType) ? (
+                          <>
+                            <th style={styles.tableHeader}>Rider Name</th>
+                            <th style={styles.tableHeader}>Email</th>
+                            <th style={styles.tableHeader}>Phone</th>
+                            <th style={styles.tableHeader}>Role</th>
+                            <th style={styles.tableHeader}>Face ID</th>
+                          </>
+                        ) : (
+                          <>
+                            <th style={styles.tableHeader}>Timestamp</th>
+                            <th style={styles.tableHeader}>Record ID</th>
+                            <th style={styles.tableHeader}>Details</th>
+                          </>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportPreview.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} style={{ ...styles.tableCell, textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>
+                            No matching report data found for the selected range/filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        reportPreview.slice(0, 15).map((row: any, rIdx: number) => (
+                          <tr key={rIdx}>
+                            {['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(generatedReportType) ? (
+                              <>
+                                <td style={styles.tableCell}>{new Date(row.created_at).toLocaleString()}</td>
+                                <td style={styles.tableCell}>{row.full_name} ({row.email})</td>
+                                <td style={styles.tableCell}><strong>{row.brac} BAC</strong></td>
+                                <td style={styles.tableCell}>
+                                  <span style={{ color: parseFloat(row.brac) >= 0.05 ? 'var(--red)' : 'var(--green)', fontWeight: 700 }}>
+                                    {parseFloat(row.brac) >= 0.05 ? '🚨 Intoxicated' : '✅ Sober'}
+                                  </span>
+                                </td>
+                                <td style={styles.tableCell}>Ignition: {row.status}</td>
+                              </>
+                            ) : ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(generatedReportType) ? (
+                              <>
+                                <td style={styles.tableCell}><strong>{row.full_name}</strong></td>
+                                <td style={styles.tableCell}>{row.email}</td>
+                                <td style={styles.tableCell}>{maskPhone(row.phone)}</td>
+                                <td style={styles.tableCell}>{row.role}</td>
+                                <td style={styles.tableCell}>{row.face_enrolled ? 'Enrolled' : 'Missing'}</td>
+                              </>
+                            ) : (
+                              <>
+                                <td style={styles.tableCell}>{new Date(row.created_at || Date.now()).toLocaleString()}</td>
+                                <td style={styles.tableCell}><code>ID-{row.id || rIdx}</code></td>
+                                <td style={styles.tableCell}>
+                                  {row.action || row.model || row.unlock_status || 'System Log Activity'}
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        ))
+                      )}
+                      {reportPreview.length > 15 && (
+                        <tr>
+                          <td colSpan={5} style={{ ...styles.tableCell, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+                            Showing first 15 records in preview. Click Export PDF/Excel above to download all {reportPreview.length} records.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Tab 11: Audit Logs */}
         {activeTab === 'audit-logs' && (
           <div>
-            <div style={styles.viewHeader}>
-              <h2>System Administration Audit Trail</h2>
-            </div>
             <div style={styles.card}>
               <table style={styles.table}>
                 <thead>
@@ -2238,6 +2723,188 @@ export default function AdminApp() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {selectedRider && (
+        <div style={styles.modalBackdrop}>
+          <div style={{ ...styles.modalContent, width: '600px', maxWidth: '95%' }}>
+            <h3 style={styles.modalTitle}>Manage Rider: {selectedRider.full_name}</h3>
+            
+            {/* Tab Headers */}
+            <div style={{ display: 'flex', gap: 12, borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+              <button 
+                onClick={() => setManageTab('profile')} 
+                style={{ 
+                  padding: '10px 16px', 
+                  background: 'none', 
+                  border: 'none', 
+                  color: manageTab === 'profile' ? 'var(--red)' : 'var(--muted)',
+                  borderBottom: manageTab === 'profile' ? '2px solid var(--red)' : 'none',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Profile Info
+              </button>
+              <button 
+                onClick={() => setManageTab('motorcycles')} 
+                style={{ 
+                  padding: '10px 16px', 
+                  background: 'none', 
+                  border: 'none', 
+                  color: manageTab === 'motorcycles' ? 'var(--red)' : 'var(--muted)',
+                  borderBottom: manageTab === 'motorcycles' ? '2px solid var(--red)' : 'none',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Motorcycles ({selectedRider.motorcycles?.length || 0})
+              </button>
+              <button 
+                onClick={() => setManageTab('contacts')} 
+                style={{ 
+                  padding: '10px 16px', 
+                  background: 'none', 
+                  border: 'none', 
+                  color: manageTab === 'contacts' ? 'var(--red)' : 'var(--muted)',
+                  borderBottom: manageTab === 'contacts' ? '2px solid var(--red)' : 'none',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Emergency Contacts ({selectedRider.contacts?.length || 0})
+              </button>
+            </div>
+
+            {/* PROFILE TAB */}
+            {manageTab === 'profile' && (
+              <form onSubmit={handleSaveProfile}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Full Name</label>
+                  <input type="text" value={editFullName} onChange={e => setEditFullName(e.target.value)} style={styles.input} required />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Email Address</label>
+                  <input type="text" value={editEmail} onChange={e => setEditEmail(e.target.value)} style={styles.input} required />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Phone Number</label>
+                  <input type="text" value={editPhone} onChange={e => setEditPhone(e.target.value)} style={styles.input} required />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Role</label>
+                  <CustomSelect
+                    options={[
+                      { value: 'rider', label: 'Rider' },
+                      { value: 'admin', label: 'Administrator' }
+                    ]}
+                    value={editRole}
+                    onChange={val => setEditRole(val)}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+                  <button type="submit" style={styles.primaryButton}>Save Profile</button>
+                  <button type="button" onClick={() => setSelectedRider(null)} style={{ ...styles.primaryButton, background: '#737987' }}>Close</button>
+                </div>
+              </form>
+            )}
+
+            {/* MOTORCYCLES TAB */}
+            {manageTab === 'motorcycles' && (
+              <div>
+                <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: 20, border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
+                  {(!selectedRider.motorcycles || selectedRider.motorcycles.length === 0) ? (
+                    <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>No motorcycles registered.</div>
+                  ) : (
+                    selectedRider.motorcycles.map((m: any, mIdx: number) => (
+                      <div key={mIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: mIdx < selectedRider.motorcycles.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <div>
+                          <strong>{m.model}</strong> (<code style={{ color: 'var(--red)' }}>{m.plate_number}</code>)
+                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Year: {m.year} · Color: {m.color}</div>
+                        </div>
+                        <button onClick={() => handleDeleteMotorcycle(m.id)} style={{ ...styles.delBtn, padding: '4px 8px' }}>Remove</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text)' }}>Add Registered Motorcycle</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div>
+                    <label style={styles.label}>Plate Number</label>
+                    <input type="text" placeholder="e.g. ABC1234" value={newPlateNumber} onChange={e => setNewPlateNumber(e.target.value)} style={styles.input} />
+                  </div>
+                  <div>
+                    <label style={styles.label}>Model</label>
+                    <input type="text" placeholder="e.g. Yamaha NMAX" value={newMotorcycleModel} onChange={e => setNewMotorcycleModel(e.target.value)} style={styles.input} />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <div>
+                    <label style={styles.label}>Year</label>
+                    <input type="text" placeholder="e.g. 2024" value={newMotorcycleYear} onChange={e => setNewMotorcycleYear(e.target.value)} style={styles.input} />
+                  </div>
+                  <div>
+                    <label style={styles.label}>Color</label>
+                    <input type="text" placeholder="e.g. Black" value={newMotorcycleColor} onChange={e => setNewMotorcycleColor(e.target.value)} style={styles.input} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button onClick={handleAddMotorcycle} style={styles.primaryButton}>Add Motorcycle</button>
+                  <button type="button" onClick={() => setSelectedRider(null)} style={{ ...styles.primaryButton, background: '#737987' }}>Close</button>
+                </div>
+              </div>
+            )}
+
+            {/* EMERGENCY CONTACTS TAB */}
+            {manageTab === 'contacts' && (
+              <div>
+                <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: 20, border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
+                  {(!selectedRider.contacts || selectedRider.contacts.length === 0) ? (
+                    <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>No emergency contacts registered.</div>
+                  ) : (
+                    selectedRider.contacts.map((c: any, cIdx: number) => (
+                      <div key={cIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: cIdx < selectedRider.contacts.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <div>
+                          <strong>{c.name}</strong> ({maskPhone(c.phone)})
+                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Role: {c.role}</div>
+                        </div>
+                        <button onClick={() => handleDeleteContact(c.id)} style={{ ...styles.delBtn, padding: '4px 8px' }}>Remove</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text)' }}>Add Trusted Contact</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div>
+                    <label style={styles.label}>Contact Name</label>
+                    <input type="text" placeholder="Full Name" value={newContactName} onChange={e => setNewContactName(e.target.value)} style={styles.input} />
+                  </div>
+                  <div>
+                    <label style={styles.label}>Phone Number</label>
+                    <input type="text" placeholder="e.g. 09123456789" value={newContactPhone} onChange={e => setNewContactPhone(e.target.value)} style={styles.input} />
+                  </div>
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={styles.label}>Contact Role</label>
+                  <CustomSelect
+                    options={[
+                      { value: 'Primary Contact', label: 'Primary Contact' },
+                      { value: 'Secondary Contact', label: 'Secondary Contact' }
+                    ]}
+                    value={newContactRole}
+                    onChange={val => setNewContactRole(val)}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button onClick={handleAddContact} style={styles.primaryButton}>Add Contact</button>
+                  <button type="button" onClick={() => setSelectedRider(null)} style={{ ...styles.primaryButton, background: '#737987' }}>Close</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
