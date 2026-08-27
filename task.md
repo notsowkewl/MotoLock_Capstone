@@ -3,19 +3,29 @@
 ---
 
 ## 🛒 HARDWARE — Still Needs to be Purchased
+- [ ] Buy ESP32 Dev Module (38-pin) — ⚠️ REPLACE: Prototype unit was water damaged
 - [ ] Buy SIM7600G-H 4G LTE Module (with LTE antenna)
 - [ ] Buy Active SIM Card with SMS/Data load
 - [ ] Buy NEO-M8N GPS Module (with ceramic antenna)
 - [ ] Buy LM2596 DC-DC Buck Converter
+- [ ] Buy Mini Heatsink (with adhesive) for LM2596 Buck Converter
 - [ ] Buy 4-Channel Logic Level Converter (3.3V ↔ 5V)
-- [ ] Buy Inline Blade Fuse Holder + 3A Blade Fuse
+- [ ] Buy Inline Blade Fuse Holder + 5A Blade Fuse
 - [ ] Buy Large IP67 Waterproof ABS Project Box (Receiver)
-- [ ] Buy Small Waterproof Project Box (Helmet Transmitter)
+- [ ] Buy Small Waterproof Project Box (Helmet Transmitter, ~64x58mm)
+- [ ] Buy Small Clear Waterproof Enclosure for OLED Display
+- [ ] Buy 2x IP67 Waterproof Metal Push Buttons (16mm, Momentary)
+- [ ] Buy 2x Waterproof Metal LED Indicators (3-6V) - 1 Green, 1 Red
 - [ ] Buy TP4056 LiPo Charging Module (for helmet battery)
+- [ ] Buy 3.7V LiPo Battery Pouch (1000mAh 523450) for Helmet 
+- [ ] Buy ESP32 38-Pin Screw Terminal Expansion Board (for Receiver)
 - [ ] Buy 2x Electrolytic Capacitors (1000µF, 25V)
-- [ ] Buy 2x Perfboards (Dot Matrix Boards)
+- [ ] Buy 1x Perfboard (Dot Matrix Board) for Helmet Transmitter
 - [ ] Buy Roll of 22 AWG Stranded Wire
 - [ ] Buy Pack of T-Tap Wire Connectors
+- [ ] Buy 4x Waterproof Cable Glands (PG7 size) — for wire exits on IP67 box
+- [ ] Buy 1m Wire Loom / Split Braided Sleeving — for routing wires on motorcycle frame
+- [ ] Buy Pack of Zip Ties (small + medium) — for mounting ABS box to motorcycle frame
 
 ---
 
