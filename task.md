@@ -79,55 +79,51 @@
 *Code review findings: currently uses `tinyFaceDetector`, has NO liveness detection, camera stops between steps (bypass loophole exists), no multi-face check.*
 
 ### A. Upgrade Detection Model
-- [ ] Replace `faceapi.nets.tinyFaceDetector` with `faceapi.nets.ssdMobilenetv1` in `loadFaceModels()` — tiny model misses helmeted faces too often
-- [ ] Update `readFaceDescriptor()` to use `new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })` instead of `TinyFaceDetectorOptions`
-- [ ] Update `FACE_DETECTOR_SCORE_THRESHOLD` and `FACE_DETECTOR_INPUT_SIZE` constants accordingly
+- [x] Replace `faceapi.nets.tinyFaceDetector` with `faceapi.nets.ssdMobilenetv1` in `loadFaceModels()` — tiny model misses helmeted faces too often
+- [x] Update `readFaceDescriptor()` to use `new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })` instead of `TinyFaceDetectorOptions`
+- [x] Update `FACE_DETECTOR_SCORE_THRESHOLD` and `FACE_DETECTOR_INPUT_SIZE` constants accordingly
 
-### B. Liveness Detection — Build `runLivenessChallenge()` (MISSING — Must Build)
+### B. Liveness Detection — Build `runLivenessChallenge()`
 *Currently: zero liveness check. A printed photo passes verification.*
-- [ ] Build `runLivenessChallenge(videoId)` function using `faceLandmark68Net` landmarks
-- [ ] Challenge 1 — **Blink detection:** Compute Eye Aspect Ratio (EAR) on landmark points 36–41 (left eye) and 42–47 (right eye). EAR below 0.25 = blink confirmed
-- [ ] Challenge 2 — **Head turn left:** Check if nose tip (landmark 30) X-position shifts left relative to face center
-- [ ] Challenge 3 — **Head turn right:** Check if nose tip (landmark 30) X-position shifts right relative to face center
-- [ ] Show animated instruction UI for each challenge: *"Blink now → Turn left → Turn right"*
-- [ ] Add 10-second countdown timer per challenge — if not completed → fail liveness → full reset
-- [ ] Call `runLivenessChallenge()` at the START of both no-helmet AND with-helmet steps
+- [x] Build `runLivenessChallenge(videoId)` function using `faceLandmark68Net` landmarks
+- [x] Challenge 1 — **Blink detection:** Compute Eye Aspect Ratio (EAR) on landmark points 36–41 (left eye) and 42–47 (right eye). EAR below 0.25 = blink confirmed
+- [x] Challenge 2 — **Head turn left:** Check if nose tip (landmark 30) X-position shifts left relative to face center
+- [x] Challenge 3 — **Head turn right:** Check if nose tip (landmark 30) X-position shifts right relative to face center
+- [x] Show animated instruction UI for each challenge: *"Blink now → Turn left → Turn right"*
+- [x] Add 10-second countdown timer per challenge — if not completed → fail liveness → full reset
+- [x] Call `runLivenessChallenge()` at the START of both no-helmet AND with-helmet steps
 
-### C. Continuous Face Tracking During Helmet Transition — Build `watchFaceDuringTransition()` (MISSING — Must Build)
-*Currently: `stopFaceCamera()` is called after no-helmet pass. Camera closes. Bypass is possible by switching persons.*
-- [ ] After no-helmet verification passes, do NOT call `stopFaceCamera()` — keep `faceCameraStream` alive
-- [ ] Build `watchFaceDuringTransition(video)` that polls `readFaceDescriptor(video)` every 500ms
-- [ ] If `descriptor === null` for more than 1500ms → face left frame → call `resetFullVerification()` → show *"Face left the frame. Start over."*
-- [ ] If `faceapi.detectAllFaces()` returns 2+ detections → immediately call `resetFullVerification()` → show *"Multiple faces detected. Verification reset."*
-- [ ] Only stop `watchFaceDuringTransition()` once the with-helmet face step begins and IR sensor is confirmed
+### C. Continuous Face Tracking During Helmet Transition
+- [x] After no-helmet verification passes, do NOT call `stopFaceCamera()` — keep `faceCameraStream` alive
+- [x] Build `watchFaceDuringTransition(video)` that polls `readFaceDescriptor(video)` every 500ms
+- [x] If `descriptor === null` for more than 1500ms → face left frame → call `resetFullVerification()` → show *"Face left the frame. Start over."*
+- [x] If `faceapi.detectAllFaces()` returns 2+ detections → immediately call `resetFullVerification()` → show *"Multiple faces detected. Verification reset."*
+- [x] Only stop `watchFaceDuringTransition()` once the with-helmet face step begins and IR sensor is confirmed
 
-### D. Multiple Face Detection Check — Build `checkForMultipleFaces(video)` (MISSING — Must Build)
-- [ ] Build `checkForMultipleFaces(video)` using `faceapi.detectAllFaces()` (not `detectSingleFace`)
-- [ ] Call at the START of both no-helmet and with-helmet verification steps
-- [ ] If count > 1 → block verification, show *"Only the registered rider should be in front of the camera"*
+### D. Multiple Face Detection Check
+- [x] Build `checkForMultipleFaces(video)` using `faceapi.detectAllFaces()` (not `detectSingleFace`)
+- [x] Call at the START of both no-helmet and with-helmet verification steps
+- [x] If count > 1 → block verification, show *"Only the registered rider should be in front of the camera"*
 
-### E. Helmet-Wearing Confirmation on Camera (Needs Improvement)
-*Currently: with-helmet step only checks IR sensor. Does not verify the on-camera person IS the one wearing the helmet.*
-- [ ] During with-helmet step, after IR sensor confirms worn, add bounding box height check:
+### E. Helmet-Wearing Confirmation on Camera
+- [x] During with-helmet step, after IR sensor confirms worn, add bounding box height check:
   - If face bounding box `top Y` is close to 0 (helmet cutting top of frame) → likely helmeted ✅
   - If full forehead is visible → show *"Make sure your helmet is properly on and visible to camera"*
-- [ ] Compare current frame descriptor to `enrolledFaceDescriptor` (no-helmet): if distance is < 0.15 (looks too similar to no-helmet profile) → warn *"Helmet not detected on your face. Please put it on."*
+- [x] Compare current frame descriptor to `enrolledFaceDescriptor` (no-helmet): if distance is < 0.15 (looks too similar to no-helmet profile) → warn *"Helmet not detected on your face. Please put it on."*
 
 ### F. UI Polish
-- [ ] Add step progress indicator at top: **Step 1 of 3 → Step 2 of 3 → Step 3 of 3**
-- [ ] Add animated face outline overlay on video that turns green when face is detected, red when not
-- [ ] Add countdown timer bar during each liveness challenge showing seconds remaining
-- [ ] Replace plain status text (e.g. *"Confirming 2/5..."*) with animated progress bar
-- [ ] Show explicit instruction card before camera opens for each step
-- [ ] After no-helmet pass: show animated overlay *"Keep face on camera. Put helmet on now."*
-- [ ] Add retry button that calls `resetFullVerification()` from Step 1
+- [x] Add step progress indicator at top: **Step 1 of 3 → Step 2 of 3 → Step 3 of 3**
+- [x] Add animated face outline overlay on video that turns green when face is detected, red when not
+- [x] Replace plain status text (e.g. *"Confirming 2/5..."*) with animated progress bar
+- [x] Show explicit instruction card before camera opens for each step
+- [x] After no-helmet pass: show animated overlay *"Keep face on camera. Put helmet on now."*
 
 ### G. Enrollment Polish (Face ID Setup)
-- [ ] Run liveness challenge during enrollment before accepting any face samples
-- [ ] Increase enrollment sample count to 8 (currently lower) for better averaged descriptor
-- [ ] Add explicit helmet enrollment step during setup (currently helmet descriptor is learned lazily on first ride)
-- [ ] Show enrollment progress: *"Capture 3 of 8 — Hold still..."*
-- [ ] After enrollment: show summary *"Face ID Registered — Without Helmet ✅ With Helmet ✅"*
+- [x] Run liveness challenge during enrollment before accepting any face samples
+- [x] Increase enrollment sample count to 8 (currently lower) for better averaged descriptor
+- [x] Add explicit helmet enrollment step during setup (currently helmet descriptor is learned lazily on first ride)
+- [x] Show enrollment progress with circular progress ring
+- [x] After enrollment: show summary *"Face ID Registered"* using SVG icons
 
 ---
 

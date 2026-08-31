@@ -3784,12 +3784,49 @@
           <h2>Position your face in the frame</h2>
           <p>Keep your face centered. The next scan starts automatically once your face is detected.</p>
         </div>
-        <div class="camera-circle green" id="face-enroll-camera">
+        <div class="camera-circle green" id="face-enroll-camera" style="position:relative;">
           <video class="face-video" id="face-enroll-video" autoplay playsinline muted></video>
-          <div class="face"></div>
+          <div class="face" id="face-enroll-outline" style="transition: border-color 0.3s, box-shadow 0.3s;"></div>
+          
+          <div class="instruction-overlay" id="face-enroll-instruction-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:20;display:flex;flex-direction:column;justify-content:center;align-items:center;border-radius:50%;color:white;transition:opacity 0.5s;">
+            <svg class="icon" style="width:40px;height:40px;margin-bottom:10px;fill:white;"><use href="#icon-profile"></use></svg>
+            <p style="font-weight:bold;text-align:center;font-size:14px;line-height:1.4;">Look directly<br>at camera</p>
+          </div>
+          
+          <svg class="liveness-progress" id="face-enroll-liveness-progress" viewBox="0 0 100 100" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;display:none;">
+            <circle cx="50" cy="50" r="48" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="4"></circle>
+            <circle class="liveness-ring" id="face-enroll-liveness-ring" cx="50" cy="50" r="48" fill="none" stroke="#10b981" stroke-width="4" stroke-dasharray="301.59" stroke-dashoffset="301.59" style="transition: stroke-dashoffset 0.15s linear; transform-origin:center; transform:rotate(-90deg);"></circle>
+          </svg>
+          <div class="liveness-instruction" id="face-enroll-liveness-instruction" style="position:absolute;bottom:20px;left:5%;width:90%;text-align:center;color:#fff;font-weight:bold;z-index:11;background:rgba(0,0,0,0.6);padding:6px;display:none;border-radius:20px;font-size:14px;"></div>
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
         </div>
         <div class="capture" id="face-enroll-capture-text">Starting camera...</div>
+      </div>
+    </section>
+
+    <section class="screen" id="faceHelmetSetup">
+      <div class="page center">
+        <div class="screen-title">
+          <h2>Put on your helmet</h2>
+          <p>We need a base scan with your helmet on for verification later.</p>
+        </div>
+        <div class="camera-circle green" id="face-enroll-helmet-camera" style="position:relative;">
+          <video class="face-video" id="face-enroll-helmet-video" autoplay playsinline muted></video>
+          <div class="face helmet" id="face-enroll-helmet-outline" style="transition: border-color 0.3s, box-shadow 0.3s;"></div>
+          
+          <div class="instruction-overlay" id="face-enroll-helmet-instruction-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:20;display:flex;flex-direction:column;justify-content:center;align-items:center;border-radius:50%;color:white;transition:opacity 0.5s;">
+            <svg class="icon" style="width:40px;height:40px;margin-bottom:10px;fill:white;"><use href="#icon-shield"></use></svg>
+            <p style="font-weight:bold;text-align:center;font-size:14px;line-height:1.4;">Wear helmet<br>and look at camera</p>
+          </div>
+          
+          <svg class="liveness-progress" id="face-enroll-helmet-liveness-progress" viewBox="0 0 100 100" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;display:none;">
+            <circle cx="50" cy="50" r="48" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="4"></circle>
+            <circle class="liveness-ring" id="face-enroll-helmet-liveness-ring" cx="50" cy="50" r="48" fill="none" stroke="#10b981" stroke-width="4" stroke-dasharray="301.59" stroke-dashoffset="301.59" style="transition: stroke-dashoffset 0.15s linear; transform-origin:center; transform:rotate(-90deg);"></circle>
+          </svg>
+          <div class="liveness-instruction" id="face-enroll-helmet-liveness-instruction" style="position:absolute;bottom:20px;left:5%;width:90%;text-align:center;color:#fff;font-weight:bold;z-index:11;background:rgba(0,0,0,0.6);padding:6px;display:none;border-radius:20px;font-size:14px;"></div>
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        </div>
+        <div class="capture" id="face-enroll-helmet-capture-text">Starting camera...</div>
       </div>
     </section>
 
@@ -3812,9 +3849,25 @@
 
       <div class="page center">
         <div class="success-check"><svg class="icon"><use href="#icon-check"></use></svg></div>
-        <div class="screen-title">
+        <div class="screen-title" style="margin-bottom:15px;">
           <h2>Face ID registered!</h2>
-          <p>You can now use your Face ID to verify your identity.</p>
+          <p>Your profiles are saved securely on device.</p>
+        </div>
+        <div style="width:100%;background:rgba(255,255,255,0.05);border-radius:12px;padding:15px;margin-bottom:30px;display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <svg class="icon" style="width:20px;height:20px;fill:var(--text);"><use href="#icon-profile"></use></svg>
+              <span style="font-weight:bold;font-size:15px;">Without Helmet</span>
+            </div>
+            <svg class="icon" style="width:20px;height:20px;fill:var(--green);"><use href="#icon-check"></use></svg>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <svg class="icon" style="width:20px;height:20px;fill:var(--text);"><use href="#icon-shield"></use></svg>
+              <span style="font-weight:bold;font-size:15px;">With Helmet</span>
+            </div>
+            <svg class="icon" style="width:20px;height:20px;fill:var(--green);"><use href="#icon-check"></use></svg>
+          </div>
         </div>
         <button class="btn" onclick="completeFaceRegistration()">Continue</button>
       </div>
@@ -4083,10 +4136,26 @@
     <section class="screen" id="verifyNoHelmet">
 
       <div class="page center">
+        <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Step 1 of 3</div>
         <div class="screen-title"><h2>No Helmet</h2><p>Please remove your helmet and look at the camera.</p><span class="pill">No Helmet</span></div>
-        <div class="camera-circle green" id="no-helmet-camera">
+        <div class="camera-circle green" id="no-helmet-camera" style="position:relative;">
           <video class="face-video" id="no-helmet-video" autoplay playsinline muted></video>
-          <div class="face"></div>
+          <div class="face" id="no-helmet-face-outline" style="transition: border-color 0.3s, box-shadow 0.3s;"></div>
+          
+          <div class="instruction-overlay" id="no-helmet-instruction-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:20;display:flex;flex-direction:column;justify-content:center;align-items:center;border-radius:50%;color:white;transition:opacity 0.5s;">
+            <svg class="icon" style="width:40px;height:40px;margin-bottom:10px;fill:white;"><use href="#icon-profile"></use></svg>
+            <p style="font-weight:bold;text-align:center;font-size:14px;line-height:1.4;">Look at camera<br>without helmet</p>
+          </div>
+          <div class="instruction-overlay" id="no-helmet-success-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(16,185,129,0.9);z-index:21;display:none;flex-direction:column;justify-content:center;align-items:center;border-radius:50%;color:white;">
+            <svg class="icon" style="width:40px;height:40px;margin-bottom:10px;fill:white;"><use href="#icon-check"></use></svg>
+            <p style="font-weight:bold;text-align:center;font-size:14px;line-height:1.4;">Keep face on camera.<br>Put helmet on now.</p>
+          </div>
+
+          <svg class="liveness-progress" id="no-helmet-liveness-progress" viewBox="0 0 100 100" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;display:none;">
+            <circle cx="50" cy="50" r="48" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="4"></circle>
+            <circle class="liveness-ring" id="no-helmet-liveness-ring" cx="50" cy="50" r="48" fill="none" stroke="#10b981" stroke-width="4" stroke-dasharray="301.59" stroke-dashoffset="301.59" style="transition: stroke-dashoffset 0.15s linear; transform-origin:center; transform:rotate(-90deg);"></circle>
+          </svg>
+          <div class="liveness-instruction" id="no-helmet-liveness-instruction" style="position:absolute;bottom:20px;left:5%;width:90%;text-align:center;color:#fff;font-weight:bold;z-index:11;background:rgba(0,0,0,0.6);padding:6px;display:none;border-radius:20px;font-size:14px;"></div>
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
         </div>
         <div class="capture" id="no-helmet-capture-text">Position your face in the frame.</div>
@@ -4097,10 +4166,22 @@
     <section class="screen" id="verifyHelmet">
 
       <div class="page center">
+        <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Step 2 of 3</div>
         <div class="screen-title"><h2>With Helmet</h2><p>Please wear your helmet and look at the camera.</p><span class="pill">With Helmet</span></div>
-        <div class="camera-circle green" id="helmet-camera">
+        <div class="camera-circle green" id="helmet-camera" style="position:relative;">
           <video class="face-video" id="helmet-video" autoplay playsinline muted></video>
-          <div class="face helmet"></div>
+          <div class="face helmet" id="helmet-face-outline" style="transition: border-color 0.3s, box-shadow 0.3s;"></div>
+
+          <div class="instruction-overlay" id="helmet-instruction-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:20;display:flex;flex-direction:column;justify-content:center;align-items:center;border-radius:50%;color:white;transition:opacity 0.5s;">
+            <svg class="icon" style="width:40px;height:40px;margin-bottom:10px;fill:white;"><use href="#icon-shield"></use></svg>
+            <p style="font-weight:bold;text-align:center;font-size:14px;line-height:1.4;">Wear helmet<br>and face camera</p>
+          </div>
+
+          <svg class="liveness-progress" id="helmet-liveness-progress" viewBox="0 0 100 100" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;display:none;">
+            <circle cx="50" cy="50" r="48" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="4"></circle>
+            <circle class="liveness-ring" id="helmet-liveness-ring" cx="50" cy="50" r="48" fill="none" stroke="#10b981" stroke-width="4" stroke-dasharray="301.59" stroke-dashoffset="301.59" style="transition: stroke-dashoffset 0.15s linear; transform-origin:center; transform:rotate(-90deg);"></circle>
+          </svg>
+          <div class="liveness-instruction" id="helmet-liveness-instruction" style="position:absolute;bottom:20px;left:5%;width:90%;text-align:center;color:#fff;font-weight:bold;z-index:11;background:rgba(0,0,0,0.6);padding:6px;display:none;border-radius:20px;font-size:14px;"></div>
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
         </div>
         <div class="capture" id="helmet-capture-text">Position your face and helmet in the frame.</div>
@@ -4137,6 +4218,7 @@
     <section class="screen" id="sobrietyTest">
 
       <div class="page center">
+        <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Step 3 of 3</div>
         <div class="screen-title"><h2>Sobriety Test</h2><p>Blow steadily and continuously into the helmet sensor. MotoLock will continue automatically.</p></div>
         <div class="helmet-ring"><div class="helmet-art"></div></div>
         <div class="reading">
@@ -5725,9 +5807,8 @@ const HELMET_FACE_DESCRIPTOR_KEY = 'motolock_helmet_face_descriptor';
 const FACE_MATCH_THRESHOLD = 0.42;
 const HELMET_FACE_MATCH_THRESHOLD = 0.52;
 const HELMET_TO_REGISTERED_FACE_THRESHOLD = 0.62;
-const FACE_DETECTOR_INPUT_SIZE = 224;
 const FACE_DETECTOR_SCORE_THRESHOLD = 0.5;
-const FACE_ENROLL_SAMPLE_COUNT = 6;
+const FACE_ENROLL_SAMPLE_COUNT = 8;
 const HELMET_ENROLL_SAMPLE_COUNT = 5;
 const FACE_VERIFY_MATCH_COUNT = 2;
 const FACE_ENROLL_INTERVAL_MS = 420;
@@ -5765,7 +5846,7 @@ async function loadFaceModels() {
 
   for (const url of FACE_MODEL_URLS) {
     try {
-      await faceapi.nets.tinyFaceDetector.loadFromUri(url);
+      await faceapi.nets.ssdMobilenetv1.loadFromUri(url);
       await faceapi.nets.faceLandmark68Net.loadFromUri(url);
       await faceapi.nets.faceRecognitionNet.loadFromUri(url);
       faceModelsLoaded = true;
@@ -5839,9 +5920,8 @@ async function readFaceDescriptor(video) {
   const detection = await faceapi
     .detectSingleFace(
       video,
-      new faceapi.TinyFaceDetectorOptions({
-        inputSize: FACE_DETECTOR_INPUT_SIZE,
-        scoreThreshold: FACE_DETECTOR_SCORE_THRESHOLD
+      new faceapi.SsdMobilenetv1Options({
+        minConfidence: FACE_DETECTOR_SCORE_THRESHOLD
       })
     )
     .withFaceLandmarks()
@@ -5861,12 +5941,14 @@ function averageFaceDescriptors(descriptors) {
   return result;
 }
 
-function setFaceCaptureState(textId, circleId, message, state = 'scanning') {
+function setFaceCaptureState(textId, circleId, message, state = 'scanning', isHtml = false) {
   const text = document.getElementById(textId);
   const circle = document.getElementById(circleId);
 
   if (text) {
-    text.textContent = message;
+    if (isHtml) text.innerHTML = message;
+    else text.textContent = message;
+    
     text.style.color = state === 'error' ? 'var(--red)' : state === 'success' ? 'var(--green)' : '';
     text.style.fontWeight = state === 'error' || state === 'success' ? '900' : '';
   }
@@ -5875,6 +5957,20 @@ function setFaceCaptureState(textId, circleId, message, state = 'scanning') {
     circle.classList.toggle('green', state === 'success');
     circle.classList.toggle('scanning', state === 'scanning');
     circle.classList.toggle('error', state === 'error');
+    
+    const faceOutline = circle.querySelector('.face');
+    if (faceOutline) {
+      if (state === 'error') {
+        faceOutline.style.borderColor = 'rgba(239, 68, 68, 0.9)';
+        faceOutline.style.boxShadow = '0 0 15px rgba(239, 68, 68, 0.6)';
+      } else if (state === 'success') {
+        faceOutline.style.borderColor = 'rgba(16, 185, 129, 0.9)';
+        faceOutline.style.boxShadow = '0 0 15px rgba(16, 185, 129, 0.6)';
+      } else {
+        faceOutline.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+        faceOutline.style.boxShadow = 'none';
+      }
+    }
   }
 }
 
@@ -5978,48 +6074,95 @@ async function loadEnrolledHelmetFaceDescriptor() {
 }
 
 async function initFaceEnrollment() {
-  const samples = [];
-
   try {
     await loadFaceModels();
     const video = await startFaceCamera('face-enroll-video', 'face-enroll-camera');
-    setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', 'Position your face in the frame.');
+    
+    const overlay = document.getElementById('face-enroll-instruction-overlay');
+    if (overlay) {
+      setTimeout(() => {
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.style.display = 'none', 500);
+      }, 1500);
+    }
 
-    faceEnrollInterval = setInterval(async () => {
-      try {
-        const descriptor = await readFaceDescriptor(video);
-
-        if (!descriptor) {
-          samples.length = 0;
-          setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', 'No face detected. Move closer.', 'scanning');
-          return;
-        }
-
-        samples.push(descriptor);
-
-        if (samples.length < FACE_ENROLL_SAMPLE_COUNT) {
-          setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', `Hold still. Capturing ${samples.length}/${FACE_ENROLL_SAMPLE_COUNT}...`);
-          return;
-        }
-
-        const averaged = averageFaceDescriptors(samples.slice(-FACE_ENROLL_SAMPLE_COUNT));
+    const svgProgress = document.getElementById('face-enroll-liveness-progress');
+    const progressRing = document.getElementById('face-enroll-liveness-ring');
+    const instructionEl = document.getElementById('face-enroll-liveness-instruction');
+    
+    runUnifiedFaceVerification({
+      video,
+      svgProgress,
+      progressRing,
+      instructionEl,
+      textId: 'face-enroll-capture-text',
+      circleId: 'face-enroll-camera',
+      isEnrollment: true,
+      registeredFace: null,
+      isHelmet: false,
+      onComplete: async (samples) => {
+        const averaged = averageFaceDescriptors(samples);
         saveLocalFaceDescriptor(averaged);
-
-        clearInterval(faceEnrollInterval);
-        faceEnrollInterval = null;
-
         await saveFaceProfileToBackend(averaged);
-        setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', 'Face ID captured successfully.', 'success');
+        setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', 'Base profile saved.', 'success');
+        setTimeout(() => {
+          stopFaceCamera();
+          go('faceHelmetSetup');
+        }, FACE_SUCCESS_DELAY_MS);
+      },
+      onFail: (reason) => {
+        setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', reason, 'error');
+      }
+    });
+
+  } catch (err) {
+    setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', err.message, 'error');
+  }
+}
+
+async function initHelmetEnrollmentSetup() {
+  try {
+    const video = await startFaceCamera('face-enroll-helmet-video', 'face-enroll-helmet-camera');
+    
+    const overlay = document.getElementById('face-enroll-helmet-instruction-overlay');
+    if (overlay) {
+      setTimeout(() => {
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.style.display = 'none', 500);
+      }, 1500);
+    }
+
+    const svgProgress = document.getElementById('face-enroll-helmet-liveness-progress');
+    const progressRing = document.getElementById('face-enroll-helmet-liveness-ring');
+    const instructionEl = document.getElementById('face-enroll-helmet-liveness-instruction');
+    
+    runUnifiedFaceVerification({
+      video,
+      svgProgress,
+      progressRing,
+      instructionEl,
+      textId: 'face-enroll-helmet-capture-text',
+      circleId: 'face-enroll-helmet-camera',
+      isEnrollment: true,
+      registeredFace: null,
+      isHelmet: true,
+      onComplete: async (samples) => {
+        const averaged = averageFaceDescriptors(samples);
+        saveLocalHelmetFaceDescriptor(averaged);
+        await saveHelmetFaceProfileToBackend(averaged);
+        setFaceCaptureState('face-enroll-helmet-capture-text', 'face-enroll-helmet-camera', 'Helmet profile saved.', 'success');
         setTimeout(() => {
           stopFaceCamera();
           go('faceRegistered');
         }, FACE_SUCCESS_DELAY_MS);
-      } catch (err) {
-        console.warn('Face enrollment read failed:', err);
+      },
+      onFail: (reason) => {
+        setFaceCaptureState('face-enroll-helmet-capture-text', 'face-enroll-helmet-camera', reason, 'error');
       }
-    }, FACE_ENROLL_INTERVAL_MS);
+    });
+
   } catch (err) {
-    setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', err.message, 'error');
+    setFaceCaptureState('face-enroll-helmet-capture-text', 'face-enroll-helmet-camera', err.message, 'error');
   }
 }
 
@@ -6095,6 +6238,174 @@ async function verifyFaceDescriptorWithBackend(kind, descriptor) {
     };
   }
 }
+// --- Liveness Detection & Anti-Bypass Helpers ---
+function calculateEAR(eye) {
+  const vertical1 = Math.hypot(eye[1].x - eye[5].x, eye[1].y - eye[5].y);
+  const vertical2 = Math.hypot(eye[2].x - eye[4].x, eye[2].y - eye[4].y);
+  const horizontal = Math.hypot(eye[0].x - eye[3].x, eye[0].y - eye[3].y);
+  return (vertical1 + vertical2) / (2.0 * horizontal);
+}
+
+async function checkForMultipleFaces(video) {
+  const detections = await faceapi.detectAllFaces(
+    video, 
+    new faceapi.SsdMobilenetv1Options({ minConfidence: FACE_DETECTOR_SCORE_THRESHOLD })
+  );
+  return detections.length > 1;
+}
+
+async function runUnifiedFaceVerification({
+  video,
+  svgProgress,
+  progressRing,
+  instructionEl,
+  isEnrollment = false,
+  registeredFace = null,
+  isHelmet = false,
+  onComplete,
+  onFail
+}) {
+  const challengeTypes = ['blink', 'turn_left', 'turn_right'];
+  const challenge = challengeTypes[Math.floor(Math.random() * challengeTypes.length)];
+  
+  let challengeText = challenge === 'blink' ? 'Blink your eyes' 
+    : challenge === 'turn_left' ? 'Turn head LEFT' 
+    : 'Turn head RIGHT';
+
+  svgProgress.style.display = 'block';
+  progressRing.style.strokeDashoffset = 301.59;
+  instructionEl.style.display = 'block';
+  
+  let phase = 1; 
+  let phaseProgress = 0; 
+  let startTime = Date.now();
+  let maxTimeMs = 25000;
+  
+  const targetSamples = isEnrollment ? FACE_ENROLL_SAMPLE_COUNT : FACE_VERIFY_MATCH_COUNT;
+  let collectedSamples = [];
+  let faceLostCount = 0;
+  
+  instructionEl.textContent = 'Position your face in the frame';
+  instructionEl.style.background = 'rgba(0,0,0,0.6)';
+  
+  const interval = setInterval(async () => {
+    const elapsed = Date.now() - startTime;
+    if (elapsed > maxTimeMs) {
+      clearInterval(interval);
+      svgProgress.style.display = 'none';
+      instructionEl.style.display = 'none';
+      onFail('Verification timed out. Try again.');
+      return;
+    }
+    
+    if (await checkForMultipleFaces(video)) {
+      clearInterval(interval);
+      svgProgress.style.display = 'none';
+      instructionEl.style.display = 'none';
+      onFail('Multiple faces detected. Only one rider allowed.');
+      return;
+    }
+    
+    const detection = await faceapi.detectSingleFace(
+      video,
+      new faceapi.SsdMobilenetv1Options({ minConfidence: FACE_DETECTOR_SCORE_THRESHOLD })
+    ).withFaceLandmarks().withFaceDescriptor();
+    
+    if (!detection) {
+      faceLostCount++;
+      if (faceLostCount > 4) {
+        phaseProgress = Math.max(0, phaseProgress - 15);
+      }
+    } else {
+      faceLostCount = 0;
+      const descriptor = detection.descriptor;
+      
+      if (phase === 1) {
+        if (!isEnrollment) {
+          const distance = faceapi.euclideanDistance(registeredFace, descriptor);
+          const threshold = isHelmet ? HELMET_FACE_MATCH_THRESHOLD : FACE_MATCH_THRESHOLD;
+          if (distance < threshold) {
+            phaseProgress += 34;
+          } else {
+            phaseProgress = Math.max(0, phaseProgress - 10);
+            instructionEl.textContent = 'Face does not match registered ID';
+          }
+        } else {
+          phaseProgress += 34;
+        }
+        
+        if (phaseProgress >= 100) {
+          phase = 2;
+          phaseProgress = 0;
+          instructionEl.textContent = challengeText;
+        }
+      }
+      
+      else if (phase === 2) {
+        const landmarks = detection.landmarks;
+        if (challenge === 'blink') {
+          const leftEye = landmarks.getLeftEye();
+          const rightEye = landmarks.getRightEye();
+          const ear = (calculateEAR(leftEye) + calculateEAR(rightEye)) / 2;
+          if (ear < 0.25) phaseProgress += 50;
+          else phaseProgress = Math.max(0, phaseProgress - 5);
+        } else {
+          const nose = landmarks.getNose();
+          const jaw = landmarks.getJawOutline();
+          const faceWidth = jaw[16].x - jaw[0].x;
+          const noseOffset = nose[3].x - jaw[0].x;
+          const ratio = noseOffset / faceWidth;
+          if (challenge === 'turn_left' && ratio < 0.4) phaseProgress += 40;
+          else if (challenge === 'turn_right' && ratio > 0.6) phaseProgress += 40;
+          else phaseProgress = Math.max(0, phaseProgress - 5);
+        }
+        
+        if (phaseProgress >= 100) {
+          phase = 3;
+          phaseProgress = 0;
+          instructionEl.textContent = 'Hold still...';
+        }
+      }
+      
+      else if (phase === 3) {
+        if (!isEnrollment) {
+          const distance = faceapi.euclideanDistance(registeredFace, descriptor);
+          const threshold = isHelmet ? HELMET_FACE_MATCH_THRESHOLD : FACE_MATCH_THRESHOLD;
+          if (distance < threshold) {
+            collectedSamples.push(distance);
+            phaseProgress = (collectedSamples.length / targetSamples) * 100;
+          }
+        } else {
+          collectedSamples.push(descriptor);
+          phaseProgress = (collectedSamples.length / targetSamples) * 100;
+        }
+        
+        if (collectedSamples.length >= targetSamples) {
+          clearInterval(interval);
+          progressRing.style.strokeDashoffset = 0;
+          instructionEl.textContent = 'Success!';
+          instructionEl.style.background = 'rgba(16, 185, 129, 0.9)';
+          setTimeout(() => {
+            instructionEl.style.display = 'none';
+            svgProgress.style.display = 'none';
+            onComplete(collectedSamples);
+          }, 800);
+          return;
+        }
+      }
+    }
+    
+    let overallProgress = 0;
+    if (phase === 1) overallProgress = (phaseProgress * 0.33);
+    else if (phase === 2) overallProgress = 33 + (phaseProgress * 0.33);
+    else if (phase === 3) overallProgress = 66 + (phaseProgress * 0.34);
+    
+    overallProgress = Math.min(100, Math.max(0, overallProgress));
+    progressRing.style.strokeDashoffset = 301.59 - (overallProgress / 100) * 301.59;
+    
+  }, 150);
+}
+// ------------------------------------------
 
 async function initFaceVerification(kind, options = {}) {
   const isHelmet = kind === 'helmet';
@@ -6102,8 +6413,6 @@ async function initFaceVerification(kind, options = {}) {
   const circleId = isHelmet ? 'helmet-camera' : 'no-helmet-camera';
   const textId = isHelmet ? 'helmet-capture-text' : 'no-helmet-capture-text';
   const resultId = isHelmet ? 'helmet-result' : 'no-helmet-result';
-  const samples = [];
-  const helmetEnrollSamples = [];
 
   document.getElementById(resultId)?.style.setProperty('display', 'none');
 
@@ -6114,159 +6423,140 @@ async function initFaceVerification(kind, options = {}) {
     }
 
     if (isHelmet && !options.skipHelmetSensorGate && !isHelmetDetectedByHardware()) {
-      waitForHelmetHardwareBeforeFaceId(textId, circleId);
+      pauseHelmetFaceIdUntilHelmetIsWorn(textId, circleId, resultId);
       return;
     }
 
-    const enrolled = isHelmet
+    const registeredFace = isHelmet
       ? await loadEnrolledHelmetFaceDescriptor()
       : await loadEnrolledFaceDescriptor();
-    const registeredFace = isHelmet
-      ? await loadEnrolledFaceDescriptor()
-      : enrolled;
 
-    if (!enrolled && !isHelmet) {
-      setFaceCaptureState(textId, circleId, 'No Face ID profile found. Please register Face ID first.', 'error');
-      return;
-    }
-
-    if (isHelmet && !registeredFace) {
+    if (!registeredFace) {
       setFaceCaptureState(textId, circleId, 'No registered Face ID found. Re-register Face ID first.', 'error');
       return;
     }
 
     await loadFaceModels();
-    const video = await startFaceCamera(videoId, circleId);
-    setFaceCaptureState(
+    
+    let video;
+    if (isHelmet && transitionFaceTrackerInterval) {
+      clearInterval(transitionFaceTrackerInterval);
+      transitionFaceTrackerInterval = null;
+      video = document.getElementById(videoId);
+      if (video && video.srcObject) {
+         // Video is already running from Step 1 transition
+      } else {
+         video = await startFaceCamera(videoId, circleId);
+      }
+    } else {
+      video = await startFaceCamera(videoId, circleId);
+    }
+
+    const overlay = document.getElementById(isHelmet ? 'helmet-instruction-overlay' : 'no-helmet-instruction-overlay');
+    if (overlay) {
+      setTimeout(() => {
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.style.display = 'none', 500);
+      }, 1500);
+    }
+
+    const svgProgress = document.getElementById(isHelmet ? 'helmet-liveness-progress' : 'no-helmet-liveness-progress');
+    const progressRing = document.getElementById(isHelmet ? 'helmet-liveness-ring' : 'no-helmet-liveness-ring');
+    const instructionEl = document.getElementById(isHelmet ? 'helmet-liveness-instruction' : 'no-helmet-liveness-instruction');
+    
+    runUnifiedFaceVerification({
+      video,
+      svgProgress,
+      progressRing,
+      instructionEl,
       textId,
       circleId,
-      isHelmet && !enrolled
-        ? 'First helmet scan. Keep your helmet on and look at the camera.'
-        : isHelmet
-          ? 'Look at the camera with your helmet on.'
-          : 'Look directly at the camera.'
-    );
-
-    faceVerifyInterval = setInterval(async () => {
-      try {
-        if (isHelmet && !isHelmetDetectedByHardware()) {
-          pauseHelmetFaceIdUntilHelmetIsWorn(textId, circleId, resultId);
-          return;
-        }
-
-        const descriptor = await readFaceDescriptor(video);
-
-        if (!descriptor) {
-          samples.length = 0;
-          setFaceCaptureState(textId, circleId, 'No face detected. Move closer.', 'scanning');
-          return;
-        }
-
-        if (isHelmet && !enrolled) {
-          const registeredFaceDistance = faceapi.euclideanDistance(registeredFace, descriptor);
-
-          if (registeredFaceDistance >= HELMET_TO_REGISTERED_FACE_THRESHOLD) {
-            helmetEnrollSamples.length = 0;
-            setFaceCaptureState(textId, circleId, 'Helmet face does not match the registered rider.', 'error');
-            await saveFaceVerificationToBackend(kind, registeredFaceDistance, false);
-            failVerificationAttempt('helmet');
-            return;
-          }
-
-          helmetEnrollSamples.push(descriptor);
-
-          if (helmetEnrollSamples.length < HELMET_ENROLL_SAMPLE_COUNT) {
-            setFaceCaptureState(textId, circleId, `Learning helmet Face ID ${helmetEnrollSamples.length}/${HELMET_ENROLL_SAMPLE_COUNT}...`);
-            return;
-          }
-
-          const averaged = averageFaceDescriptors(helmetEnrollSamples.slice(-HELMET_ENROLL_SAMPLE_COUNT));
-          const averagedRegisteredFaceDistance = faceapi.euclideanDistance(registeredFace, averaged);
-
-          if (averagedRegisteredFaceDistance >= HELMET_TO_REGISTERED_FACE_THRESHOLD) {
-            helmetEnrollSamples.length = 0;
-            setFaceCaptureState(
-              textId,
-              circleId,
-              'Helmet face does not match the registered rider.',
-              'error'
-            );
-            await saveFaceVerificationToBackend(kind, averagedRegisteredFaceDistance, false);
-            failVerificationAttempt('helmet');
-            return;
-          }
-
-          saveLocalHelmetFaceDescriptor(averaged);
-
-          clearInterval(faceVerifyInterval);
-          faceVerifyInterval = null;
-
-          await saveHelmetFaceProfileToBackend(averaged);
-          await saveFaceVerificationToBackend(kind, 0, true);
-          document.getElementById(resultId)?.style.setProperty('display', 'flex');
-          setFaceCaptureState(textId, circleId, 'Helmet Face ID saved and verified.', 'success');
-
-          setTimeout(() => {
-            stopFaceCamera();
-            completeHelmetVerification(true);
-          }, FACE_SUCCESS_DELAY_MS);
-          return;
-        }
-
-        const distance = faceapi.euclideanDistance(enrolled, descriptor);
-        const registeredFaceDistance = isHelmet
-          ? faceapi.euclideanDistance(registeredFace, descriptor)
-          : distance;
-        const threshold = isHelmet ? HELMET_FACE_MATCH_THRESHOLD : FACE_MATCH_THRESHOLD;
-        const matchesRegisteredFace = !isHelmet ||
-          registeredFaceDistance < HELMET_TO_REGISTERED_FACE_THRESHOLD;
-
-        if (distance < threshold && matchesRegisteredFace) {
-          samples.push(distance);
-        } else {
-          samples.length = 0;
-          setFaceCaptureState(
-            textId,
-            circleId,
-            isHelmet ? 'Helmet face does not match the registered rider.' : 'Face does not match registered Face ID.',
-            'error'
-          );
-          return;
-        }
-
-        if (samples.length < FACE_VERIFY_MATCH_COUNT) {
-          setFaceCaptureState(textId, circleId, `Face matched. Confirming ${samples.length}/${FACE_VERIFY_MATCH_COUNT}...`);
-          return;
-        }
-
-        clearInterval(faceVerifyInterval);
-        faceVerifyInterval = null;
-
-        await saveFaceVerificationToBackend(kind, samples.reduce((sum, value) => sum + value, 0) / samples.length, true);
+      isEnrollment: false,
+      registeredFace,
+      isHelmet,
+      onComplete: async (samples) => {
+        const avgDistance = samples.reduce((sum, value) => sum + value, 0) / samples.length;
+        await saveFaceVerificationToBackend(kind, avgDistance, true);
         document.getElementById(resultId)?.style.setProperty('display', 'flex');
         setFaceCaptureState(textId, circleId, 'Identity verified.', 'success');
 
+        if (!isHelmet) {
+          const successOverlay = document.getElementById('no-helmet-success-overlay');
+          if (successOverlay) successOverlay.style.display = 'flex';
+        }
+
         setTimeout(() => {
-          stopFaceCamera();
           if (isHelmet) {
+            stopFaceCamera();
             completeHelmetVerification(true);
           } else {
+            const successOverlay = document.getElementById('no-helmet-success-overlay');
+            if (successOverlay) successOverlay.style.display = 'none';
+            startTransitionTracker(video, registeredFace);
             completeNoHelmetVerification(true);
           }
-        }, FACE_SUCCESS_DELAY_MS);
-      } catch (err) {
-        console.warn('Face verification read failed:', err);
-        if (isHelmet) {
-          clearInterval(faceVerifyInterval);
-          faceVerifyInterval = null;
-          setFaceCaptureState(textId, circleId, err.message || 'Helmet face verification failed.', 'error');
-          failVerificationAttempt('helmet');
-        }
+        }, isHelmet ? FACE_SUCCESS_DELAY_MS : 2500);
+      },
+      onFail: (reason) => {
+        setFaceCaptureState(textId, circleId, reason, 'error');
+        failVerificationAttempt(kind);
       }
-    }, FACE_VERIFY_INTERVAL_MS);
+    });
+
   } catch (err) {
     setFaceCaptureState(textId, circleId, err.message, 'error');
+    failVerificationAttempt(kind);
   }
+}
+
+let transitionFaceTrackerInterval = null;
+function startTransitionTracker(video, registeredFace) {
+  if (transitionFaceTrackerInterval) clearInterval(transitionFaceTrackerInterval);
+  
+  let lostCount = 0;
+  transitionFaceTrackerInterval = setInterval(async () => {
+    if (!faceCameraStream) {
+      clearInterval(transitionFaceTrackerInterval);
+      transitionFaceTrackerInterval = null;
+      return;
+    }
+    
+    if (await checkForMultipleFaces(video)) {
+      handleTransitionBypass('Multiple faces detected during transition. Resetting.');
+      return;
+    }
+    
+    const detection = await faceapi.detectSingleFace(
+      video,
+      new faceapi.SsdMobilenetv1Options({ minConfidence: FACE_DETECTOR_SCORE_THRESHOLD })
+    ).withFaceDescriptor();
+    
+    if (!detection) {
+      lostCount++;
+      if (lostCount > 3) {
+        handleTransitionBypass('Face lost during transition. Resetting.');
+        return;
+      }
+    } else {
+      lostCount = 0;
+      const distance = faceapi.euclideanDistance(registeredFace, detection.descriptor);
+      if (distance >= FACE_MATCH_THRESHOLD) {
+        handleTransitionBypass('Different face detected during transition. Resetting.');
+        return;
+      }
+    }
+  }, 500);
+}
+
+function handleTransitionBypass(reason) {
+  clearInterval(transitionFaceTrackerInterval);
+  transitionFaceTrackerInterval = null;
+  rideCheckStatus.noHelmetVerified = false;
+  failVerificationAttempt('face');
+  go('verifyNoHelmet');
+  setTimeout(() => {
+    setFaceCaptureState('no-helmet-capture-text', 'no-helmet-camera', reason, 'error');
+  }, 100);
 }
 
 async function saveFaceVerificationToBackend(kind, distance, verified) {
@@ -7272,7 +7562,7 @@ if (currentScreen && currentScreen.id !== id && !isGoingBack) {
 
   target.classList.add('active');
 
-  if (!['faceFront', 'verifyNoHelmet', 'verifyHelmet'].includes(id)) {
+  if (!['faceFront', 'faceHelmetSetup', 'verifyNoHelmet', 'verifyHelmet'].includes(id)) {
     stopFaceCamera();
   }
 
@@ -7282,6 +7572,10 @@ if (currentScreen && currentScreen.id !== id && !isGoingBack) {
 
   if (id === 'faceFront') {
     initFaceEnrollment();
+  }
+
+  if (id === 'faceHelmetSetup') {
+    initHelmetEnrollmentSetup();
   }
 
   if (id === 'verifyNoHelmet') {
