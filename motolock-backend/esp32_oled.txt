@@ -31,6 +31,9 @@
 
 #include "BluetoothSerial.h"
 BluetoothSerial SerialBT;
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
 #include <string.h>
 #include <WiFi.h>
 #include <esp_now.h>
@@ -948,8 +951,21 @@ pinMode(RELAY_PIN, OUTPUT);
 
 SerialBT.begin("MotoLock-Motor");
 
-Serial.println("Bluetooth Started");
-  
+Serial.println("Classic Bluetooth Started");
+
+// =====================================================
+// BLE BEACON
+// =====================================================
+BLEDevice::init("MotoLock-Beacon");
+BLEServer *pServer = BLEDevice::createServer();
+BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+// Use a generic service UUID for the beacon
+pAdvertising->addServiceUUID("12345678-1234-5678-1234-56789abcdef0");
+pAdvertising->setScanResponse(true);
+pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
+pAdvertising->setMinPreferred(0x12);
+BLEDevice::startAdvertising();
+Serial.println("BLE Beacon Started");
 
   pinMode(RELAY_PIN, OUTPUT);
 

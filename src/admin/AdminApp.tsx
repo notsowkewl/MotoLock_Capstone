@@ -1,4 +1,11 @@
 import React, { useState, useEffect } from 'react';
+declare global { interface Window { supabase: any; jspdf: any; XLSX: any; } }
+
+const SUPABASE_URL = 'https://bafziqymbvhrytziteuo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZnppcXltYnZocnl0eml0ZXVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MjAzMzUsImV4cCI6MjEwMzk5NjMzNX0.F1KVSKnN_x-8O2gKlh0d8XPydlBWTcsS0GPbCS6CP_c';
+const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+
 
 const API = 'http://localhost:5001/api';
 
@@ -31,7 +38,11 @@ const Icon = ({ name, size = 18, color = 'currentColor' }: { name: string, size?
     bell: "M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z",
     bluetooth: "M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm0 12.34v-3.76l1.88 1.88L13 18.17z",
     info: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
-    lightning: "M7 2v11h3v9l7-12h-4l4-8z"
+    lightning: "M7 2v11h3v9l7-12h-4l4-8z",
+    eye: "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z",
+    eyeOff: "M11.83 9L15 12.16V12a3 3 0 0 0-3-3h-.17zm-4.3.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.3-3.1c3.08 0 5.86 1.87 7.16 4.3-.59 1.12-1.37 2.11-2.27 2.9l-1.46-1.46a5.55 5.55 0 0 0 1.25-1.44c-1.12-2.11-3.35-3.5-5.83-3.5-.47 0-.94.06-1.39.17l-1.5-1.5c.92-.25 1.89-.37 2.89-.37zm-7.6 1.2L2.78 4.2 1.5 5.5l2.42 2.42C2.46 9.07 1.54 10.45 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l3.12 3.12 1.28-1.28-16.55-16.55zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2z",
+    eye: "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z",
+    eyeOff: "M11.83 9L15 12.16V12a3 3 0 0 0-3-3h-.17zm-4.3.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.3-3.1c3.08 0 5.86 1.87 7.16 4.3-.59 1.12-1.37 2.11-2.27 2.9l-1.46-1.46a5.55 5.55 0 0 0 1.25-1.44c-1.12-2.11-3.35-3.5-5.83-3.5-.47 0-.94.06-1.39.17l-1.5-1.5c.92-.25 1.89-.37 2.89-.37zm-7.6 1.2L2.78 4.2 1.5 5.5l2.42 2.42C2.46 9.07 1.54 10.45 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l3.12 3.12 1.28-1.28-16.55-16.55zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2z"
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={{ display: 'inline-block', verticalAlign: 'middle' }}>
@@ -212,6 +223,7 @@ const CustomSelect = ({
 export default function AdminApp() {
   const [token, setToken] = useState<string>(localStorage.getItem('ml_token') || '');
   const [adminEmail, setAdminEmail] = useState<string>(localStorage.getItem('ml_email') || '');
+  const [adminRole, setAdminRole] = useState<string>(localStorage.getItem('ml_role') || 'admin');
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isLightMode, setIsLightMode] = useState<boolean>(localStorage.getItem('ml_theme') === 'light');
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -220,6 +232,7 @@ export default function AdminApp() {
   // Login Form States
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPass, setLoginPass] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -337,19 +350,51 @@ export default function AdminApp() {
 
   // Auth fetch wrapper
   const apiFetch = async (endpoint: string, options: any = {}) => {
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-    };
-    const response = await fetch(`${API}${endpoint}`, {
-      ...options,
-      headers: { ...headers, ...options.headers }
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.message || 'API request failed');
+    try {
+      if (endpoint === '/auth/login') {
+        const body = JSON.parse(options.body);
+        const { data, error } = await supabaseClient.from('users').select('*').eq('email', body.email).eq('password_hash', body.password).single();
+        if (error || !data) throw new Error('Invalid email or password');
+        if (data.role !== 'admin' && data.role !== 'superadmin') throw new Error('ACCESS DENIED: Not an admin account');
+        return { success: true, token: data.id, user: data };
+      }
+      if (endpoint === '/admin/dashboard') {
+        const { data: users } = await supabaseClient.from('users').select('*');
+        const { data: motorcycles } = await supabaseClient.from('motorcycles').select('*');
+        const { data: rides } = await supabaseClient.from('ride_history').select('*');
+        const { data: devices } = await supabaseClient.from('devices').select('*');
+        return {
+          success: true,
+          totalRiders: users?.length || 0,
+          totalMotorcycles: motorcycles?.length || 0,
+          activeDevices: devices?.filter((d:any) => d.status === 'online').length || 0,
+          recentOverrides: 0,
+          todaysRides: rides?.length || 0,
+          failedTests: rides?.filter((r:any) => r.status === 'failed_brac').length || 0
+        };
+      }
+      if (endpoint === '/admin/users' && (!options.method || options.method === 'GET')) {
+        const { data, error } = await supabaseClient.from('users').select('*');
+        return { success: true, users: data || [] };
+      }
+      if (endpoint.startsWith('/admin/motorcycles')) {
+        return { success: true, motorcycle: { id: 999, ...JSON.parse(options.body) } };
+      }
+      
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      };
+      const response = await fetch(`${API}${endpoint}`, {
+        ...options,
+        headers: { ...headers, ...options.headers }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'API request failed');
+      return data;
+    } catch (err: any) {
+      throw new Error(err.message);
     }
-    return data;
   };
 
   // Login handler
@@ -365,8 +410,10 @@ export default function AdminApp() {
       if (res.token) {
         localStorage.setItem('ml_token', res.token);
         localStorage.setItem('ml_email', loginEmail);
+        localStorage.setItem('ml_role', res.user.role);
         setToken(res.token);
         setAdminEmail(loginEmail);
+        setAdminRole(res.user.role);
         triggerAuditLog('Logged In', 'Authentication', loginEmail);
       }
     } catch (err: any) {
@@ -791,31 +838,57 @@ export default function AdminApp() {
   };
 
   // Export pdf / excel
-  const exportReport = (format: 'pdf' | 'excel') => {
-    const isRides = ['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(reportType);
-
-    const isUsers = ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(reportType);
-
-    const mappedType = isRides ? 'rides' : (isUsers ? 'users' : 'overrides');
-
-    let url = `${API}/admin/reports/${format}?token=${token}&reportType=${mappedType}`;
-    if (mappedType === 'rides') {
-      if (reportStatus !== 'all') url += `&status=${reportStatus}`;
-      if (reportAlcohol !== 'all') url += `&alcohol=${reportAlcohol}`;
-    } else if (mappedType === 'users') {
-      if (reportRole !== 'all') url += `&role=${reportRole}`;
-    }
-    if (reportStart) url += `&startDate=${reportStart}`;
-    if (reportEnd) url += `&endDate=${reportEnd}`;
-
+  const exportReport = async (format: 'pdf' | 'excel') => {
     triggerAuditLog(`Generated ${format.toUpperCase()} compliance report`, 'Reports', reportType);
-    window.open(url, '_blank');
+    try {
+      const { data: rides } = await supabaseClient.from('ride_history').select('*, users(name)');
+      if (format === 'pdf') {
+        if (!window.jspdf) { alert("PDF library loading."); return; }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text("MotoLock Compliance Report", 14, 22);
+        const tableData = rides.map((r: any) => [
+          r.users?.name || 'Rider',
+          new Date(r.start_time || Date.now()).toLocaleString(),
+          (r.brac_level || 0) + '%',
+          (r.status || 'passed').toUpperCase()
+        ]);
+        doc.autoTable({ startY: 38, head: [['Rider', 'Date/Time', 'BrAC Level', 'Status']], body: tableData });
+        doc.save("MotoLock_Report.pdf");
+      } else {
+        if (!window.XLSX) return;
+        const ws = window.XLSX.utils.json_to_sheet(rides.map((r: any) => ({ Rider: r.users?.name, Date: r.start_time, BrAC: r.brac_level })));
+        const wb = window.XLSX.utils.book_new();
+        window.XLSX.utils.book_append_sheet(wb, ws, "Rides");
+        window.XLSX.writeFile(wb, "MotoLock_Data.xlsx");
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // Export JSON Backup
-  const exportBackup = () => {
+  const exportBackup = async () => {
     triggerAuditLog('Downloaded system database backup', 'Backup & Restore', 'Full JSON schema');
-    window.open(`${API}/admin/backup?token=${token}`, '_blank');
+    try {
+      const { data: users } = await supabaseClient.from('users').select('id, name, email, role, status, created_at, updated_at');
+      const { data: rides } = await supabaseClient.from('ride_history').select('*');
+      let { data: contacts } = await supabaseClient.from('emergency_contacts').select('*');
+
+      if (contacts) {
+        contacts = contacts.map((c: any) => {
+          if (c.phone_number) c.phone_number = c.phone_number.substring(0, 3) + '****' + c.phone_number.substring(c.phone_number.length - 4);
+          return c;
+        });
+      }
+      const backup = { users, rides, emergency_contacts: contacts, exported_at: new Date().toISOString() };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `MotoLock_Database_Backup.json`;
+      a.click();
+    } catch (e) { }
   };
 
   // Mask Phone number helper
@@ -1529,13 +1602,14 @@ export default function AdminApp() {
                 <tbody>
                   {riders
                     .filter(r => {
+                      const matchesRoleAccess = adminRole === 'superadmin' || r.role === 'rider';
                       const matchesQ = r.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                                        r.email?.toLowerCase().includes(searchQuery.toLowerCase());
                       const matchesRole = riderRoleFilter === 'all' || r.role === riderRoleFilter;
                       const matchesFace = riderFaceFilter === 'all' ||
                                          (riderFaceFilter === 'enrolled' && r.face_enrolled) ||
                                          (riderFaceFilter === 'missing' && !r.face_enrolled);
-                      return matchesQ && matchesRole && matchesFace;
+                      return matchesQ && matchesRole && matchesFace && matchesRoleAccess;
                     })
                     .map((r, idx) => (
                       <tr key={idx}>

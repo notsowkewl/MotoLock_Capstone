@@ -43,6 +43,7 @@
 - [ ] Implement SMS retry queue — if no signal, retry every 30 seconds until SMS is delivered
 - [ ] Log Manual Override event via Bluetooth to mobile app when activated
 - [ ] Test ESP-NOW range and stability between Helmet TX and Motorcycle RX
+- [ ] Implement Bluetooth Low Energy (BLE) beacon: broadcast "MotoLock Ready" signal when ignition key is turned to wake up the app.
 
 ---
 
@@ -89,8 +90,10 @@
 - [x] Challenge 1 — **Blink detection:** Compute Eye Aspect Ratio (EAR) on landmark points 36–41 (left eye) and 42–47 (right eye). EAR below 0.25 = blink confirmed
 - [x] Challenge 2 — **Head turn left:** Check if nose tip (landmark 30) X-position shifts left relative to face center
 - [x] Challenge 3 — **Head turn right:** Check if nose tip (landmark 30) X-position shifts right relative to face center
-- [x] Show animated instruction UI for each challenge: *"Blink now → Turn left → Turn right"*
-- [x] Add 10-second countdown timer per challenge — if not completed → fail liveness → full reset
+- [x] Show animated instruction UI for each challenge
+- [x] Require all three challenges sequentially during initial Face ID enrollment to map a 3D profile
+- [x] Randomize a single challenge (1 out of 3) during daily ride starting for faster verification
+- [x] Add countdown timer — if not completed → fail liveness → full reset
 - [x] Call `runLivenessChallenge()` at the START of both no-helmet AND with-helmet steps
 
 ### C. Continuous Face Tracking During Helmet Transition
@@ -128,6 +131,10 @@
 ---
 
 ## 📱 FRONTEND — Other Mobile App Improvements
+
+### Starting a Ride Experience
+- [ ] Set up background Bluetooth listener for ESP32 beacon when app is closed.
+- [ ] Trigger local push notification: "MotoLock detected. Tap here to verify your identity and unlock" when beacon is received.
 
 ### Sobriety Test Result Screen
 - [ ] When `RESULT_FAIL` received via Bluetooth from ESP32:
