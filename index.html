@@ -4618,8 +4618,8 @@
           <p>All safety checks passed. Press the MotoLock hardware start button to start the motorcycle.</p>
         </div>
         <div class="reading">
-          <div class="sensor-label">MQ-3 Sensor · BrAC Reading</div>
-          <div class="safe-value" id="good-to-ride-brac">0.000%</div>
+          <div class="sensor-label">MQ-3 Sensor</div>
+          <div class="safe-value" id="good-to-ride-brac">Alcohol Percentage: 0.000%</div>
         </div>
         <div class="checklist">
           <div class="checkitem"><span><svg class="icon">
@@ -4756,8 +4756,8 @@
           <p>Alcohol detected. Ignition may be on, but MotoLock disabled the starter for safety.</p>
         </div>
         <div class="reading">
-          <div class="sensor-label">MQ-3 Sensor · BrAC Reading</div>
-          <div class="danger-value" id="locked-brac">0.050%</div>
+          <div class="sensor-label">MQ-3 Sensor</div>
+          <div class="danger-value" id="locked-brac">Alcohol Percentage: 0.050%</div>
         </div>
         <div class="legal">Legal Limit: <strong>0.050%</strong></div>
         <div class="card alert-card no-hover">
@@ -7017,7 +7017,7 @@
     }
 
     function formatBracPercent(value) {
-      return value === null ? 'Waiting...' : `${value.toFixed(3)}%`;
+      return value === null ? 'Waiting...' : `Alcohol Percentage: ${value.toFixed(3)}%`;
     }
 
     function isBracAtOrOverLimit(value) {
@@ -8623,8 +8623,8 @@
           return;
         }
 
-        if (newPassword.length < 8) {
-          alert("Weak Password\n\nYour new password must be at least 8 characters long.");
+        if (newPassword.length < 8 || !/[!@#$%^&*(),.?":{}|<>]/.test(newPassword)) {
+          alert("Weak Password\n\nYour new password must be at least 8 characters long and include a special character.");
           return;
         }
 
@@ -10635,6 +10635,11 @@
           !password
         ) {
           alert("Please complete all fields.");
+          return;
+        }
+
+        if (password.length < 8 || !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+          alert("Weak Password. Must be at least 8 characters and include a special character.");
           return;
         }
 

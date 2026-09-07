@@ -84,8 +84,8 @@ These components are kept securely under the motorcycle seat alongside the main 
 
 **How to Connect and Place the Manual Override Interface:**
 1. **Secondary Enclosure:** Mount the **0.96" OLED Display**, **IP67 Metal Push Buttons**, and **IP67 LED Indicators** inside the second **Small Waterproof Box** to act as its protector.
-2. **Placement:** Mount this small interface **INSIDE the under-seat storage compartment (U-Box)**. This ensures the rider can easily access it when they open the seat, and it takes up almost zero space. The Main ABS Receiver Box should be hidden **OUTSIDE the U-Box**, zip-tied securely to the inner frame rails behind the motorcycle's plastic body panels.
-3. **Wiring:** Drill a small hole in the U-Box and run the short wires from the display interface directly into the main ABS Box outside. Seal the hole. Because they are located in the same general under-seat area, no long handlebar wire loom is needed.
+2. **Placement:** Mount this small interface **INSIDE the under-seat storage compartment (U-Box)**. This ensures the rider can easily access it when they open the seat. We will also place the Main ABS Receiver Box securely **INSIDE the U-Box**, mounted neatly in the corner. This simplifies the wiring for the prototype, keeps all electronic components protected from the elements, and prevents the need to remove the motorcycle's side body panels.
+3. **Wiring:** Run the short wires from the display interface directly into the Main ABS Box (since they are right next to each other inside the U-Box). Then, run the power (ACC) and relay wires out of the U-Box down to the ignition switch. No long handlebar wire loom is needed.
 
 ![Manual Override Assembly](C:\Users\Administrator\.gemini\antigravity-ide\brain\dcb1abc0-5493-48fc-923f-1e47cd6f677e\manual_override_assembly_1788596912823.jpg)
 
