@@ -224,7 +224,8 @@ export default function AdminApp() {
   const [token, setToken] = useState<string>(localStorage.getItem('ml_token') || '');
   const [adminEmail, setAdminEmail] = useState<string>(localStorage.getItem('ml_email') || '');
   const [adminRole, setAdminRole] = useState<string>(localStorage.getItem('ml_role') || 'admin');
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('ml_tab') || 'dashboard');
+  useEffect(() => { localStorage.setItem('ml_tab', activeTab); }, [activeTab]);
   const [isLightMode, setIsLightMode] = useState<boolean>(localStorage.getItem('ml_theme') === 'light');
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
@@ -264,11 +265,12 @@ export default function AdminApp() {
   const [newPhone, setNewPhone] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('rider');
+  const [addUserErrors, setAddUserErrors] = useState<Record<string, string>>({});
 
   // Manage Rider Form States
   const [selectedRider, setSelectedRider] = useState<any>(null);
   const [manageTab, setManageTab] = useState<'profile' | 'motorcycles' | 'contacts'>('profile');
-  
+
   // Profile edit states
   const [editFullName, setEditFullName] = useState('');
   const [editEmail, setEditEmail] = useState('');
@@ -367,20 +369,24 @@ export default function AdminApp() {
           success: true,
           totalRiders: users?.length || 0,
           totalMotorcycles: motorcycles?.length || 0,
-          activeDevices: devices?.filter((d:any) => d.status === 'online').length || 0,
+          activeDevices: devices?.filter((d: any) => d.status === 'online').length || 0,
           recentOverrides: 0,
           todaysRides: rides?.length || 0,
-          failedTests: rides?.filter((r:any) => r.status === 'failed_brac').length || 0
+          failedTests: rides?.filter((r: any) => r.status === 'failed_brac').length || 0
         };
       }
       if (endpoint === '/admin/users' && (!options.method || options.method === 'GET')) {
         const { data, error } = await supabaseClient.from('users').select('*');
-        return { success: true, users: data || [] };
+        const mappedUsers = (data || []).map((u: any) => ({
+          ...u,
+          full_name: u.name || u.full_name // Map name column for UI backwards compatibility
+        }));
+        return { success: true, users: mappedUsers };
       }
       if (endpoint.startsWith('/admin/motorcycles')) {
         return { success: true, motorcycle: { id: 999, ...JSON.parse(options.body) } };
       }
-      
+
       const headers = {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -440,7 +446,7 @@ export default function AdminApp() {
         body: JSON.stringify({ action, module, targetRecord })
       });
       fetchAuditLogs();
-    } catch (e) {}
+    } catch (e) { }
   };
 
   // Fetch data functions
@@ -448,28 +454,28 @@ export default function AdminApp() {
     try {
       const d = await apiFetch('/admin/dashboard');
       if (d.success) setDashboardData(d);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const fetchRiders = async () => {
     try {
       const d = await apiFetch('/admin/users');
       if (d.success) setRiders(d.users);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const fetchOverrides = async () => {
     try {
       const d = await apiFetch('/admin/override-logs');
       if (d.success) setOverrides(d.logs);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const fetchAuditLogs = async () => {
     try {
       const d = await apiFetch('/admin/audit-logs');
       if (d.success) setAuditLogs(d.logs);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const fetchSettings = async () => {
@@ -502,7 +508,7 @@ export default function AdminApp() {
         if (s.bluetooth_timeout) setBluetoothTimeout(s.bluetooth_timeout);
         if (s.auto_reconnect !== undefined) setAutoReconnect(s.auto_reconnect === 'true');
       }
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const saveSettingToDB = async (key: string, value: string) => {
@@ -516,14 +522,14 @@ export default function AdminApp() {
     try {
       const d = await apiFetch('/admin/devices');
       if (d.success) setDevices(d.devices);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const fetchNotifications = async () => {
     try {
       const d = await apiFetch('/admin/notifications');
       if (d.success) setNotifications(d.notifications || []);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const loadAllData = async () => {
@@ -566,26 +572,52 @@ export default function AdminApp() {
   // Add User Trigger
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newFullName || !newEmail || !newPhone || !newPassword) {
-      showCustomAlert('Missing Fields', 'Please fill out all fields.');
+    setAddUserErrors({});
+    let hasError = false;
+    let errors: Record<string, string> = {};
+    
+    if (!newFullName) {
+      errors.fullName = 'Full Name is required';
+      hasError = true;
+    }
+
+    if (!newEmail) {
+      errors.email = 'Email is required';
+      hasError = true;
+    } else if (!newEmail.includes('@') && newRole !== 'admin') {
+      errors.email = 'Please enter a valid email address.';
+      hasError = true;
+    }
+    
+    if (!newPassword) {
+      errors.password = 'Password is required';
+      hasError = true;
+    } else if (newPassword.length < 8) {
+      errors.password = 'Password must be at least 8 characters long.';
+      hasError = true;
+    }
+
+    if (hasError) {
+      setAddUserErrors(errors);
       return;
     }
-    if (!newEmail.includes('@') && newRole !== 'admin') {
-      showCustomAlert('Invalid Email', 'Standard user registration requires a valid email address containing @.');
-      return;
-    }
+
     try {
-      const res = await apiFetch('/admin/users', {
-        method: 'POST',
-        body: JSON.stringify({
-          fullName: newFullName,
-          email: newEmail,
-          phone: newPhone,
-          password: newPassword,
-          role: newRole
-        })
-      });
-      if (res.userId) {
+      const { data: existing } = await supabaseClient.from('users').select('id').eq('email', newEmail).maybeSingle();
+      if (existing) {
+        throw new Error('Email is already registered in the system.');
+      }
+
+      const { data, error } = await supabaseClient.from('users').insert([{
+        name: newFullName,
+        email: newEmail,
+        password_hash: newPassword,
+        role: newRole
+      }]).select().single();
+
+      if (error) throw new Error(error.message);
+
+      if (data && data.id) {
         showCustomAlert('Success', '✅ User account successfully registered!');
         triggerAuditLog(`Created user ${newEmail} (${newRole})`, 'Users & Roles', newEmail);
         setShowAddUser(false);
@@ -593,10 +625,11 @@ export default function AdminApp() {
         setNewEmail('');
         setNewPhone('');
         setNewPassword('');
+        setAddUserErrors({});
         loadAllData();
       }
     } catch (err: any) {
-      showCustomAlert('Registration Error', err.message);
+      setAddUserErrors({ general: err.message });
     }
   };
 
@@ -604,7 +637,9 @@ export default function AdminApp() {
   const handleDeleteUser = (id: number, email: string) => {
     showCustomConfirm('Confirm Account Deletion', `Are you absolutely sure you want to permanently delete user ${email}? All linked device slots and histories will be cleared.`, async () => {
       try {
-        await apiFetch(`/admin/users/${id}`, { method: 'DELETE' });
+        const { error } = await supabaseClient.from('users').delete().eq('id', id);
+        if (error) throw new Error(error.message);
+
         triggerAuditLog(`Deleted user account`, 'Users & Roles', email);
         showCustomAlert('Success', 'User deleted successfully.');
         loadAllData();
@@ -626,7 +661,7 @@ export default function AdminApp() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editFullName || !editEmail || !editPhone) {
+    if (!editFullName || !editEmail) {
       showCustomAlert('Missing Fields', 'Please complete all profile fields.');
       return;
     }
@@ -636,14 +671,13 @@ export default function AdminApp() {
         body: JSON.stringify({
           fullName: editFullName,
           email: editEmail,
-          phone: editPhone,
           role: editRole
         })
       });
       showCustomAlert('Success', 'Profile updated successfully.');
       triggerAuditLog(`Updated rider profile for ${editEmail}`, 'Riders Directory', editEmail);
-      
-      const updated = riders.map(r => r.id === selectedRider.id ? { ...r, full_name: editFullName, email: editEmail, phone: editPhone, role: editRole } : r);
+
+      const updated = riders.map(r => r.id === selectedRider.id ? { ...r, full_name: editFullName, email: editEmail, role: editRole } : r);
       setRiders(updated);
       setSelectedRider(null);
       loadAllData();
@@ -674,7 +708,7 @@ export default function AdminApp() {
         setNewMotorcycleModel('');
         setNewMotorcycleYear('');
         setNewMotorcycleColor('');
-        
+
         const updatedMotorcycles = [...(selectedRider.motorcycles || []), res.motorcycle];
         const newSelected = { ...selectedRider, motorcycles: updatedMotorcycles };
         setSelectedRider(newSelected);
@@ -689,7 +723,7 @@ export default function AdminApp() {
   const handleDeleteMotorcycle = async (id: number) => {
     try {
       await apiFetch(`/admin/motorcycles/${id}`, { method: 'DELETE' });
-      
+
       const updatedMotorcycles = (selectedRider.motorcycles || []).filter((m: any) => m.id !== id);
       const newSelected = { ...selectedRider, motorcycles: updatedMotorcycles };
       setSelectedRider(newSelected);
@@ -719,7 +753,7 @@ export default function AdminApp() {
         showCustomAlert('Success', 'Contact added successfully.');
         setNewContactName('');
         setNewContactPhone('');
-        
+
         const updatedContacts = [...(selectedRider.contacts || []), res.contact];
         const newSelected = { ...selectedRider, contacts: updatedContacts };
         setSelectedRider(newSelected);
@@ -734,7 +768,7 @@ export default function AdminApp() {
   const handleDeleteContact = async (id: number) => {
     try {
       await apiFetch(`/admin/contacts/${id}`, { method: 'DELETE' });
-      
+
       const updatedContacts = (selectedRider.contacts || []).filter((c: any) => c.id !== id);
       const newSelected = { ...selectedRider, contacts: updatedContacts };
       setSelectedRider(newSelected);
@@ -909,7 +943,7 @@ export default function AdminApp() {
             <span style={styles.appLogoLock}>Lock</span>
           </div>
           <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 24 }}>System Management & Sobriety Audits</p>
-          
+
           <form onSubmit={handleLogin}>
             <div style={styles.formGroup}>
               <label style={styles.label}>Email / Account Name</label>
@@ -933,9 +967,9 @@ export default function AdminApp() {
                 required
               />
             </div>
-            
+
             {loginError && <div style={styles.errAlert}>{loginError}</div>}
-            
+
             <button type="submit" disabled={isLoggingIn} style={styles.primaryButton}>
               {isLoggingIn ? 'Verifying Credentials...' : 'Sign In'}
             </button>
@@ -1000,7 +1034,7 @@ export default function AdminApp() {
           <span style={styles.logoMoto}>Moto</span>
           <span style={styles.logoLock}>Lock</span>
         </div>
- 
+
         <nav style={styles.navMenu}>
           {sidebarSections.map(sec => (
             <div key={sec.title} style={{ marginBottom: 16 }}>
@@ -1023,7 +1057,7 @@ export default function AdminApp() {
             </div>
           ))}
         </nav>
- 
+
         {/* SIDEBAR FOOTER */}
         <div style={styles.sidebarFooter}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1068,7 +1102,7 @@ export default function AdminApp() {
               }
             </h2>
           </div>
-          
+
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', position: 'relative' }}>
             {/* Notification Bell */}
             <div style={{ position: 'relative' }}>
@@ -1116,8 +1150,8 @@ export default function AdminApp() {
                 }}>
                   <div style={{ fontWeight: 700, borderBottom: '1px solid var(--border)', paddingBottom: 8, marginBottom: 8, fontSize: '14px', display: 'flex', justifyContent: 'space-between' }}>
                     <span>Notification</span>
-                    <button 
-                      onClick={() => { setShowNotifications(false); setActiveTab('alerts'); }} 
+                    <button
+                      onClick={() => { setShowNotifications(false); setActiveTab('alerts'); }}
                       style={{ background: 'none', border: 'none', color: 'var(--blue)', fontSize: '11px', cursor: 'pointer', fontWeight: 700 }}
                     >
                       View All
@@ -1280,7 +1314,7 @@ export default function AdminApp() {
                         <CustomSelect
                           options={[{ value: 'month', label: 'This Month' }]}
                           value="month"
-                          onChange={() => {}}
+                          onChange={() => { }}
                           style={{ width: 'auto', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', minWidth: '110px' }}
                         />
                       </div>
@@ -1300,12 +1334,12 @@ export default function AdminApp() {
                           <svg width="100%" height="450" viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
                             <defs>
                               <linearGradient id="passedGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="var(--green)" stopOpacity="0.2"/>
-                                <stop offset="100%" stopColor="var(--green)" stopOpacity="0.0"/>
+                                <stop offset="0%" stopColor="var(--green)" stopOpacity="0.2" />
+                                <stop offset="100%" stopColor="var(--green)" stopOpacity="0.0" />
                               </linearGradient>
                               <linearGradient id="failedGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="var(--red)" stopOpacity="0.15"/>
-                                <stop offset="100%" stopColor="var(--red)" stopOpacity="0.0"/>
+                                <stop offset="0%" stopColor="var(--red)" stopOpacity="0.15" />
+                                <stop offset="100%" stopColor="var(--red)" stopOpacity="0.0" />
                               </linearGradient>
                             </defs>
 
@@ -1328,7 +1362,7 @@ export default function AdminApp() {
                               <>
                                 <path d={passedAreaPath} fill="url(#passedGrad)" />
                                 <path d={failedAreaPath} fill="url(#failedGrad)" />
-                                
+
                                 {/* Lines */}
                                 <path d={passedPath} fill="none" stroke="var(--green)" strokeWidth="3" strokeLinecap="round" />
                                 <path d={failedPath} fill="none" stroke="var(--red)" strokeWidth="3" strokeLinecap="round" />
@@ -1558,16 +1592,18 @@ export default function AdminApp() {
                     style={styles.input}
                   />
                 </div>
-                <CustomSelect
-                  options={[
-                    { value: 'all', label: 'All Roles' },
-                    { value: 'rider', label: 'Riders' },
-                    { value: 'admin', label: 'Administrators' }
-                  ]}
-                  value={riderRoleFilter}
-                  onChange={val => setRiderRoleFilter(val)}
-                  style={{ width: '160px' }}
-                />
+                {adminRole === 'superadmin' && (
+                  <CustomSelect
+                    options={[
+                      { value: 'all', label: 'All Roles' },
+                      { value: 'rider', label: 'Riders' },
+                      { value: 'admin', label: 'Administrators' }
+                    ]}
+                    value={riderRoleFilter}
+                    onChange={val => setRiderRoleFilter(val)}
+                    style={{ width: '160px' }}
+                  />
+                )}
                 <CustomSelect
                   options={[
                     { value: 'all', label: 'All Face ID' },
@@ -1604,16 +1640,16 @@ export default function AdminApp() {
                     .filter(r => {
                       const matchesRoleAccess = adminRole === 'superadmin' || r.role === 'rider';
                       const matchesQ = r.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                       r.email?.toLowerCase().includes(searchQuery.toLowerCase());
+                        r.email?.toLowerCase().includes(searchQuery.toLowerCase());
                       const matchesRole = riderRoleFilter === 'all' || r.role === riderRoleFilter;
                       const matchesFace = riderFaceFilter === 'all' ||
-                                         (riderFaceFilter === 'enrolled' && r.face_enrolled) ||
-                                         (riderFaceFilter === 'missing' && !r.face_enrolled);
+                        (riderFaceFilter === 'enrolled' && r.face_enrolled) ||
+                        (riderFaceFilter === 'missing' && !r.face_enrolled);
                       return matchesQ && matchesRole && matchesFace && matchesRoleAccess;
                     })
                     .map((r, idx) => (
                       <tr key={idx}>
-                        <td style={styles.tableCell}><strong>{r.full_name}</strong></td>
+                        <td style={styles.tableCell}>{r.full_name}</td>
                         <td style={styles.tableCell}>{r.email}</td>
                         <td style={styles.tableCell}>{maskPhone(r.phone)}</td>
                         <td style={styles.tableCell}>
@@ -1683,35 +1719,35 @@ export default function AdminApp() {
         {/* Tab 5: MotoLock Devices */}
         {activeTab === 'devices' && (
           <div>
-             <div style={styles.card}>
-               <table style={styles.table}>
-                 <thead>
-                   <tr>
-                     <th style={styles.tableHeader}>Device ID</th>
-                     <th style={styles.tableHeader}>Lock Status</th>
-                     <th style={styles.tableHeader}>Hardware Model Link</th>
-                     <th style={styles.tableHeader}>Actions</th>
-                   </tr>
-                 </thead>
-                 <tbody>
-                   {devices.map((d, idx) => (
-                     <tr key={idx}>
-                       <td style={styles.tableCell}><code>DEV-{d.id}</code></td>
-                       <td style={styles.tableCell}>{d.is_locked ? '🔒 Secure Lock' : '🔓 Ignition Ready'}</td>
-                       <td style={styles.tableCell}>SIM Card: {d.sim_number || 'N/A'}</td>
-                       <td style={styles.tableCell}>
-                         <button
-                           onClick={() => showCustomAlert('System Override', 'Please direct device override actions inside safety alerts tab.')}
-                           style={styles.actionBtn}
-                         >
-                           Trigger Audit Override
-                         </button>
-                       </td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table>
-             </div>
+            <div style={styles.card}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.tableHeader}>Device ID</th>
+                    <th style={styles.tableHeader}>Lock Status</th>
+                    <th style={styles.tableHeader}>Hardware Model Link</th>
+                    <th style={styles.tableHeader}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {devices.map((d, idx) => (
+                    <tr key={idx}>
+                      <td style={styles.tableCell}><code>DEV-{d.id}</code></td>
+                      <td style={styles.tableCell}>{d.is_locked ? '🔒 Secure Lock' : '🔓 Ignition Ready'}</td>
+                      <td style={styles.tableCell}>SIM Card: {d.sim_number || 'N/A'}</td>
+                      <td style={styles.tableCell}>
+                        <button
+                          onClick={() => showCustomAlert('System Override', 'Please direct device override actions inside safety alerts tab.')}
+                          style={styles.actionBtn}
+                        >
+                          Trigger Audit Override
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -1838,14 +1874,14 @@ export default function AdminApp() {
                       { value: 'failed-sobriety', label: 'Failed Sobriety & Lockout Report' },
                       { value: 'rider-safety', label: 'Rider Safety Summary' },
                       { value: 'sobriety-trend', label: 'Sobriety Trend Report' },
-                      
+
                       { value: 'cat-riders', label: 'RIDERS', disabled: true },
                       { value: 'rider-master', label: 'Rider Master List' },
                       { value: 'rider-activity', label: 'Rider Activity Report' },
                       { value: 'rider-safety-hist', label: 'Rider Safety History' },
                       { value: 'rider-incident-hist', label: 'Rider Incident History' },
                       { value: 'rider-reg', label: 'Rider Registration Report' },
-                      
+
                       { value: 'cat-motorcycles', label: 'MOTORCYCLES & DEVICES', disabled: true },
                       { value: 'motorcycle-reg', label: 'Motorcycle Registry Report' },
                       { value: 'device-inventory', label: 'MotoLock Device Inventory' },
@@ -1854,13 +1890,13 @@ export default function AdminApp() {
                       { value: 'device-pairing', label: 'Device Pairing Report' },
                       { value: 'device-connection', label: 'Device Connection Status Report' },
                       { value: 'device-fault', label: 'Device Fault & Failure Report' },
-                      
+
                       { value: 'cat-identity', label: 'IDENTITY VERIFICATION', disabled: true },
                       { value: 'identity-verif', label: 'Identity Verification Report' },
                       { value: 'failed-verif', label: 'Failed Verification Report' },
                       { value: 'verif-attempt', label: 'Verification Attempt History' },
                       { value: 'liveness-verif', label: 'Liveness Verification Report' },
-                      
+
                       { value: 'cat-alerts', label: 'ALERTS & INCIDENTS', disabled: true },
                       { value: 'alert-summary', label: 'Alert Summary Report' },
                       { value: 'safety-incident', label: 'Safety Incident Report' },
@@ -1868,19 +1904,19 @@ export default function AdminApp() {
                       { value: 'resolved-incident', label: 'Resolved Incident Report' },
                       { value: 'incident-resolution', label: 'Incident Resolution Report' },
                       { value: 'alert-trend', label: 'Alert Trend Report' },
-                      
+
                       { value: 'cat-location', label: 'LOCATION & GPS', disabled: true },
                       { value: 'gps-activity', label: 'GPS Activity Report' },
                       { value: 'incident-loc', label: 'Incident Location Report' },
                       { value: 'lockout-loc', label: 'Lockout Location Report' },
                       { value: 'last-known-loc', label: 'Last Known Location Report' },
-                      
+
                       { value: 'cat-override', label: 'OVERRIDE & ACCESS', disabled: true },
                       { value: 'manual-override', label: 'Manual Override Report' },
                       { value: 'override-history', label: 'Override History Report' },
                       { value: 'ignition-override', label: 'Ignition Override Report' },
                       { value: 'failed-access', label: 'Failed Access Attempt Report' },
-                      
+
                       { value: 'cat-admin', label: 'ADMINISTRATION', disabled: true },
                       { value: 'admin-list', label: 'Administrator/User List' },
                       { value: 'user-activity', label: 'User Activity Report' },
@@ -1888,21 +1924,21 @@ export default function AdminApp() {
                       { value: 'login-history', label: 'Login History Report' },
                       { value: 'failed-login', label: 'Failed Login Report' },
                       { value: 'account-status', label: 'Account Status Report' },
-                      
+
                       { value: 'cat-audit', label: 'AUDIT & SYSTEM', disabled: true },
                       { value: 'audit-trail', label: 'Audit Trail Report' },
                       { value: 'system-activity', label: 'System Activity Report' },
                       { value: 'config-change', label: 'Configuration Change Report' },
                       { value: 'system-event', label: 'System Event Report' },
                       { value: 'system-health', label: 'System Health Report' },
-                      
+
                       { value: 'cat-backup', label: 'BACKUP & MAINTENANCE', disabled: true },
                       { value: 'backup-history', label: 'Backup History Report' },
                       { value: 'backup-status', label: 'Backup Status Report' },
                       { value: 'restore-history', label: 'Restore History Report' },
                       { value: 'maintenance-activity', label: 'Maintenance Activity Report' },
                       { value: 'system-maintenance', label: 'System Maintenance Report' },
-                      
+
                       { value: 'cat-comprehensive', label: 'COMPREHENSIVE', disabled: true },
                       { value: 'comp-safety', label: 'Comprehensive MotoLock Safety Report' },
                       { value: 'comp-system', label: 'Comprehensive MotoLock System Report' }
@@ -1911,7 +1947,7 @@ export default function AdminApp() {
                     onChange={val => handleSetReportType(val)}
                   />
                 </div>
- 
+
                 {['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(reportType) && (
                   <>
                     <div style={{ flex: 1 }}>
@@ -1940,7 +1976,7 @@ export default function AdminApp() {
                     </div>
                   </>
                 )}
- 
+
                 {['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(reportType) && (
                   <>
                     <div style={{ flex: 1 }}>
@@ -1960,12 +1996,12 @@ export default function AdminApp() {
                 )}
 
                 {!['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(reportType) &&
-                 !['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(reportType) && (
-                  <>
-                    <div style={{ flex: 1 }}></div>
-                    <div style={{ flex: 1 }}></div>
-                  </>
-                )}
+                  !['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(reportType) && (
+                    <>
+                      <div style={{ flex: 1 }}></div>
+                      <div style={{ flex: 1 }}></div>
+                    </>
+                  )}
               </div>
 
               <div style={styles.formRow}>
@@ -1990,8 +2026,8 @@ export default function AdminApp() {
               </div>
 
               <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-                <button 
-                  onClick={handleGenerateReport} 
+                <button
+                  onClick={handleGenerateReport}
                   disabled={isGeneratingReport}
                   style={{ ...styles.actionBtn, background: 'var(--red)', color: '#fff', border: 'none', height: 44, padding: '0 24px' }}
                 >
@@ -2087,7 +2123,7 @@ export default function AdminApp() {
                               </>
                             ) : ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(generatedReportType) ? (
                               <>
-                                <td style={styles.tableCell}><strong>{row.full_name}</strong></td>
+                                <td style={styles.tableCell}>{row.full_name}</td>
                                 <td style={styles.tableCell}>{row.email}</td>
                                 <td style={styles.tableCell}>{maskPhone(row.phone)}</td>
                                 <td style={styles.tableCell}>{row.role}</td>
@@ -2153,10 +2189,10 @@ export default function AdminApp() {
         {activeTab === 'settings' && (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px', alignItems: 'start' }}>
-              
+
               {/* Column 1 */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                
+
                 {/* 1. Organization Information */}
                 <div style={styles.card}>
                   <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
@@ -2364,7 +2400,7 @@ export default function AdminApp() {
 
               {/* Column 2 */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                
+
                 {/* 4. Date & Time Settings */}
                 <div style={styles.card}>
                   <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
@@ -2587,7 +2623,7 @@ export default function AdminApp() {
 
               {/* Column 3 */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                
+
                 {/* 7. System Information */}
                 <div style={styles.card}>
                   <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
@@ -2679,7 +2715,7 @@ export default function AdminApp() {
 
       {/* POPUP CONTAINER MODAL - ALERT */}
       {alertTitle && (
-        <div style={styles.modalBackdrop}>
+        <div style={{ ...styles.modalBackdrop, zIndex: 9999 }}>
           <div style={styles.modalContent}>
             <h3>{alertTitle}</h3>
             <p style={{ margin: '14px 0', fontSize: 14 }}>{alertMsg}</p>
@@ -2692,7 +2728,7 @@ export default function AdminApp() {
 
       {/* POPUP CONTAINER MODAL - CONFIRM */}
       {confirmTitle && (
-        <div style={styles.modalBackdrop}>
+        <div style={{ ...styles.modalBackdrop, zIndex: 9999 }}>
           <div style={styles.modalContent}>
             <h3>{confirmTitle}</h3>
             <p style={{ margin: '14px 0', fontSize: 14 }}>{confirmMsg}</p>
@@ -2727,15 +2763,17 @@ export default function AdminApp() {
           <div style={styles.modalContent}>
             <h3>Register New User Account</h3>
             <form onSubmit={handleAddUser} style={{ marginTop: 14 }}>
+
               <div style={styles.formGroup}>
                 <label style={styles.label}>Full Name</label>
                 <input
                   type="text"
                   value={newFullName}
                   onChange={e => setNewFullName(e.target.value)}
-                  style={styles.input}
+                  style={{ ...styles.input, ...(addUserErrors.fullName ? { border: '1px solid var(--red)' } : {}) }}
                   required
                 />
+                {addUserErrors.fullName && <div style={{ color: 'var(--red)', fontSize: '12px', marginTop: '4px' }}>{addUserErrors.fullName}</div>}
               </div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Email Address</label>
@@ -2743,20 +2781,10 @@ export default function AdminApp() {
                   type="text"
                   value={newEmail}
                   onChange={e => setNewEmail(e.target.value)}
-                  style={styles.input}
+                  style={{ ...styles.input, ...(addUserErrors.email ? { border: '1px solid var(--red)' } : {}) }}
                   required
                 />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Mobile Number</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 09123456789"
-                  value={newPhone}
-                  onChange={e => setNewPhone(e.target.value)}
-                  style={styles.input}
-                  required
-                />
+                {addUserErrors.email && <div style={{ color: 'var(--red)', fontSize: '12px', marginTop: '4px' }}>{addUserErrors.email}</div>}
               </div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Password</label>
@@ -2764,33 +2792,50 @@ export default function AdminApp() {
                   type="password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
-                  style={styles.input}
+                  style={{ ...styles.input, ...(addUserErrors.password ? { border: '1px solid var(--red)' } : {}) }}
                   required
                 />
+                {addUserErrors.password && <div style={{ color: 'var(--red)', fontSize: '12px', marginTop: '4px' }}>{addUserErrors.password}</div>}
               </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>System Role</label>
-                <CustomSelect
-                  options={[
-                    { value: 'rider', label: 'Rider' },
-                    { value: 'admin', label: 'Administrator' }
-                  ]}
-                  value={newRole}
-                  onChange={val => setNewRole(val)}
-                />
-                {newRole === 'rider' && (
-                  <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, lineHeight: '14px' }}>
-                    💡 <strong>Note:</strong> Riders registered by an Admin start with no Face ID data. They will be automatically prompted to enroll/register their Face ID when they first log into the client mobile app.
-                  </p>
-                )}
-              </div>
+              {adminRole === 'superadmin' && (
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>System Role</label>
+                  <CustomSelect
+                    options={[
+                      { value: 'rider', label: 'Rider' },
+                      { value: 'admin', label: 'Administrator' }
+                    ]}
+                    value={newRole}
+                    onChange={val => setNewRole(val)}
+                  />
+                  {newRole === 'rider' && (
+                    <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, lineHeight: '14px' }}>
+                      💡 <strong>Note:</strong> Riders registered by an Admin start with no Face ID data. They will be automatically prompted to enroll/register their Face ID when they first log into the client mobile app.
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {addUserErrors.general && (
+                <div style={{ color: 'var(--red)', fontSize: '13px', marginBottom: '12px', fontWeight: 600 }}>
+                  {addUserErrors.general}
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
                 <button type="submit" style={styles.primaryButton}>
-                  Register User
+                  Register
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowAddUser(false)}
+                  onClick={() => {
+                    setShowAddUser(false);
+                    setNewFullName('');
+                    setNewEmail('');
+                    setNewPhone('');
+                    setNewPassword('');
+                    setAddUserErrors({});
+                  }}
                   style={{ ...styles.primaryButton, background: '#737987' }}
                 >
                   Cancel
@@ -2805,15 +2850,15 @@ export default function AdminApp() {
         <div style={styles.modalBackdrop}>
           <div style={{ ...styles.modalContent, width: '600px', maxWidth: '95%' }}>
             <h3 style={styles.modalTitle}>Manage Rider: {selectedRider.full_name}</h3>
-            
+
             {/* Tab Headers */}
             <div style={{ display: 'flex', gap: 12, borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
-              <button 
-                onClick={() => setManageTab('profile')} 
-                style={{ 
-                  padding: '10px 16px', 
-                  background: 'none', 
-                  border: 'none', 
+              <button
+                onClick={() => setManageTab('profile')}
+                style={{
+                  padding: '10px 16px',
+                  background: 'none',
+                  border: 'none',
                   color: manageTab === 'profile' ? 'var(--red)' : 'var(--muted)',
                   borderBottom: manageTab === 'profile' ? '2px solid var(--red)' : 'none',
                   fontWeight: 700,
@@ -2822,12 +2867,12 @@ export default function AdminApp() {
               >
                 Profile Info
               </button>
-              <button 
-                onClick={() => setManageTab('motorcycles')} 
-                style={{ 
-                  padding: '10px 16px', 
-                  background: 'none', 
-                  border: 'none', 
+              <button
+                onClick={() => setManageTab('motorcycles')}
+                style={{
+                  padding: '10px 16px',
+                  background: 'none',
+                  border: 'none',
                   color: manageTab === 'motorcycles' ? 'var(--red)' : 'var(--muted)',
                   borderBottom: manageTab === 'motorcycles' ? '2px solid var(--red)' : 'none',
                   fontWeight: 700,
@@ -2836,12 +2881,12 @@ export default function AdminApp() {
               >
                 Motorcycles ({selectedRider.motorcycles?.length || 0})
               </button>
-              <button 
-                onClick={() => setManageTab('contacts')} 
-                style={{ 
-                  padding: '10px 16px', 
-                  background: 'none', 
-                  border: 'none', 
+              <button
+                onClick={() => setManageTab('contacts')}
+                style={{
+                  padding: '10px 16px',
+                  background: 'none',
+                  border: 'none',
                   color: manageTab === 'contacts' ? 'var(--red)' : 'var(--muted)',
                   borderBottom: manageTab === 'contacts' ? '2px solid var(--red)' : 'none',
                   fontWeight: 700,
@@ -2862,10 +2907,6 @@ export default function AdminApp() {
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Email Address</label>
                   <input type="text" value={editEmail} onChange={e => setEditEmail(e.target.value)} style={styles.input} required />
-                </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Phone Number</label>
-                  <input type="text" value={editPhone} onChange={e => setEditPhone(e.target.value)} style={styles.input} required />
                 </div>
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Role</label>
