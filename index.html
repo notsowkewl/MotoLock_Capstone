@@ -89,11 +89,27 @@
 
     .page {
       flex: 1;
-      padding: 18px 24px 26px;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 22px 24px;
       overflow-y: auto;
       overflow-x: hidden;
+      overscroll-behavior: none;
       scrollbar-width: none;
       -ms-overflow-style: none;
+    }
+
+    /* One content block keeps short screens visually centered as a whole. */
+    .page-content {
+      width: 100%;
+      flex: 0 0 auto;
+      margin-block: auto;
+    }
+
+    .page.modal-open {
+      overflow: hidden;
+      touch-action: none;
     }
 
     .page::-webkit-scrollbar {
@@ -102,10 +118,49 @@
       display: none;
     }
 
-    .center {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
+    .center {}
+
+    #login .page {
+      overflow: hidden;
+      padding: 16px 24px;
+    }
+
+    #login .brand-logo {
+      width: 76px;
+      height: 76px;
+      margin-bottom: 12px;
+      border-radius: 21px;
+    }
+
+    #login .app-name {
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+
+    #login .subtitle {
+      line-height: 1.4;
+      margin-bottom: 18px;
+    }
+
+    #login .form {
+      gap: 10px;
+    }
+
+    #login label {
+      margin-bottom: 5px;
+    }
+
+    #login input {
+      height: 44px;
+    }
+
+    #login .btn {
+      min-height: 48px;
+      margin-top: 2px;
+    }
+
+    #login .divider {
+      margin: 0;
     }
 
     .topbar {
@@ -339,9 +394,11 @@
 
     .modal-sheet {
       width: min(360px, 100%);
+      max-height: calc(100dvh - 44px);
       background: white;
       border-radius: 24px;
       padding: 22px;
+      overflow-y: auto;
       box-shadow: 0 30px 80px rgba(15, 23, 42, 0.22);
       border: 1px solid var(--line);
       animation: modalPop 0.22s ease;
@@ -407,6 +464,39 @@
       min-height: 46px;
       margin-top: 0;
       box-shadow: none;
+    }
+
+    #m-app-message .modal-sheet,
+    #m-app-confirm .modal-sheet {
+      display: grid;
+      gap: 14px;
+      padding: 22px;
+      text-align: center;
+    }
+
+    #m-app-message .modal-title,
+    #m-app-confirm .modal-title,
+    #m-app-message .modal-sub,
+    #m-app-confirm .modal-sub {
+      margin: 0;
+      text-align: center;
+    }
+
+    #m-app-message .modal-title,
+    #m-app-confirm .modal-title {
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    #m-app-message .modal-sub,
+    #m-app-confirm .modal-sub {
+      line-height: 1.5;
+    }
+
+    #m-app-message .btn,
+    #m-app-confirm .btn {
+      min-height: 48px;
+      margin-top: 0;
     }
 
     .btn-ghost {
@@ -1903,11 +1993,6 @@
       height: 19px;
     }
 
-    #createPin .page,
-    #createPinConfirmation .page {
-      padding-top: calc(80px + env(safe-area-inset-top));
-    }
-
     .settings-topbar {
       position: relative;
       min-height: 56px;
@@ -2325,11 +2410,6 @@
       height: 16px;
     }
 
-    #securityPin .page {
-      justify-content: flex-start;
-      padding-top: calc(30px + env(safe-area-inset-top));
-    }
-
     .pin-header {
       text-align: center;
       margin-bottom: 24px;
@@ -2421,11 +2501,6 @@
       color: var(--gray);
       font-size: 12px;
       line-height: 1.45;
-    }
-
-    #connectedDeviceSettings .page {
-      justify-content: flex-start;
-      padding-top: calc(30px + env(safe-area-inset-top));
     }
 
     .device-settings-header {
@@ -2654,11 +2729,6 @@
       color: var(--gray);
       font-size: 12px;
       line-height: 1.45;
-    }
-
-    #emergencyContacts .page {
-      justify-content: flex-start;
-      padding-top: calc(30px + env(safe-area-inset-top));
     }
 
     .contacts-header {
@@ -2893,11 +2963,6 @@
       border-color: var(--red);
     }
 
-    #privacyPolicy .page {
-      justify-content: flex-start;
-      padding-top: calc(30px + env(safe-area-inset-top));
-    }
-
     .policy-header {
       text-align: center;
       margin-bottom: 22px;
@@ -2960,11 +3025,6 @@
       line-height: 1.55;
     }
 
-    #termsConditions .page {
-      justify-content: flex-start;
-      padding-top: calc(30px + env(safe-area-inset-top));
-    }
-
     .terms-header {
       text-align: center;
       margin-bottom: 22px;
@@ -3025,11 +3085,6 @@
       color: var(--gray);
       font-size: 12px;
       line-height: 1.55;
-    }
-
-    #aboutMotoLock .page {
-      justify-content: flex-start;
-      padding-top: calc(30px + env(safe-area-inset-top));
     }
 
     .about-header {
@@ -3127,11 +3182,6 @@
 
     .legal-link:hover {
       text-decoration: underline;
-    }
-
-    #motorcycleList .page {
-      justify-content: flex-start;
-      padding-top: calc(55px + env(safe-area-inset-top));
     }
 
     .motorcycle-list-header,
@@ -3406,60 +3456,28 @@
       color: var(--red);
     }
 
-    #faceIdSettings .page {
-      justify-content: flex-start;
-      padding-top: calc(30px + env(safe-area-inset-top));
-    }
-
-    #settings .page {
-      justify-content: flex-start;
-      padding-top: calc(30px + env(safe-area-inset-top));
-
-    }
-
-    #addContact .page {
-      justify-content: flex-start;
-      padding-top: calc(80px + env(safe-area-inset-top));
-    }
-
-    #motorcycleRegister .page {
-      justify-content: flex-start;
-      padding-top: calc(90px + env(safe-area-inset-top));
-    }
-
-    #dashboard .page {
-      justify-content: flex-start;
-      padding-top: calc(55px + env(safe-area-inset-top));
-    }
-
     #dashboard .greeting {
       margin-top: 30px;
     }
 
-    #goodToRide .page {
-      justify-content: flex-start;
-      padding-top: calc(90px + env(safe-area-inset-top));
-    }
-
-    #rideHistory .page {
-      justify-content: flex-start;
-      padding-top: calc(55px + env(safe-area-inset-top));
-    }
-
-    #riderProfile .page {
-      justify-content: flex-start;
-      padding-top: calc(30px + env(safe-area-inset-top));
-    }
-
-    #changePassword .page {
-      justify-content: flex-start;
-      padding-top: calc(30px + env(safe-area-inset-top));
-    }
-
     @media (max-width: 460px) {
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body {
+        min-height: 100dvh;
+        height: 100dvh;
+        padding: 0;
+        display: block;
+      }
+
       .phone {
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
+        height: 100dvh;
         border: none;
         border-radius: 0;
         box-shadow: none;
@@ -6386,6 +6404,26 @@
   </div>
 
   <script>
+    // Keep each screen's UI together so short screens center evenly. When a
+    // screen is taller than the viewport, the same block starts at the top
+    // and its existing page container remains scrollable.
+    function preparePageLayouts() {
+      document.querySelectorAll('.screen > .page').forEach(page => {
+        if (page.querySelector(':scope > .page-content')) return;
+
+        const content = document.createElement('div');
+        content.className = 'page-content';
+
+        while (page.firstChild) {
+          content.appendChild(page.firstChild);
+        }
+
+        page.appendChild(content);
+      });
+    }
+
+    preparePageLayouts();
+
     const API_BASE_URL = (() => {
       const savedUrl = localStorage.getItem('motolock_api_base_url');
 
@@ -7844,6 +7882,9 @@
       }
 
       target.classList.add('active');
+      target.querySelectorAll('.page').forEach(page => {
+        page.scrollTop = 0;
+      });
 
       if (!['faceFront', 'faceHelmetSetup', 'verifyNoHelmet', 'verifyHelmet'].includes(id)) {
         stopFaceCamera();
@@ -8482,10 +8523,15 @@
 
     function openModal(id) {
       document.getElementById(id).classList.add('active');
+      document.querySelector('.screen.active .page')?.classList.add('modal-open');
     }
 
     function closeModal(id) {
       document.getElementById(id).classList.remove('active');
+
+      if (!document.querySelector('.modal-backdrop.active')) {
+        document.querySelector('.screen.active .page')?.classList.remove('modal-open');
+      }
     }
 
     function splitPopupMessage(title, message) {
@@ -8495,6 +8541,13 @@
 
       const raw = String(title || '');
       const parts = raw.split(/\n\n/);
+
+      if (parts.length === 1) {
+        return {
+          title: 'MotoLock',
+          message: parts[0] || 'Something went wrong.'
+        };
+      }
 
       return {
         title: parts[0] || 'Notice',
