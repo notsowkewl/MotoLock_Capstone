@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="/assets/icon/icon.png" />
   <link rel="manifest" href="/manifest.json" />
   <title>MotoLock</title>
-  <script src="./human.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -3827,7 +3827,7 @@
           <div>
             <label>Verification Code</label>
 
-            <input type="text" id="email-verification-code" maxlength="6">
+            <input type="text" id="email-verification-code" maxlength="8">
           </div>
 
           <button class="btn" onclick="verifyEmailCode()">
@@ -6444,7 +6444,8 @@
     async function loadFaceModels() {
       if (faceModelsLoaded) return;
       const config = {
-        modelBasePath: './models',
+        backend: 'webgl',
+        modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human@3.3.6/models/',
         face: {
           enabled: true,
           detector: { rotation: true, maxDetected: 5, return: true },
@@ -8706,6 +8707,40 @@
 
     let verificationEmail = "";
 
+    async function getOrCreateUserProfile(authUser) {
+      const { data: existingUser, error: lookupError } = await supabaseClient
+        .from('users')
+        .select('*')
+        .eq('email', authUser.email)
+        .maybeSingle();
+
+      if (lookupError) throw lookupError;
+      if (existingUser) return existingUser;
+
+      const { data: newUser, error: createError } = await supabaseClient
+        .from('users')
+        .insert({
+          id: authUser.id,
+          name: authUser.user_metadata?.fullName || authUser.email.split('@')[0],
+          email: authUser.email,
+          // Passwords are managed by Supabase Auth; this only satisfies the legacy table constraint.
+          password_hash: 'supabase-auth-managed',
+          role: 'rider'
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+      return newUser;
+    }
+
+    function storeAuthenticatedUser(profile) {
+      localStorage.setItem('token', profile.id);
+      localStorage.setItem('ml_profile_id', profile.id);
+      localStorage.setItem('ml_user_role', profile.role || 'rider');
+      localStorage.setItem('user', JSON.stringify(profile));
+    }
+
     async function sendResetCode() {
       try {
 
@@ -8751,13 +8786,22 @@
           return;
         }
 
-        await api("/auth/verify-email", {
-          method: "POST",
-          body: JSON.stringify({
-            email: verificationEmail,
-            code,
-          }),
+        if (!verificationEmail) {
+          alert('Your verification session expired. Please create the account again.');
+          go('createAccount');
+          return;
+        }
+
+        const { data, error } = await supabaseClient.auth.verifyOtp({
+          email: verificationEmail,
+          token: code,
+          type: 'signup'
         });
+        if (error) throw error;
+        if (!data.user) throw new Error('The verification code is invalid or has expired.');
+
+        const profile = await getOrCreateUserProfile(data.user);
+        storeAuthenticatedUser(profile);
 
         alert("Email verified successfully. Account created!");
 
@@ -9622,23 +9666,40 @@
           return;
         }
 
-        const result = await api("/auth/login", {
-          method: "POST",
-          body: JSON.stringify({
-            email,
-            password
-          })
-        });
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
-        localStorage.setItem("token", result.token);
-        localStorage.setItem("user", JSON.stringify(result.user));
+        if (error) {
+          if (/email not confirmed/i.test(error.message)) {
+            const { error: resendError } = await supabaseClient.auth.resend({
+              type: 'signup',
+              email
+            });
+            if (resendError) throw resendError;
+            verificationEmail = email;
+            alert('Your email is not verified yet. We sent a new verification code.');
+            go('verifyEmail');
+            return;
+          }
+          throw error;
+        }
+
+        if (!data.user) throw new Error('Unable to start your login session. Please try again.');
+
+        const profile = await getOrCreateUserProfile(data.user);
+        storeAuthenticatedUser(profile);
         enrolledFaceDescriptor = null;
         enrolledHelmetFaceDescriptor = null;
         localStorage.removeItem(FACE_DESCRIPTOR_KEY);
         localStorage.removeItem(HELMET_FACE_DESCRIPTOR_KEY);
 
-        setupStatus = result.setupStatus;
-        dashboardRideState = result.dashboardRideState;
+        setupStatus = {
+          hasFaceId: false,
+          hasPin: false,
+          hasEmergencyContact: false,
+          hasMotorcycle: false,
+          hasConnectedDevice: false
+        };
+        dashboardRideState = 'lockedDefault';
 
         if (loadCooldownState()) {
           showVerificationCooldown();
@@ -10436,7 +10497,7 @@
     // SUPABASE CLIENT INITIALIZATION
     const SUPABASE_URL = 'https://bafziqymbvhrytziteuo.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZnppcXltYnZocnl0eml0ZXVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MjAzMzUsImV4cCI6MjEwMzk5NjMzNX0.F1KVSKnN_x-8O2gKlh0d8XPydlBWTcsS0GPbCS6CP_c';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     async function api(path, options = {}) {
       const method = (options.method || "GET").toUpperCase();
@@ -10448,14 +10509,14 @@
         try { body = JSON.parse(options.body); } catch (e) { }
       }
 
-      // Helper to get current user ID (mocking auth token)
-      const getUserId = () => '00000000-0000-0000-0000-000000000001'; // Fallback for prototype
+      // The verified profile ID is used by the app's rider-data tables.
+      const getUserId = () => localStorage.getItem('ml_profile_id') || '00000000-0000-0000-0000-000000000001';
 
       // SHIM ROUTER
       try {
         // ---- AUTH ----
         if (path.includes('/login')) {
-          const { data, error } = await supabase.from('users').select('*').eq('email', body.email).eq('password_hash', body.password).single();
+          const { data, error } = await supabaseClient.from('users').select('*').eq('email', body.email).eq('password_hash', body.password).single();
           if (error || !data) throw new Error('Invalid email or password');
           localStorage.setItem('token', data.id);
           localStorage.setItem('ml_user_role', data.role); // Store role for UI checks
@@ -10463,8 +10524,8 @@
         }
 
         if (path.includes('/register')) {
-          const { data, error } = await supabase.from('users').insert({
-            name: body.full_name,
+          const { data, error } = await supabaseClient.from('users').insert({
+            name: body.fullName,
             email: body.email,
             password_hash: body.password, // In a real app, hash this!
             role: 'rider'
@@ -10477,7 +10538,7 @@
 
         // ---- FACE ID ----
         if (path.includes('/face/me')) {
-          const { data, error } = await supabase.from('users').select('face_descriptor, helmet_descriptor').eq('id', getUserId()).single();
+          const { data, error } = await supabaseClient.from('users').select('face_descriptor, helmet_descriptor').eq('id', getUserId()).single();
           if (error || !data) throw new Error('No Face ID found');
           return { descriptor: data.face_descriptor, helmetDescriptor: data.helmet_descriptor };
         }
@@ -10487,13 +10548,13 @@
           if (body.faceDescriptor) updateData.face_descriptor = body.faceDescriptor;
           if (body.helmetDescriptor) updateData.helmet_descriptor = body.helmetDescriptor;
 
-          const { error } = await supabase.from('users').update(updateData).eq('id', getUserId());
+          const { error } = await supabaseClient.from('users').update(updateData).eq('id', getUserId());
           if (error) throw error;
           return { success: true };
         }
 
         if (path.includes('/verification/liveness')) {
-          const { error } = await supabase.from('ride_history').insert({
+          const { error } = await supabaseClient.from('ride_history').insert({
             user_id: getUserId(), status: body.verified ? 'passed' : 'failed', brac_level: 0
           });
           return { success: true };
@@ -10501,8 +10562,8 @@
 
         // ---- ADMIN DASHBOARD ----
         if (path.includes('/admin/dashboard')) {
-          const { count: usersCount } = await supabase.from('users').select('*', { count: 'exact' });
-          const { count: ridesCount } = await supabase.from('ride_history').select('*', { count: 'exact' });
+          const { count: usersCount } = await supabaseClient.from('users').select('*', { count: 'exact' });
+          const { count: ridesCount } = await supabaseClient.from('ride_history').select('*', { count: 'exact' });
           return {
             totalUsers: usersCount || 0,
             totalRides: ridesCount || 0,
@@ -10512,19 +10573,19 @@
         }
 
         if (path.includes('/admin/users')) {
-          const { data, error } = await supabase.from('users').select('*');
+          const { data, error } = await supabaseClient.from('users').select('*');
           if (error) throw error;
           return data;
         }
 
         if (path.includes('/ride-history')) {
           if (method === 'POST') {
-            await supabase.from('ride_history').insert({
+            await supabaseClient.from('ride_history').insert({
               user_id: getUserId(), brac_level: body.brac_level || 0, gps_lat: body.gps_lat, gps_lng: body.gps_lng, status: body.status
             });
             return { success: true };
           } else {
-            const { data, error } = await supabase.from('ride_history').select('*').eq('user_id', getUserId());
+            const { data, error } = await supabaseClient.from('ride_history').select('*').eq('user_id', getUserId());
             if (error) throw error;
             return { logs: data };
           }
@@ -10658,24 +10719,21 @@
           return;
         }
 
-        const result = await api("/auth/register", {
-
-          method: "POST",
-
-          body: JSON.stringify({
-            fullName,
-            email,
-            phone,
-            password,
-            pin: null
-          })
-
+        const { data, error } = await supabaseClient.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { fullName }
+          }
         });
 
-        console.log(result);
+        if (error) throw error;
+        if (!data.user) throw new Error('Unable to create the account. Please try again.');
+        if (data.session) {
+          await supabaseClient.auth.signOut();
+          throw new Error('Email confirmation is disabled in Supabase. Enable Confirm email before creating accounts.');
+        }
 
-        localStorage.setItem("token", result.token);
-        localStorage.setItem("user", JSON.stringify(result.user));
         enrolledFaceDescriptor = null;
         enrolledHelmetFaceDescriptor = null;
         localStorage.removeItem(FACE_DESCRIPTOR_KEY);
@@ -11110,7 +11168,7 @@
 
     async function downloadAdminReport(type) {
       try {
-        const { data: rides, error } = await supabase.from('ride_history').select('*, users(name)');
+        const { data: rides, error } = await supabaseClient.from('ride_history').select('*, users(name)');
         if (error) throw error;
 
         if (type === 'pdf') {
@@ -11159,9 +11217,9 @@
     async function downloadAdminBackup() {
       try {
         // SECURITY AUDIT FIX: Explicitly exclude 'password_hash' and 'face_descriptor' (biometrics) to comply with data privacy laws
-        const { data: users } = await supabase.from('users').select('id, name, email, role, status, created_at, updated_at');
-        const { data: rides } = await supabase.from('ride_history').select('*');
-        let { data: contacts } = await supabase.from('emergency_contacts').select('*');
+        const { data: users } = await supabaseClient.from('users').select('id, name, email, role, status, created_at, updated_at');
+        const { data: rides } = await supabaseClient.from('ride_history').select('*');
+        let { data: contacts } = await supabaseClient.from('emergency_contacts').select('*');
 
         // HASH PHONE NUMBERS FOR PRIVACY
         if (contacts) {
