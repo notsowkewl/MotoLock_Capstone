@@ -839,6 +839,12 @@
       margin-top: 2px;
     }
 
+    /* Keep the camera preview unobstructed; live status belongs below it. */
+    .instruction-overlay,
+    .liveness-instruction {
+      display: none !important;
+    }
+
     .success-check,
     .alert-mark {
       width: 96px;
@@ -6740,10 +6746,13 @@
       return (res.face && res.face.length > 1);
     }
 
-    async function runUnifiedFaceVerification({ video, svgProgress, progressRing, instructionEl, isEnrollment = false, registeredFace = null, isHelmet = false, onComplete, onFail }) {
+    async function runUnifiedFaceVerification({ video, svgProgress, progressRing, instructionEl, textId, circleId, isEnrollment = false, registeredFace = null, isHelmet = false, onComplete, onFail }) {
+      const setCameraStatus = (message, state = 'scanning') => {
+        setFaceCaptureState(textId, circleId, message, state);
+      };
+
       svgProgress.style.display = 'block';
       progressRing.style.strokeDashoffset = 301.59;
-      instructionEl.style.display = 'block';
 
       let startTime = Date.now();
       let maxTimeMs = isEnrollment ? 30000 : 20000;
@@ -6751,15 +6760,13 @@
       let collectedSamples = [];
       let faceLostCount = 0;
 
-      instructionEl.textContent = 'Scanning face...';
-      instructionEl.style.background = 'rgba(0,0,0,0.6)';
+      setCameraStatus('Scanning face...');
 
       const interval = setInterval(async () => {
         const elapsed = Date.now() - startTime;
         if (elapsed > maxTimeMs) {
           clearInterval(interval);
           svgProgress.style.display = 'none';
-          instructionEl.style.display = 'none';
           onFail('Verification timed out. Try again.');
           return;
         }
@@ -6767,7 +6774,6 @@
         if (await checkForMultipleFaces(video)) {
           clearInterval(interval);
           svgProgress.style.display = 'none';
-          instructionEl.style.display = 'none';
           onFail('Multiple faces detected. Only one rider allowed.');
           return;
         }
@@ -6775,14 +6781,14 @@
         const res = await human.detect(video);
         if (!res.face || res.face.length === 0) {
           faceLostCount++;
-          if (faceLostCount > 4) instructionEl.textContent = 'Face lost. Look at camera.';
+          if (faceLostCount > 4) setCameraStatus('Face lost. Look at camera.', 'error');
         } else {
           faceLostCount = 0;
           const face = res.face[0];
 
           // Built-in Anti-spoofing check
           if (face.real < 0.5 && !isHelmet) {
-            instructionEl.textContent = 'Spoof detected. Use a real face.';
+            setCameraStatus('Spoof detected. Use a real face.', 'error');
             return;
           }
 
@@ -6791,13 +6797,13 @@
             const threshold = isHelmet ? HELMET_FACE_MATCH_THRESHOLD : FACE_MATCH_THRESHOLD;
             if (distance < threshold) {
               collectedSamples.push(distance);
-              instructionEl.textContent = 'Identity matched...';
+              setCameraStatus('Identity matched...');
             } else {
-              instructionEl.textContent = 'Face does not match registered ID.';
+              setCameraStatus('Face does not match registered ID.', 'error');
             }
           } else {
             collectedSamples.push(face.embedding);
-            instructionEl.textContent = 'Recording profile...';
+            setCameraStatus('Recording profile...');
           }
 
           let progress = (collectedSamples.length / targetSamples) * 100;
@@ -6806,10 +6812,8 @@
           if (collectedSamples.length >= targetSamples) {
             clearInterval(interval);
             progressRing.style.strokeDashoffset = 0;
-            instructionEl.textContent = 'Success!';
-            instructionEl.style.background = 'rgba(16, 185, 129, 0.9)';
+            setCameraStatus('Scan complete.', 'success');
             setTimeout(() => {
-              instructionEl.style.display = 'none';
               svgProgress.style.display = 'none';
               onComplete(collectedSamples);
             }, 800);
@@ -9384,6 +9388,16 @@
 
     let expandedMotorcycleIndex = null;
 
+    function normalizeMotorcycle(motorcycle) {
+      return {
+        id: motorcycle.id,
+        plate: motorcycle.plate ?? motorcycle.plate_number ?? '',
+        model: motorcycle.model ?? '',
+        year: motorcycle.year ?? '',
+        color: motorcycle.color ?? '',
+      };
+    }
+
     async function loadMotorcycles() {
       try {
         const token = localStorage.getItem("token");
@@ -9395,13 +9409,7 @@
           },
         });
 
-        motorcycles = (result.motorcycles || []).map(m => ({
-          id: m.id,
-          plate: m.plate_number,
-          model: m.model,
-          year: m.year,
-          color: m.color,
-        }));
+        motorcycles = (result.motorcycles || []).map(normalizeMotorcycle);
 
         renderMotorcycles();
         updateDashboardMotorcycle();
@@ -9565,11 +9573,15 @@
           }
         );
 
+        if (!result.motorcycle) {
+          throw new Error('Motorcycle could not be saved. Please try again.');
+        }
+
         if (existingMotorcycle) {
-          motorcycles[editIndex] = result.motorcycle;
+          motorcycles[editIndex] = normalizeMotorcycle(result.motorcycle);
           alert('Motorcycle Updated\n\nMotorcycle details have been saved successfully.');
         } else {
-          motorcycles.push(result.motorcycle);
+          motorcycles.push(normalizeMotorcycle(result.motorcycle));
           setupStatus.hasMotorcycle = true;
           alert('Motorcycle Added\n\nNew motorcycle has been registered successfully.');
         }
@@ -10611,6 +10623,63 @@
             user_id: getUserId(), status: body.verified ? 'passed' : 'failed', brac_level: 0
           });
           return { success: true };
+        }
+
+        // ---- MOTORCYCLES ----
+        const motorcycleMatch = path.match(/^\/motorcycles(?:\/([^/]+))?$/);
+        if (motorcycleMatch) {
+          const motorcycleId = motorcycleMatch[1];
+
+          if (method === 'GET') {
+            const { data, error } = await supabaseClient
+              .from('motorcycles')
+              .select('id, plate_number, model, year, color')
+              .eq('user_id', getUserId());
+            if (error) throw error;
+            return { motorcycles: data || [] };
+          }
+
+          const motorcycleData = {
+            plate_number: body.plateNumber,
+            brand: body.model.trim().split(/\s+/)[0],
+            model: body.model,
+            year: body.year,
+            color: body.color,
+          };
+
+          if (method === 'POST') {
+            const { data, error } = await supabaseClient
+              .from('motorcycles')
+              .insert({ user_id: getUserId(), ...motorcycleData })
+              .select('id, plate_number, model, year, color')
+              .single();
+            if (error) throw error;
+            return { success: true, motorcycle: data };
+          }
+
+          if (method === 'PUT' && motorcycleId) {
+            const { data, error } = await supabaseClient
+              .from('motorcycles')
+              .update(motorcycleData)
+              .eq('id', motorcycleId)
+              .eq('user_id', getUserId())
+              .select('id, plate_number, model, year, color')
+              .single();
+            if (error) throw error;
+            return { success: true, motorcycle: data };
+          }
+
+          if (method === 'DELETE' && motorcycleId) {
+            const { error } = await supabaseClient
+              .from('motorcycles')
+              .delete()
+              .eq('id', motorcycleId)
+              .eq('user_id', getUserId());
+            if (error) throw error;
+            return { success: true };
+          }
+
+          throw new Error('Unsupported motorcycle request.');
         }
 
         // ---- ADMIN DASHBOARD ----
