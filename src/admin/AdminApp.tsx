@@ -355,17 +355,18 @@ export default function AdminApp() {
         const body = JSON.parse(options.body);
         const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
           email: body.email,
-          password: body.password
+          password: body.password,
         });
-        if (authError || !authData.user) throw new Error('Invalid email or password');
+        if (authError || !authData.user || !authData.session) throw new Error(authError?.message || 'Invalid email or password');
 
-        const { data, error } = await supabaseClient.from('users').select('*').eq('email', body.email).single();
-        if (error || !data) throw new Error('ACCESS DENIED: User record not found');
-        if (data.role !== 'admin' && data.role !== 'superadmin') {
-          await supabaseClient.auth.signOut();
-          throw new Error('ACCESS DENIED: Not an admin account');
-        }
-        return { success: true, token: authData.session?.access_token || data.id, user: data };
+        const { data: profile, error: profileError } = await supabaseClient
+          .from('users')
+          .select('*')
+          .eq('email', authData.user.email)
+          .single();
+        if (profileError || !profile) throw new Error('This login account does not have a MotoLock administrator profile.');
+        if (profile.role !== 'admin' && profile.role !== 'superadmin') throw new Error('ACCESS DENIED: Not an admin account');
+        return { success: true, token: authData.session.access_token, user: profile };
       }
       if (endpoint === '/admin/dashboard') {
         const { data: users } = await supabaseClient.from('users').select('*');
@@ -439,6 +440,7 @@ export default function AdminApp() {
   // Logout handler
   const handleLogout = () => {
     triggerAuditLog('Logged Out', 'Authentication', adminEmail);
+    void supabaseClient.auth.signOut();
     localStorage.removeItem('ml_token');
     localStorage.removeItem('ml_email');
     setToken('');
@@ -610,22 +612,41 @@ export default function AdminApp() {
     }
 
     try {
-      const { data: existing } = await supabaseClient.from('users').select('id').eq('email', newEmail).maybeSingle();
-      if (existing) {
-        throw new Error('Email is already registered in the system.');
+      // Do not rely on an old ml_token saved by a previous version of the Admin
+      // page. The Edge Function must receive a current Supabase Auth session.
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      const session = sessionData.session;
+      if (!session) {
+        throw new Error('Your administrator session has expired. Please log out, then log in again.');
       }
 
-      const { data, error } = await supabaseClient.from('users').insert([{
-        name: newFullName,
-        email: newEmail,
-        password_hash: newPassword,
-        role: newRole
-      }]).select().single();
+      const { data, error } = await supabaseClient.functions.invoke('admin-create-user', {
+        body: {
+          fullName: newFullName,
+          email: newEmail,
+          password: newPassword,
+          role: newRole,
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        // Supabase wraps non-2xx Edge Function responses in a generic error.
+        // Read the response body so the Admin sees the actual server-side reason
+        // (for example, an invalid admin session or a database constraint).
+        let functionMessage = data?.error;
+        const response = (error as any).context;
+        if (!functionMessage && response instanceof Response) {
+          const errorBody = await response.clone().json().catch(() => null);
+          functionMessage = errorBody?.error;
+        }
+        throw new Error(functionMessage || error.message);
+      }
 
-      if (data && data.id) {
-        showCustomAlert('Success', '✅ User account successfully registered!');
+      if (data?.user?.id) {
+        showCustomAlert('Success', '✅ Rider account created. A verification code will be sent when the rider first logs in.');
         triggerAuditLog(`Created user ${newEmail} (${newRole})`, 'Users & Roles', newEmail);
         setShowAddUser(false);
         setNewFullName('');
@@ -641,11 +662,24 @@ export default function AdminApp() {
   };
 
   // Delete User Trigger
-  const handleDeleteUser = (id: number, email: string) => {
+  const handleDeleteUser = (id: string, email: string) => {
     showCustomConfirm('Confirm Account Deletion', `Are you absolutely sure you want to permanently delete user ${email}? All linked device slots and histories will be cleared.`, async () => {
       try {
-        const { error } = await supabaseClient.from('users').delete().eq('id', id);
-        if (error) throw new Error(error.message);
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const session = sessionData.session;
+        if (!session) throw new Error('Your administrator session has expired. Please log out, then log in again.');
+
+        const { data, error } = await supabaseClient.functions.invoke('admin-delete-user', {
+          body: { userId: id },
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (error) {
+          const response = (error as any).context;
+          const errorBody = response instanceof Response
+            ? await response.clone().json().catch(() => null)
+            : null;
+          throw new Error(data?.error || errorBody?.error || error.message);
+        }
 
         triggerAuditLog(`Deleted user account`, 'Users & Roles', email);
         showCustomAlert('Success', 'User deleted successfully.');

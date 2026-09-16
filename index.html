@@ -118,8 +118,6 @@
       display: none;
     }
 
-    .center {}
-
     #login .page {
       overflow: hidden;
       padding: 16px 24px;
@@ -3853,7 +3851,7 @@
           <div>
             <label>Verification Code</label>
 
-            <input type="text" id="email-verification-code" maxlength="8">
+            <input type="text" id="email-verification-code" inputmode="numeric" maxlength="6">
           </div>
 
           <button class="btn" onclick="verifyEmailCode()">
@@ -3888,7 +3886,7 @@
           <div>
             <label>Verification Code</label>
 
-            <input type="text" id="reset-code" maxlength="6">
+            <input type="text" id="reset-code" inputmode="numeric" maxlength="6">
           </div>
 
           <button class="btn" onclick="verifyResetCode()">
@@ -10776,6 +10774,33 @@
           localStorage.setItem('token', data.id);
           localStorage.setItem('ml_user_role', data.role);
           return { success: true, token: data.id, user: data };
+        }
+
+        // ---- PASSWORD RECOVERY ----
+        // These routes used to fall through to the mocked response below, which
+        // made the UI claim that a code had been sent when no email was sent.
+        if (path === '/auth/forgot-password') {
+          const { error } = await supabaseClient.auth.resetPasswordForEmail(body.email);
+          if (error) throw error;
+          return { success: true };
+        }
+
+        if (path === '/auth/verify-reset-code') {
+          const { data, error } = await supabaseClient.auth.verifyOtp({
+            email: body.email,
+            token: body.code,
+            type: 'recovery'
+          });
+          if (error || !data.session) {
+            throw error || new Error('The reset code is invalid or has expired.');
+          }
+          return { success: true };
+        }
+
+        if (path === '/auth/reset-password') {
+          const { error } = await supabaseClient.auth.updateUser({ password: body.password });
+          if (error) throw error;
+          return { success: true };
         }
 
         // ---- FACE ID ----
