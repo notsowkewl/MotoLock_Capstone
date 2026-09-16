@@ -252,7 +252,7 @@
       height: 88px;
       margin: 0 auto 18px;
       border-radius: 24px;
-      background: #101010 url("/motolock-app.png") center / cover no-repeat;
+      background: transparent url("/logo.png") center / cover no-repeat;
       box-shadow: 0 18px 32px rgba(237, 28, 36, 0.12);
     }
 
@@ -794,6 +794,7 @@
       height: 34px;
       border-color: #4dd379;
       border-style: solid;
+      display: none;
     }
 
     .corner.tl {
@@ -1397,7 +1398,7 @@
       width: 30px;
       height: 30px;
       border-radius: 8px;
-      background: #101010 url("/motolock-app.png") center / cover no-repeat;
+      background: transparent url("/logo.png") center / cover no-repeat;
       box-shadow: 0 6px 14px rgba(237, 28, 36, 0.18);
     }
 
@@ -3103,7 +3104,7 @@
       height: 92px;
       border-radius: 24px;
       margin: 0 auto 16px;
-      background: #101010 url("/motolock-app.png") center / cover no-repeat;
+      background: transparent url("/logo.png") center / cover no-repeat;
       box-shadow: 0 18px 32px rgba(237, 28, 36, 0.12);
     }
 
@@ -3522,6 +3523,7 @@
         opacity: 0.4;
       }
     }
+  .face-video { pointer-events: none !important; } 
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -4130,28 +4132,37 @@
           <p>Your profiles are saved securely on device.</p>
         </div>
         <div
-          style="width:100%;background:rgba(255,255,255,0.05);border-radius:12px;padding:15px;margin-bottom:30px;display:flex;flex-direction:column;gap:12px;">
+          style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:15px;padding:18px;margin-bottom:30px;display:flex;flex-direction:column;gap:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <svg class="icon" style="width:20px;height:20px;fill:var(--text);">
-                <use href="#icon-profile"></use>
-              </svg>
-              <span style="font-weight:bold;font-size:15px;">Without Helmet</span>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:36px;height:36px;border-radius:10px;background:var(--white);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.04);">
+                <svg class="icon" style="width:20px;height:20px;fill:var(--black);">
+                  <use href="#icon-profile"></use>
+                </svg>
+              </div>
+              <span style="font-weight:bold;font-size:15px;color:var(--black);">Without Helmet</span>
             </div>
-            <svg class="icon" style="width:20px;height:20px;fill:var(--green);">
-              <use href="#icon-check"></use>
-            </svg>
+            <div style="width:24px;height:24px;border-radius:50%;background:var(--green-soft);display:flex;align-items:center;justify-content:center;">
+              <svg class="icon" style="width:14px;height:14px;fill:var(--green);">
+                <use href="#icon-check"></use>
+              </svg>
+            </div>
           </div>
+          <div style="height:1px;background:var(--line);width:100%;"></div>
           <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <svg class="icon" style="width:20px;height:20px;fill:var(--text);">
-                <use href="#icon-shield"></use>
-              </svg>
-              <span style="font-weight:bold;font-size:15px;">With Helmet</span>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:36px;height:36px;border-radius:10px;background:var(--white);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.04);">
+                <svg class="icon" style="width:20px;height:20px;fill:var(--black);">
+                  <use href="#icon-shield"></use>
+                </svg>
+              </div>
+              <span style="font-weight:bold;font-size:15px;color:var(--black);">With Helmet</span>
             </div>
-            <svg class="icon" style="width:20px;height:20px;fill:var(--green);">
-              <use href="#icon-check"></use>
-            </svg>
+            <div style="width:24px;height:24px;border-radius:50%;background:var(--green-soft);display:flex;align-items:center;justify-content:center;">
+              <svg class="icon" style="width:14px;height:14px;fill:var(--green);">
+                <use href="#icon-check"></use>
+              </svg>
+            </div>
           </div>
         </div>
         <button class="btn" onclick="completeFaceRegistration()">Continue</button>
@@ -4184,6 +4195,7 @@
             <use href="#icon-arrow-right"></use>
           </svg>
         </div>
+        <button class="btn btn-soft" style="margin-top: 15px;" onclick="finishDeviceConnection()">Skip to Dashboard (Temporary)</button>
       </div>
     </section>
 
@@ -4317,17 +4329,15 @@
         </div>
         <div class="form">
           <div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <label>Full Name</label>
-              <button type="button" onclick="selectContactFromPhone('setup-contact-name', 'setup-contact-phone')"
-                style="border:none; background:transparent; color:var(--red); font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; padding:0 0 6px;">
-                <svg class="icon" style="width:14px; height:14px;">
-                  <use href="#icon-user"></use>
-                </svg>
-                Import Contact
-              </button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <label style="margin:0;">Full Name</label>
             </div>
-            <input type="text" id="setup-contact-name" placeholder="Enter contact full name">
+            <div style="position:relative;">
+              <input type="text" id="setup-contact-name" placeholder="Enter contact full name" style="padding-right: 40px; width:100%;">
+              <svg class="icon" onclick="selectContactFromPhone('setup-contact-name', 'setup-contact-phone')" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); width:20px; height:20px; fill:var(--red); cursor:pointer;">
+                <use href="#icon-users"></use>
+              </svg>
+            </div>
           </div>
           <div><label>Phone Number</label><input type="tel" id="setup-contact-phone" oninput="formatPhoneInput(this)">
           </div>
@@ -4376,8 +4386,8 @@
           <h2>Register Motorcycle</h2>
           <p>Type your motorcycle details.</p>
         </div>
-        <div class="bike-art">
-          <div class="bike-body"></div>
+        <div style="display:flex; justify-content:center; margin:20px 0;">
+          <img src="/tric.png" alt="Motorcycle" style="width:200px; height:auto; object-fit:contain;">
         </div>
         <div class="form">
 
@@ -6265,17 +6275,15 @@
       <input type="hidden" id="contact-role" value="Primary Contact">
 
       <div class="field" style="margin-bottom:12px">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <label>Full Name</label>
-          <button type="button" onclick="selectContactFromPhone('contact-name', 'contact-phone')"
-            style="border:none; background:transparent; color:var(--red); font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; padding:0 0 6px;">
-            <svg class="icon" style="width:14px; height:14px;">
-              <use href="#icon-user"></use>
-            </svg>
-            Import Contact
-          </button>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <label style="margin:0;">Full Name</label>
         </div>
-        <input type="text" id="contact-name" placeholder="Enter full name">
+        <div style="position:relative;">
+          <input type="text" id="contact-name" placeholder="Enter full name" style="padding-right: 40px; width:100%;">
+          <svg class="icon" onclick="selectContactFromPhone('contact-name', 'contact-phone')" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); width:20px; height:20px; fill:var(--red); cursor:pointer;">
+            <use href="#icon-users"></use>
+          </svg>
+        </div>
       </div>
 
       <div class="field" style="margin-bottom:14px">
@@ -6492,8 +6500,8 @@
         modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human@3.3.6/models/',
         face: {
           enabled: true,
-          detector: { rotation: true, maxDetected: 5, return: true },
-          mesh: { enabled: false },
+          detector: { rotation: true, maxDetected: 2, return: true },
+          mesh: { enabled: true },
           iris: { enabled: false },
           description: { enabled: true },
           emotion: { enabled: false },
@@ -6503,7 +6511,7 @@
         body: { enabled: false },
         hand: { enabled: false },
         object: { enabled: false },
-        gesture: { enabled: false }
+        gesture: { enabled: true }
       };
       human = new Human.Human(config);
       await human.load();
@@ -6538,8 +6546,14 @@
       const video = document.getElementById(videoId);
       const circle = document.getElementById(circleId);
       if (!video) return null;
-      video.srcObject = faceCameraStream;
-      await video.play().catch(() => { });
+
+      if (video.srcObject !== faceCameraStream) {
+        video.srcObject = faceCameraStream;
+      }
+      if (video.paused) {
+        await video.play().catch(() => { });
+      }
+
       circle?.classList.add('camera-live', 'scanning');
       return video;
     }
@@ -6573,20 +6587,12 @@
       }
       if (circle) {
         circle.classList.toggle('green', state === 'success');
-        circle.classList.toggle('scanning', state === 'scanning');
-        circle.classList.toggle('error', state === 'error');
+        // Removed scanning and error visual states per user request
+        circle.classList.toggle('scanning', false);
+        circle.classList.toggle('error', false);
         const faceOutline = circle.querySelector('.face');
         if (faceOutline) {
-          if (state === 'error') {
-            faceOutline.style.borderColor = 'rgba(239, 68, 68, 0.9)';
-            faceOutline.style.boxShadow = '0 0 15px rgba(239, 68, 68, 0.6)';
-          } else if (state === 'success') {
-            faceOutline.style.borderColor = 'rgba(16, 185, 129, 0.9)';
-            faceOutline.style.boxShadow = '0 0 15px rgba(16, 185, 129, 0.6)';
-          } else {
-            faceOutline.style.borderColor = 'rgba(255, 255, 255, 0.5)';
-            faceOutline.style.boxShadow = 'none';
-          }
+          faceOutline.style.display = 'none';
         }
       }
     }
@@ -6668,8 +6674,10 @@
 
     async function initFaceEnrollment() {
       try {
-        await loadFaceModels();
-        const video = await startFaceCamera('face-enroll-video', 'face-enroll-camera');
+        const [video] = await Promise.all([
+           startFaceCamera('face-enroll-video', 'face-enroll-camera'),
+           loadFaceModels()
+        ]);
         const overlay = document.getElementById('face-enroll-instruction-overlay');
         if (overlay) {
           setTimeout(() => { overlay.style.opacity = '0'; setTimeout(() => overlay.style.display = 'none', 500); }, 1500);
@@ -6686,8 +6694,9 @@
             const averaged = averageFaceDescriptors(samples);
             saveLocalFaceDescriptor(averaged);
             await saveFaceProfileToBackend(averaged);
-            setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', 'Base profile saved.', 'success');
-            setTimeout(() => { stopFaceCamera(); go('faceHelmetSetup'); }, FACE_SUCCESS_DELAY_MS);
+            // Removed interstitial success text delay per user request
+            stopFaceCamera();
+            go('faceHelmetSetup');
           },
           onFail: (reason) => { setFaceCaptureState('face-enroll-capture-text', 'face-enroll-camera', reason, 'error'); }
         });
@@ -6696,7 +6705,10 @@
 
     async function initHelmetEnrollmentSetup() {
       try {
-        const video = await startFaceCamera('face-enroll-helmet-video', 'face-enroll-helmet-camera');
+        const [video] = await Promise.all([
+           startFaceCamera('face-enroll-helmet-video', 'face-enroll-helmet-camera'),
+           loadFaceModels()
+        ]);
         const overlay = document.getElementById('face-enroll-helmet-instruction-overlay');
         if (overlay) {
           setTimeout(() => { overlay.style.opacity = '0'; setTimeout(() => overlay.style.display = 'none', 500); }, 1500);
@@ -6713,8 +6725,9 @@
             const averaged = averageFaceDescriptors(samples);
             saveLocalHelmetFaceDescriptor(averaged);
             await saveHelmetFaceProfileToBackend(averaged);
-            setFaceCaptureState('face-enroll-helmet-capture-text', 'face-enroll-helmet-camera', 'Helmet profile saved.', 'success');
-            setTimeout(() => { stopFaceCamera(); go('faceRegistered'); }, FACE_SUCCESS_DELAY_MS);
+            // Removed interstitial success text delay per user request
+            stopFaceCamera();
+            go('faceRegistered');
           },
           onFail: (reason) => { setFaceCaptureState('face-enroll-helmet-capture-text', 'face-enroll-helmet-camera', reason, 'error'); }
         });
@@ -6743,83 +6756,239 @@
 
     async function checkForMultipleFaces(video) {
       const res = await human.detect(video);
-      return (res.face && res.face.length > 1);
+      if (!res.face) return false;
+      const validFaces = res.face.filter(f => (f.boxScore || f.score) > 0.65);
+      return validFaces.length > 1;
     }
 
+    function calculateLuminance(video) {
+      if (!video || video.videoWidth === 0) return 255;
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(video, 0, 0, 64, 64);
+      const data = ctx.getImageData(0, 0, 64, 64).data;
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        sum += (0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]);
+      }
+      return sum / (64 * 64);
+    }
+
+    let globalScanAbortController = null;
+    let lastLuminanceCheckTime = 0;
+
     async function runUnifiedFaceVerification({ video, svgProgress, progressRing, instructionEl, textId, circleId, isEnrollment = false, registeredFace = null, isHelmet = false, onComplete, onFail }) {
+      if (globalScanAbortController) {
+        globalScanAbortController.abort();
+      }
+      globalScanAbortController = new AbortController();
+      const signal = globalScanAbortController.signal;
+
       const setCameraStatus = (message, state = 'scanning') => {
         setFaceCaptureState(textId, circleId, message, state);
       };
 
+      const circleEl = document.getElementById(circleId);
+      const Brightness = window.Capacitor?.Plugins?.CapgoBrightness;
+      let isFlashActive = false;
+
+      const enableFlash = () => {
+        if (!isFlashActive) {
+          isFlashActive = true;
+          if (Brightness) Brightness.setBrightness({ brightness: 1.0 }).catch(() => {});
+          if (circleEl) {
+             circleEl.style.boxShadow = '0 0 100px 30px rgba(255, 255, 255, 1)';
+             circleEl.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+          }
+        }
+      };
+
+      const disableFlash = () => {
+        if (isFlashActive) {
+          isFlashActive = false;
+          if (Brightness) Brightness.restoreSystemBrightness?.().catch(() => {});
+          if (circleEl) {
+             circleEl.style.boxShadow = '';
+             circleEl.style.backgroundColor = '';
+          }
+        }
+      };
+
       svgProgress.style.display = 'block';
       progressRing.style.strokeDashoffset = 301.59;
-
       let startTime = Date.now();
-      let maxTimeMs = isEnrollment ? 30000 : 20000;
-      const targetSamples = isEnrollment ? 10 : 5;
+      let maxTimeMs = isEnrollment ? 45000 : 35000;
+      const targetSamples = isEnrollment ? 5 : 3;
       let collectedSamples = [];
       let faceLostCount = 0;
 
-      setCameraStatus('Scanning face...');
+      // Liveness State Machine
+      let attemptId = 0;
+      let livenessState = isHelmet ? 'VERIFYING' : 'IDLE'; // IDLE, FACE_DETECTED, READY_FOR_CHALLENGE, CHALLENGE_ACTIVE, CHALLENGE_DETECTED, VERIFYING, TIMEOUT_RETRY
+      let challengeStartTime = 0;
+      const challengeTimeoutMs = 10000;
+      let failedAttempts = 0;
+      const MAX_ATTEMPTS = 3;
 
-      const interval = setInterval(async () => {
+      const livenessChallenges = ['blink', 'turn_left', 'turn_right'];
+      let requiredChallenge = null;
+      let challengeInstruction = '';
+
+      const pickChallenge = () => {
+         requiredChallenge = livenessChallenges[Math.floor(Math.random() * livenessChallenges.length)];
+         if (requiredChallenge === 'blink') challengeInstruction = 'Liveness: Blink your eyes';
+         if (requiredChallenge === 'turn_left') challengeInstruction = 'Liveness: Turn head slightly left';
+         if (requiredChallenge === 'turn_right') challengeInstruction = 'Liveness: Turn head slightly right';
+      };
+
+      if (!isHelmet) setCameraStatus('Scanning face...');
+      else setCameraStatus('Verifying...');
+
+      let isProcessingFrame = false;
+
+      const scanLoop = async () => {
+        if (signal.aborted) return;
+        if (isProcessingFrame) {
+          requestAnimationFrame(scanLoop);
+          return;
+        }
+        isProcessingFrame = true;
+
         const elapsed = Date.now() - startTime;
         if (elapsed > maxTimeMs) {
-          clearInterval(interval);
+          disableFlash();
           svgProgress.style.display = 'none';
           onFail('Verification timed out. Try again.');
           return;
         }
 
-        if (await checkForMultipleFaces(video)) {
-          clearInterval(interval);
-          svgProgress.style.display = 'none';
-          onFail('Multiple faces detected. Only one rider allowed.');
-          return;
+        const now = Date.now();
+        if (now - lastLuminanceCheckTime > 1000) {
+          lastLuminanceCheckTime = now;
+          const lum = calculateLuminance(video);
+          if (lum < 40) enableFlash();
+          else if (lum > 100) disableFlash();
         }
 
         const res = await human.detect(video);
-        if (!res.face || res.face.length === 0) {
+        if (signal.aborted) return;
+
+        // Valid faces with score > 0.65
+        const validFaces = res.face ? res.face.filter(f => (f.boxScore || f.score) > 0.65) : [];
+
+        if (validFaces.length === 0) {
           faceLostCount++;
-          if (faceLostCount > 4) setCameraStatus('Face lost. Look at camera.', 'error');
+          if (faceLostCount > 4) {
+             setCameraStatus('No rider detected', 'error');
+             collectedSamples = []; // Reset progress
+             progressRing.style.strokeDashoffset = 301.59;
+          }
+        } else if (validFaces.length > 1) {
+          faceLostCount = 0;
+          setCameraStatus('Multiple faces detected. Only one rider allowed.', 'error');
         } else {
           faceLostCount = 0;
-          const face = res.face[0];
+          const currentAttemptId = attemptId;
+          const face = validFaces[0];
 
           // Built-in Anti-spoofing check
-          if (face.real < 0.5 && !isHelmet) {
+          if (face.real < 0.2 && !isHelmet) {
             setCameraStatus('Spoof detected. Use a real face.', 'error');
+            isProcessingFrame = false;
+            requestAnimationFrame(scanLoop);
             return;
           }
 
-          if (!isEnrollment) {
-            const distance = calculateEuclideanDistance(registeredFace, face.embedding);
-            const threshold = isHelmet ? HELMET_FACE_MATCH_THRESHOLD : FACE_MATCH_THRESHOLD;
-            if (distance < threshold) {
-              collectedSamples.push(distance);
-              setCameraStatus('Identity matched...');
+          // State Machine Processing
+          if (livenessState === 'IDLE') {
+             livenessState = 'FACE_DETECTED';
+             setCameraStatus('Face detected ✓');
+             setTimeout(() => {
+                if (currentAttemptId !== attemptId || signal.aborted) return;
+                pickChallenge();
+                livenessState = 'READY_FOR_CHALLENGE';
+             }, 800);
+          } else if (livenessState === 'READY_FOR_CHALLENGE') {
+             setCameraStatus(challengeInstruction);
+             challengeStartTime = Date.now();
+             livenessState = 'CHALLENGE_ACTIVE';
+          } else if (livenessState === 'CHALLENGE_ACTIVE') {
+             let passed = false;
+             const gestures = res.gesture ? res.gesture.map(g => g.gesture) : [];
+             const yaw = face.rotation?.angle?.yaw || face.rotation?.yaw || 0;
+
+             if (requiredChallenge === 'blink') {
+                if (gestures.some(g => g.includes('blink'))) passed = true;
+             } else if (requiredChallenge === 'turn_left') {
+                if (Math.abs(yaw) > 0.15 || gestures.some(g => g.includes('head right') || g.includes('facing right'))) passed = true;
+             } else if (requiredChallenge === 'turn_right') {
+                if (Math.abs(yaw) > 0.15 || gestures.some(g => g.includes('head left') || g.includes('facing left'))) passed = true;
+             }
+
+             if (passed) {
+                livenessState = 'CHALLENGE_DETECTED';
+                setCameraStatus(requiredChallenge === 'blink' ? '✓ Blink detected. Verifying...' : '✓ Challenge passed. Verifying...');
+                setTimeout(() => {
+                   if (currentAttemptId !== attemptId || signal.aborted) return;
+                   livenessState = 'VERIFYING';
+                }, 1000);
+             } else if (Date.now() - challengeStartTime > challengeTimeoutMs) {
+                failedAttempts++;
+                if (failedAttempts >= MAX_ATTEMPTS) {
+                   disableFlash();
+                   svgProgress.style.display = 'none';
+                   onFail('We couldn\'t verify your face. Please adjust your position and lighting, then try again.');
+                   return;
+                } else {
+                   attemptId++; // Invalidate stale async events
+                   livenessState = 'TIMEOUT_RETRY';
+                   setCameraStatus("Didn't catch that. Let's try again.", 'error');
+                   setTimeout(() => {
+                      if (signal.aborted) return;
+                      livenessState = 'IDLE';
+                      setCameraStatus('Scanning face...');
+                   }, 2000);
+                }
+             }
+          } else if (livenessState === 'VERIFYING') {
+            if (!isEnrollment) {
+              const distance = calculateEuclideanDistance(registeredFace, face.embedding);
+              const threshold = isHelmet ? HELMET_FACE_MATCH_THRESHOLD : FACE_MATCH_THRESHOLD;
+              if (distance < threshold) {
+                collectedSamples.push(distance);
+                setCameraStatus('Identity matched...');
+              } else {
+                setCameraStatus('Face does not match registered ID.', 'error');
+              }
             } else {
-              setCameraStatus('Face does not match registered ID.', 'error');
+              collectedSamples.push(face.embedding);
+              setCameraStatus('Recording profile...');
             }
-          } else {
-            collectedSamples.push(face.embedding);
-            setCameraStatus('Recording profile...');
-          }
 
-          let progress = (collectedSamples.length / targetSamples) * 100;
-          progressRing.style.strokeDashoffset = 301.59 - (progress / 100) * 301.59;
+            let progress = (collectedSamples.length / targetSamples) * 100;
+            progressRing.style.strokeDashoffset = 301.59 - (progress / 100) * 301.59;
 
-          if (collectedSamples.length >= targetSamples) {
-            clearInterval(interval);
-            progressRing.style.strokeDashoffset = 0;
-            setCameraStatus('Scan complete.', 'success');
-            setTimeout(() => {
-              svgProgress.style.display = 'none';
-              onComplete(collectedSamples);
-            }, 800);
+            if (collectedSamples.length >= targetSamples) {
+              disableFlash();
+              progressRing.style.strokeDashoffset = 0;
+              setCameraStatus('Scan complete.', 'success');
+              setTimeout(() => {
+                if (signal.aborted) return;
+                svgProgress.style.display = 'none';
+                onComplete(collectedSamples);
+              }, 800);
+              return; // End loop
+            }
           }
         }
-      }, 200);
+
+        isProcessingFrame = false;
+        requestAnimationFrame(scanLoop);
+      };
+
+      requestAnimationFrame(scanLoop);
     }
 
     async function initFaceVerification(kind, options = {}) {
@@ -6847,17 +7016,21 @@
           return;
         }
 
-        await loadFaceModels();
-
-        let video;
+        let videoPromise;
         if (isHelmet && transitionFaceTrackerInterval) {
           clearInterval(transitionFaceTrackerInterval);
           transitionFaceTrackerInterval = null;
-          video = document.getElementById(videoId);
-          if (!video || !video.srcObject) video = await startFaceCamera(videoId, circleId);
+          let existingVideo = document.getElementById(videoId);
+          if (!existingVideo || !existingVideo.srcObject) {
+            videoPromise = startFaceCamera(videoId, circleId);
+          } else {
+            videoPromise = Promise.resolve(existingVideo);
+          }
         } else {
-          video = await startFaceCamera(videoId, circleId);
+          videoPromise = startFaceCamera(videoId, circleId);
         }
+
+        const [video] = await Promise.all([videoPromise, loadFaceModels()]);
 
         const overlay = document.getElementById(isHelmet ? 'helmet-instruction-overlay' : 'no-helmet-instruction-overlay');
         if (overlay) {
@@ -9534,7 +9707,7 @@
       openModal('m-motorcycle');
     }
 
-    async function saveMotorcycle() {
+    async function saveMotorcycle(isOnboarding = false) {
       try {
         const token = localStorage.getItem("token");
 
@@ -9579,11 +9752,11 @@
 
         if (existingMotorcycle) {
           motorcycles[editIndex] = normalizeMotorcycle(result.motorcycle);
-          alert('Motorcycle Updated\n\nMotorcycle details have been saved successfully.');
+          if (!isOnboarding) alert('Motorcycle Updated\n\nMotorcycle details have been saved successfully.');
         } else {
           motorcycles.push(normalizeMotorcycle(result.motorcycle));
           setupStatus.hasMotorcycle = true;
-          alert('Motorcycle Added\n\nNew motorcycle has been registered successfully.');
+          if (!isOnboarding) alert('Motorcycle Added\n\nNew motorcycle has been registered successfully.');
         }
 
         closeModal('m-motorcycle');
@@ -9751,6 +9924,12 @@
         if (!data.user) throw new Error('Unable to start your login session. Please try again.');
 
         const profile = await getOrCreateUserProfile(data.user);
+        
+        if (profile.role === 'admin' || profile.role === 'superadmin') {
+          await supabaseClient.auth.signOut();
+          throw new Error('Access Denied: Administrators must log in through the Admin Dashboard, not the Rider App.');
+        }
+
         storeAuthenticatedUser(profile);
         enrolledFaceDescriptor = null;
         enrolledHelmetFaceDescriptor = null;
@@ -9773,8 +9952,6 @@
 
         resetRideFailureState();
         updateUserUI();
-
-        alert("Login successful!");
 
         if (setupStatus.hasPin) {
           loginPin = "";
@@ -9826,7 +10003,7 @@
 
       document.getElementById('modal-motorcycle-color').value = color;
 
-      await saveMotorcycle();
+      await saveMotorcycle(true);
 
       document.getElementById('registered-motorcycle-plate').textContent =
         plate;

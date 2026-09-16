@@ -7,7 +7,7 @@ const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON
 
 
 
-const API = 'http://localhost:5001/api';
+const API = 'http://192.168.1.24:5001/api';
 
 // Professional SVG Vector Icon component to replace all emojis
 const Icon = ({ name, size = 18, color = 'currentColor' }: { name: string, size?: number, color?: string }) => {
@@ -353,10 +353,19 @@ export default function AdminApp() {
     try {
       if (endpoint === '/auth/login') {
         const body = JSON.parse(options.body);
-        const { data, error } = await supabaseClient.from('users').select('*').eq('email', body.email).eq('password_hash', body.password).single();
-        if (error || !data) throw new Error('Invalid email or password');
-        if (data.role !== 'admin' && data.role !== 'superadmin') throw new Error('ACCESS DENIED: Not an admin account');
-        return { success: true, token: data.id, user: data };
+        const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+          email: body.email,
+          password: body.password
+        });
+        if (authError || !authData.user) throw new Error('Invalid email or password');
+
+        const { data, error } = await supabaseClient.from('users').select('*').eq('email', body.email).single();
+        if (error || !data) throw new Error('ACCESS DENIED: User record not found');
+        if (data.role !== 'admin' && data.role !== 'superadmin') {
+          await supabaseClient.auth.signOut();
+          throw new Error('ACCESS DENIED: Not an admin account');
+        }
+        return { success: true, token: authData.session?.access_token || data.id, user: data };
       }
       if (endpoint === '/admin/dashboard') {
         const { data: users } = await supabaseClient.from('users').select('*');
@@ -936,7 +945,7 @@ export default function AdminApp() {
       <div style={styles.loginContainer}>
         <div style={styles.loginBox}>
           <div style={styles.appLogo}>
-            <img src="/motolock-app.png" alt="Logo" style={{ width: '48px', height: '48px', borderRadius: '12px', marginRight: '10px' }} />
+            <img src="/logo.png" alt="Logo" style={{ width: '48px', height: '48px', borderRadius: '12px', marginRight: '10px' }} />
             <span style={styles.appLogoMoto}>Moto</span>
             <span style={styles.appLogoLock}>Lock</span>
           </div>
@@ -1028,7 +1037,7 @@ export default function AdminApp() {
       {/* SIDEBAR NAVIGATION */}
       <aside style={styles.sidebar}>
         <div style={styles.logoWrapper}>
-          <img src="/motolock-app.png" alt="Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', marginRight: '8px' }} />
+          <img src="/logo.png" alt="Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', marginRight: '8px' }} />
           <span style={styles.logoMoto}>Moto</span>
           <span style={styles.logoLock}>Lock</span>
         </div>

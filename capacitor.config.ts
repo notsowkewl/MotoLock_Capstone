@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'MotoLock',
   webDir: 'dist',
   server: {
-    androidScheme: 'http',
+    url: 'http://localhost:5173',
     cleartext: true
   }
 };
