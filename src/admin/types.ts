@@ -1,0 +1,103 @@
+export interface Motorcycle {
+  id: number;
+  plate_number: string;
+  model: string;
+  year?: string | number;
+  color?: string;
+}
+export interface Contact {
+  id: number;
+  name: string;
+  phone?: string;
+  phone_number?: string;
+  role?: string;
+}
+export interface Rider {
+  id: string;
+  name?: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  role: string;
+  created_at?: string;
+  face_enrolled?: boolean;
+  motorcycles?: Motorcycle[];
+  contacts?: Contact[];
+}
+export interface Device {
+  id: number;
+  user_id: string;
+  status?: string;
+  sim_number?: string;
+  relay_status?: boolean;
+  is_locked?: boolean;
+  model?: string;
+}
+export interface SafetyLog {
+  id: number;
+  created_at: string;
+  full_name: string;
+  email: string;
+  brac: string;
+  status: string;
+  unlock_status?: string;
+  motorcycle_id?: number;
+  alcohol_detected?: boolean;
+  face_verified?: boolean;
+  helmet_verified?: boolean;
+}
+export interface AuditLog {
+  id: number;
+  created_at: string;
+  action: string;
+  module: string;
+  target_record?: string;
+  admin_name?: string;
+}
+export interface DashboardData {
+  totalRiders: number;
+  totalMotorcycles: number;
+  activeDevices: number;
+  recentOverrides: number;
+  todaysRides: number;
+  failedTests: number;
+  sobrietySummary?: { date: string; passed: string | number; failed: string | number }[];
+  recentAlerts?: SafetyLog[];
+}
+// Report categories share a preview table but expose different columns.
+export interface ReportRow {
+  id: string | number;
+  created_at?: string;
+  full_name?: string;
+  email?: string;
+  brac?: string;
+  status?: string;
+  phone?: string;
+  role?: string;
+  face_enrolled?: boolean;
+  action?: string;
+  model?: string;
+  unlock_status?: string;
+}
+export interface Ride {
+  id: number;
+  status: string;
+  start_time?: string;
+  brac_level?: number;
+  users?: { name: string } | null;
+}
+type Success = { success: boolean };
+export type ApiResponses = {
+  '/auth/login': Success & { token: string; user: Rider };
+  '/admin/dashboard': Success & DashboardData;
+  '/admin/users': Success & { users: Rider[] };
+  '/admin/override-logs': Success & { logs: SafetyLog[] };
+  '/admin/audit-logs': Success & { logs: AuditLog[] };
+  '/admin/settings': Success & { settings: Record<string, string> };
+  '/admin/devices': Success & { devices: Device[] };
+  '/admin/notifications': Success & { notifications: SafetyLog[] };
+  '/admin/motorcycles': Success & { motorcycle: Motorcycle };
+  '/admin/contacts': Success & { contact: Contact };
+} & {
+  [endpoint: `/admin/users/${string}` | `/admin/motorcycles/${number}` | `/admin/contacts/${number}`]: Success;
+};

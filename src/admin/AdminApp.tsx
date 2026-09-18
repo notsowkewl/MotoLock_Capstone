@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
-declare global { interface Window { supabase: any; jspdf: any; XLSX: any; } }
+import React, { useState, useEffect, useCallback } from 'react';
+import type { Rider, Device, SafetyLog, AuditLog, DashboardData, ReportRow, ApiResponses } from './types';
+import './browser-libraries';
+
+const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 const SUPABASE_URL = 'https://bafziqymbvhrytziteuo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZnppcXltYnZocnl0eml0ZXVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MjAzMzUsImV4cCI6MjEwMzk5NjMzNX0.F1KVSKnN_x-8O2gKlh0d8XPydlBWTcsS0GPbCS6CP_c';
@@ -225,24 +228,21 @@ export default function AdminApp() {
   const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('ml_tab') || 'dashboard');
   useEffect(() => { localStorage.setItem('ml_tab', activeTab); }, [activeTab]);
   const [isLightMode, setIsLightMode] = useState<boolean>(localStorage.getItem('ml_theme') === 'light');
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<SafetyLog[]>([]);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
 
   // Login Form States
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPass, setLoginPass] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Global Data Cache
-  const [dashboardData, setDashboardData] = useState<any>(null);
-  const [riders, setRiders] = useState<any[]>([]);
-  const [devices, setDevices] = useState<any[]>([]);
-  const [overrides, setOverrides] = useState<any[]>([]);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  const [systemSettings, setSystemSettings] = useState<any[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [riders, setRiders] = useState<Rider[]>([]);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [overrides, setOverrides] = useState<SafetyLog[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   // Search/Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -254,25 +254,23 @@ export default function AdminApp() {
   const [alertMsg, setAlertMsg] = useState('');
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmMsg, setConfirmMsg] = useState('');
-  const [confirmCallback, setConfirmCallback] = useState<any>(null);
+  const [confirmCallback, setConfirmCallback] = useState<(() => void) | null>(null);
 
   // Add User Form States
   const [showAddUser, setShowAddUser] = useState(false);
   const [newFullName, setNewFullName] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newPhone, setNewPhone] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('rider');
   const [addUserErrors, setAddUserErrors] = useState<Record<string, string>>({});
 
   // Manage Rider Form States
-  const [selectedRider, setSelectedRider] = useState<any>(null);
+  const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
   const [manageTab, setManageTab] = useState<'profile' | 'motorcycles' | 'contacts'>('profile');
 
   // Profile edit states
   const [editFullName, setEditFullName] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  const [editPhone, setEditPhone] = useState('');
   const [editRole, setEditRole] = useState('rider');
 
   // Contact add states
@@ -333,7 +331,7 @@ export default function AdminApp() {
   };
   const [reportStart, setReportStart] = useState('');
   const [reportEnd, setReportEnd] = useState('');
-  const [reportPreview, setReportPreview] = useState<any[] | null>(null);
+  const [reportPreview, setReportPreview] = useState<ReportRow[] | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [generatedReportType, setGeneratedReportType] = useState('sobriety-test');
 
@@ -349,10 +347,10 @@ export default function AdminApp() {
   }, [isLightMode]);
 
   // Auth fetch wrapper
-  const apiFetch = async (endpoint: string, options: any = {}) => {
+  const apiFetch = useCallback(async <K extends keyof ApiResponses>(endpoint: K, options: RequestInit = {}): Promise<ApiResponses[K]> => {
     try {
       if (endpoint === '/auth/login') {
-        const body = JSON.parse(options.body);
+        const body = JSON.parse(typeof options.body === 'string' ? options.body : '{}');
         const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
           email: body.email,
           password: body.password,
@@ -366,7 +364,7 @@ export default function AdminApp() {
           .single();
         if (profileError || !profile) throw new Error('This login account does not have a MotoLock administrator profile.');
         if (profile.role !== 'admin' && profile.role !== 'superadmin') throw new Error('ACCESS DENIED: Not an admin account');
-        return { success: true, token: authData.session.access_token, user: profile };
+        return { success: true, token: authData.session.access_token, user: profile } as ApiResponses[K];
       }
       if (endpoint === '/admin/dashboard') {
         const { data: users } = await supabaseClient.from('users').select('*');
@@ -377,22 +375,23 @@ export default function AdminApp() {
           success: true,
           totalRiders: users?.length || 0,
           totalMotorcycles: motorcycles?.length || 0,
-          activeDevices: devices?.filter((d: any) => d.status === 'online').length || 0,
+          activeDevices: devices?.filter((d) => d.status === 'online').length || 0,
           recentOverrides: 0,
           todaysRides: rides?.length || 0,
-          failedTests: rides?.filter((r: any) => r.status === 'failed_brac').length || 0
-        };
+          failedTests: rides?.filter((r) => r.status === 'failed_brac').length || 0
+        } as ApiResponses[K];
       }
       if (endpoint === '/admin/users' && (!options.method || options.method === 'GET')) {
         const { data, error } = await supabaseClient.from('users').select('*');
-        const mappedUsers = (data || []).map((u: any) => ({
+        if (error) throw new Error(error.message);
+        const mappedUsers = (data || []).map((u) => ({
           ...u,
           full_name: u.name || u.full_name // Map name column for UI backwards compatibility
         }));
-        return { success: true, users: mappedUsers };
+        return { success: true, users: mappedUsers } as ApiResponses[K];
       }
       if (endpoint.startsWith('/admin/motorcycles')) {
-        return { success: true, motorcycle: { id: 999, ...JSON.parse(options.body) } };
+        return { success: true, motorcycle: { id: 999, ...JSON.parse(typeof options.body === 'string' ? options.body : '{}') } } as ApiResponses[K];
       }
 
       const headers = {
@@ -406,10 +405,10 @@ export default function AdminApp() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'API request failed');
       return data;
-    } catch (err: any) {
-      throw new Error(err.message);
+    } catch (err) {
+      throw new Error(errorMessage(err));
     }
-  };
+  }, [token]);
 
   // Login handler
   const handleLogin = async (e: React.FormEvent) => {
@@ -430,8 +429,8 @@ export default function AdminApp() {
         setAdminRole(res.user.role);
         triggerAuditLog('Logged In', 'Authentication', loginEmail);
       }
-    } catch (err: any) {
-      setLoginError(err.message || 'Failed to authenticate');
+    } catch (err) {
+      setLoginError(errorMessage(err) || 'Failed to authenticate');
     } finally {
       setIsLoggingIn(false);
     }
@@ -455,39 +454,39 @@ export default function AdminApp() {
         body: JSON.stringify({ action, module, targetRecord })
       });
       fetchAuditLogs();
-    } catch (e) { }
+    } catch (error) { console.error(error); }
   };
 
   // Fetch data functions
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = useCallback(async () => {
     try {
       const d = await apiFetch('/admin/dashboard');
       if (d.success) setDashboardData(d);
-    } catch (e) { }
-  };
+    } catch (error) { console.error(error); }
+  }, [apiFetch]);
 
-  const fetchRiders = async () => {
+  const fetchRiders = useCallback(async () => {
     try {
       const d = await apiFetch('/admin/users');
       if (d.success) setRiders(d.users);
-    } catch (e) { }
-  };
+    } catch (error) { console.error(error); }
+  }, [apiFetch]);
 
-  const fetchOverrides = async () => {
+  const fetchOverrides = useCallback(async () => {
     try {
       const d = await apiFetch('/admin/override-logs');
       if (d.success) setOverrides(d.logs);
-    } catch (e) { }
-  };
+    } catch (error) { console.error(error); }
+  }, [apiFetch]);
 
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     try {
       const d = await apiFetch('/admin/audit-logs');
       if (d.success) setAuditLogs(d.logs);
-    } catch (e) { }
-  };
+    } catch (error) { console.error(error); }
+  }, [apiFetch]);
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
       const d = await apiFetch('/admin/settings');
       if (d.success && d.settings) {
@@ -517,8 +516,8 @@ export default function AdminApp() {
         if (s.bluetooth_timeout) setBluetoothTimeout(s.bluetooth_timeout);
         if (s.auto_reconnect !== undefined) setAutoReconnect(s.auto_reconnect === 'true');
       }
-    } catch (e) { }
-  };
+    } catch (error) { console.error(error); }
+  }, [apiFetch]);
 
   const saveSettingToDB = async (key: string, value: string) => {
     await apiFetch('/admin/settings', {
@@ -527,22 +526,21 @@ export default function AdminApp() {
     });
   };
 
-  const fetchDevices = async () => {
+  const fetchDevices = useCallback(async () => {
     try {
       const d = await apiFetch('/admin/devices');
       if (d.success) setDevices(d.devices);
-    } catch (e) { }
-  };
+    } catch (error) { console.error(error); }
+  }, [apiFetch]);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const d = await apiFetch('/admin/notifications');
       if (d.success) setNotifications(d.notifications || []);
-    } catch (e) { }
-  };
+    } catch (error) { console.error(error); }
+  }, [apiFetch]);
 
-  const loadAllData = async () => {
-    setLoading(true);
+  const loadAllData = useCallback(async () => {
     await Promise.all([
       fetchDashboardStats(),
       fetchRiders(),
@@ -552,8 +550,7 @@ export default function AdminApp() {
       fetchDevices(),
       fetchNotifications()
     ]);
-    setLoading(false);
-  };
+  }, [fetchDashboardStats, fetchRiders, fetchOverrides, fetchAuditLogs, fetchSettings, fetchDevices, fetchNotifications]);
 
   useEffect(() => {
     if (token) {
@@ -564,7 +561,7 @@ export default function AdminApp() {
       }, 5000);
       return () => clearInterval(interval);
     }
-  }, [token]);
+  }, [token, loadAllData, fetchDashboardStats, fetchNotifications]);
 
   // Helper alerts
   const showCustomAlert = (title: string, msg: string) => {
@@ -583,7 +580,7 @@ export default function AdminApp() {
     e.preventDefault();
     setAddUserErrors({});
     let hasError = false;
-    let errors: Record<string, string> = {};
+    const errors: Record<string, string> = {};
     
     if (!newFullName) {
       errors.fullName = 'Full Name is required';
@@ -637,7 +634,7 @@ export default function AdminApp() {
         // Read the response body so the Admin sees the actual server-side reason
         // (for example, an invalid admin session or a database constraint).
         let functionMessage = data?.error;
-        const response = (error as any).context;
+        const response = error.context;
         if (!functionMessage && response instanceof Response) {
           const errorBody = await response.clone().json().catch(() => null);
           functionMessage = errorBody?.error;
@@ -651,13 +648,13 @@ export default function AdminApp() {
         setShowAddUser(false);
         setNewFullName('');
         setNewEmail('');
-        setNewPhone('');
+
         setNewPassword('');
         setAddUserErrors({});
         loadAllData();
       }
-    } catch (err: any) {
-      setAddUserErrors({ general: err.message });
+    } catch (err) {
+      setAddUserErrors({ general: errorMessage(err) });
     }
   };
 
@@ -674,7 +671,7 @@ export default function AdminApp() {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         if (error) {
-          const response = (error as any).context;
+          const response = error.context;
           const errorBody = response instanceof Response
             ? await response.clone().json().catch(() => null)
             : null;
@@ -684,23 +681,24 @@ export default function AdminApp() {
         triggerAuditLog(`Deleted user account`, 'Users & Roles', email);
         showCustomAlert('Success', 'User deleted successfully.');
         loadAllData();
-      } catch (err: any) {
-        showCustomAlert('Delete Error', err.message);
+      } catch (err) {
+        showCustomAlert('Delete Error', errorMessage(err));
       }
     });
   };
 
   // Manage Rider actions
-  const handleManageRider = (rider: any) => {
+  const handleManageRider = (rider: Rider) => {
     setSelectedRider(rider);
     setEditFullName(rider.full_name || '');
     setEditEmail(rider.email || '');
-    setEditPhone(rider.phone || '');
+
     setEditRole(rider.role || 'rider');
     setManageTab('profile');
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
+    if (!selectedRider) return;
     e.preventDefault();
     if (!editFullName || !editEmail) {
       showCustomAlert('Missing Fields', 'Please complete all profile fields.');
@@ -722,12 +720,13 @@ export default function AdminApp() {
       setRiders(updated);
       setSelectedRider(null);
       loadAllData();
-    } catch (err: any) {
-      showCustomAlert('Update Error', err.message);
+    } catch (err) {
+      showCustomAlert('Update Error', errorMessage(err));
     }
   };
 
   const handleAddMotorcycle = async () => {
+    if (!selectedRider) return;
     if (!newPlateNumber || !newMotorcycleModel || !newMotorcycleYear || !newMotorcycleColor) {
       showCustomAlert('Missing Fields', 'Please enter all motorcycle details.');
       return;
@@ -756,26 +755,28 @@ export default function AdminApp() {
         setRiders(riders.map(r => r.id === selectedRider.id ? newSelected : r));
         loadAllData();
       }
-    } catch (err: any) {
-      showCustomAlert('Registry Error', err.message);
+    } catch (err) {
+      showCustomAlert('Registry Error', errorMessage(err));
     }
   };
 
   const handleDeleteMotorcycle = async (id: number) => {
+    if (!selectedRider) return;
     try {
       await apiFetch(`/admin/motorcycles/${id}`, { method: 'DELETE' });
 
-      const updatedMotorcycles = (selectedRider.motorcycles || []).filter((m: any) => m.id !== id);
+      const updatedMotorcycles = (selectedRider.motorcycles || []).filter((m) => m.id !== id);
       const newSelected = { ...selectedRider, motorcycles: updatedMotorcycles };
       setSelectedRider(newSelected);
       setRiders(riders.map(r => r.id === selectedRider.id ? newSelected : r));
       loadAllData();
-    } catch (err: any) {
-      showCustomAlert('Delete Error', err.message);
+    } catch (err) {
+      showCustomAlert('Delete Error', errorMessage(err));
     }
   };
 
   const handleAddContact = async () => {
+    if (!selectedRider) return;
     if (!newContactName || !newContactPhone) {
       showCustomAlert('Missing Fields', 'Please enter contact name and phone number.');
       return;
@@ -801,47 +802,26 @@ export default function AdminApp() {
         setRiders(riders.map(r => r.id === selectedRider.id ? newSelected : r));
         loadAllData();
       }
-    } catch (err: any) {
-      showCustomAlert('Add Error', err.message);
+    } catch (err) {
+      showCustomAlert('Add Error', errorMessage(err));
     }
   };
 
   const handleDeleteContact = async (id: number) => {
+    if (!selectedRider) return;
     try {
       await apiFetch(`/admin/contacts/${id}`, { method: 'DELETE' });
 
-      const updatedContacts = (selectedRider.contacts || []).filter((c: any) => c.id !== id);
+      const updatedContacts = (selectedRider.contacts || []).filter((c) => c.id !== id);
       const newSelected = { ...selectedRider, contacts: updatedContacts };
       setSelectedRider(newSelected);
       setRiders(riders.map(r => r.id === selectedRider.id ? newSelected : r));
       loadAllData();
-    } catch (err: any) {
-      showCustomAlert('Delete Error', err.message);
+    } catch (err) {
+      showCustomAlert('Delete Error', errorMessage(err));
     }
   };
 
-
-  // Update Config Threshold Trigger
-  const handleSaveSettings = async () => {
-    try {
-      await apiFetch('/admin/settings', {
-        method: 'POST',
-        body: JSON.stringify({ setting_key: 'alcohol_threshold', setting_value: alcoholThreshold })
-      });
-      await apiFetch('/admin/settings', {
-        method: 'POST',
-        body: JSON.stringify({ setting_key: 'lockout_limit', setting_value: lockoutLimit })
-      });
-      await apiFetch('/admin/settings', {
-        method: 'POST',
-        body: JSON.stringify({ setting_key: 'session_timeout', setting_value: sessionTimeout })
-      });
-      showCustomAlert('Success', '✅ System parameters updated successfully.');
-      loadAllData();
-    } catch (err: any) {
-      showCustomAlert('Settings Error', err.message);
-    }
-  };
 
   // Generate report preview
   const handleGenerateReport = () => {
@@ -850,7 +830,7 @@ export default function AdminApp() {
     const frozenType = reportType;
     setGeneratedReportType(frozenType);
     setTimeout(() => {
-      let filtered: any[] = [];
+      let filtered: ReportRow[] = [];
       const start = reportStart ? new Date(reportStart) : null;
       const end = reportEnd ? new Date(reportEnd) : null;
 
@@ -922,7 +902,7 @@ export default function AdminApp() {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         doc.text("MotoLock Compliance Report", 14, 22);
-        const tableData = rides.map((r: any) => [
+        const tableData = (rides || []).map((r) => [
           r.users?.name || 'Rider',
           new Date(r.start_time || Date.now()).toLocaleString(),
           (r.brac_level || 0) + '%',
@@ -932,7 +912,7 @@ export default function AdminApp() {
         doc.save("MotoLock_Report.pdf");
       } else {
         if (!window.XLSX) return;
-        const ws = window.XLSX.utils.json_to_sheet(rides.map((r: any) => ({ Rider: r.users?.name, Date: r.start_time, BrAC: r.brac_level })));
+        const ws = window.XLSX.utils.json_to_sheet((rides || []).map((r) => ({ Rider: r.users?.name, Date: r.start_time, BrAC: r.brac_level })));
         const wb = window.XLSX.utils.book_new();
         window.XLSX.utils.book_append_sheet(wb, ws, "Rides");
         window.XLSX.writeFile(wb, "MotoLock_Data.xlsx");
@@ -951,7 +931,7 @@ export default function AdminApp() {
       let { data: contacts } = await supabaseClient.from('emergency_contacts').select('*');
 
       if (contacts) {
-        contacts = contacts.map((c: any) => {
+        contacts = contacts.map((c) => {
           if (c.phone_number) c.phone_number = c.phone_number.substring(0, 3) + '****' + c.phone_number.substring(c.phone_number.length - 4);
           return c;
         });
@@ -963,11 +943,11 @@ export default function AdminApp() {
       a.href = url;
       a.download = `MotoLock_Database_Backup.json`;
       a.click();
-    } catch (e) { }
+    } catch (error) { console.error(error); }
   };
 
   // Mask Phone number helper
-  const maskPhone = (p: string) => {
+  const maskPhone = (p?: string) => {
     if (!p) return '—';
     if (p.length < 7) return p;
     return p.slice(0, 3) + '*'.repeat(p.length - 5) + p.slice(-2);
@@ -990,7 +970,6 @@ export default function AdminApp() {
               <label style={styles.label}>Email / Account Name</label>
               <input
                 type="text"
-                placeholder="Enter admin identifier"
                 value={loginEmail}
                 onChange={e => setLoginEmail(e.target.value)}
                 style={styles.input}
@@ -1001,7 +980,6 @@ export default function AdminApp() {
               <label style={styles.label}>Password</label>
               <input
                 type="password"
-                placeholder="Enter password"
                 value={loginPass}
                 onChange={e => setLoginPass(e.target.value)}
                 style={styles.input}
@@ -1284,7 +1262,7 @@ export default function AdminApp() {
               });
 
               const chartData = last30Days.map(dateStr => {
-                const dbMatch = sobrietySummary.find((item: any) => {
+                const dbMatch = sobrietySummary.find((item) => {
                   if (!item.date) return false;
                   // Handle potential date timezone differences
                   const itemDateStr = new Date(item.date).toISOString().split('T')[0];
@@ -1292,13 +1270,13 @@ export default function AdminApp() {
                 });
                 return {
                   date: new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                  passed: dbMatch ? parseInt(dbMatch.passed || 0) : 0,
-                  failed: dbMatch ? parseInt(dbMatch.failed || 0) : 0
+                  passed: dbMatch ? parseInt(String(dbMatch.passed || 0), 10) : 0,
+                  failed: dbMatch ? parseInt(String(dbMatch.failed || 0), 10) : 0
                 };
               });
 
-              const totalPassed = sobrietySummary.reduce((sum: number, item: any) => sum + parseInt(item.passed || 0), 0);
-              const totalFailed = sobrietySummary.reduce((sum: number, item: any) => sum + parseInt(item.failed || 0), 0);
+              const totalPassed = sobrietySummary.reduce((sum: number, item) => sum + parseInt(String(item.passed || 0), 10), 0);
+              const totalFailed = sobrietySummary.reduce((sum: number, item) => sum + parseInt(String(item.failed || 0), 10), 0);
               const totalTests = totalPassed + totalFailed;
               const passedPercentage = totalTests > 0 ? ((totalPassed / totalTests) * 100).toFixed(1) : '0.0';
               const failedPercentage = totalTests > 0 ? ((totalFailed / totalTests) * 100).toFixed(1) : '0.0';
@@ -1484,7 +1462,7 @@ export default function AdminApp() {
                         {!recentAlerts.length ? (
                           <div style={styles.emptyState}>No safety alert logs found.</div>
                         ) : (
-                          recentAlerts.slice(0, 5).map((r: any, idx: number) => {
+                          recentAlerts.slice(0, 5).map((r, idx: number) => {
                             let alertTitle = 'Ignition Session Completed';
                             let alertDesc = `Rider: ${r.full_name || 'Rider'} | Device: DEV-${r.motorcycle_id || 'N/A'}`;
                             let alertIcon = '✅';
@@ -1695,7 +1673,7 @@ export default function AdminApp() {
                         <td style={styles.tableCell}>{maskPhone(r.phone)}</td>
                         <td style={styles.tableCell}>
                           {r.motorcycles && r.motorcycles.length > 0 ? (
-                            r.motorcycles.map((m: any, mIdx: number) => (
+                            r.motorcycles.map((m, mIdx: number) => (
                               <div key={mIdx} style={{ fontSize: '11px', marginBottom: '2px' }}>
                                 <code>{m.plate_number}</code> - {m.model}
                               </div>
@@ -1706,8 +1684,8 @@ export default function AdminApp() {
                         </td>
                         <td style={styles.tableCell}>
                           {r.contacts && r.contacts.length > 0 ? (
-                            r.contacts.map((c: any, cIdx: number) => (
-                              <div key={cIdx} style={{ fontSize: '11px', marginBottom: '4px', borderBottom: cIdx < r.contacts.length - 1 ? '1px solid var(--border)' : 'none', paddingBottom: '2px' }}>
+                            r.contacts.map((c, cIdx: number) => (
+                              <div key={cIdx} style={{ fontSize: '11px', marginBottom: '4px', borderBottom: cIdx < (r.contacts?.length || 0) - 1 ? '1px solid var(--border)' : 'none', paddingBottom: '2px' }}>
                                 <strong>{c.name}</strong> ({maskPhone(c.phone)})
                                 <div style={{ fontSize: '10px', color: 'var(--muted)' }}>{c.role}</div>
                               </div>
@@ -2148,16 +2126,16 @@ export default function AdminApp() {
                           </td>
                         </tr>
                       ) : (
-                        reportPreview.slice(0, 15).map((row: any, rIdx: number) => (
+                        reportPreview.slice(0, 15).map((row, rIdx: number) => (
                           <tr key={rIdx}>
                             {['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(generatedReportType) ? (
                               <>
-                                <td style={styles.tableCell}>{new Date(row.created_at).toLocaleString()}</td>
+                                <td style={styles.tableCell}>{new Date(row.created_at || Date.now()).toLocaleString()}</td>
                                 <td style={styles.tableCell}>{row.full_name} ({row.email})</td>
                                 <td style={styles.tableCell}><strong>{row.brac} BAC</strong></td>
                                 <td style={styles.tableCell}>
-                                  <span style={{ color: parseFloat(row.brac) >= 0.05 ? 'var(--red)' : 'var(--green)', fontWeight: 700 }}>
-                                    {parseFloat(row.brac) >= 0.05 ? '🚨 Intoxicated' : '✅ Sober'}
+                                  <span style={{ color: parseFloat(row.brac || '0') >= 0.05 ? 'var(--red)' : 'var(--green)', fontWeight: 700 }}>
+                                    {parseFloat(row.brac || '0') >= 0.05 ? '🚨 Intoxicated' : '✅ Sober'}
                                   </span>
                                 </td>
                                 <td style={styles.tableCell}>Ignition: {row.status}</td>
@@ -2287,7 +2265,7 @@ export default function AdminApp() {
                           saveSettingToDB('org_language', orgLanguage)
                         ]);
                         showCustomAlert('Success', 'Organization settings saved to database.');
-                      } catch (e) {
+                      } catch {
                         showCustomAlert('Error', 'Failed to save organization settings.');
                       }
                     }} style={{ ...styles.primaryButton, background: 'var(--red)', marginTop: 12 }}>
@@ -2362,7 +2340,7 @@ export default function AdminApp() {
                           saveSettingToDB('session_timeout', sessionTimeout)
                         ]);
                         showCustomAlert('Success', 'System preferences saved to database.');
-                      } catch (e) {
+                      } catch {
                         showCustomAlert('Error', 'Failed to save preferences.');
                       }
                     }} style={{ ...styles.primaryButton, background: 'var(--red)', marginTop: 12 }}>
@@ -2428,7 +2406,7 @@ export default function AdminApp() {
                           saveSettingToDB('alcohol_threshold', alcoholThreshold)
                         ]);
                         showCustomAlert('Success', 'Alert thresholds saved to database.');
-                      } catch (e) {
+                      } catch {
                         showCustomAlert('Error', 'Failed to save thresholds.');
                       }
                     }} style={{ ...styles.primaryButton, background: 'var(--red)', marginTop: 12 }}>
@@ -2499,7 +2477,7 @@ export default function AdminApp() {
                           saveSettingToDB('auto_sync_time', String(autoSyncTime))
                         ]);
                         showCustomAlert('Success', 'Date & time settings saved to database.');
-                      } catch (e) {
+                      } catch {
                         showCustomAlert('Error', 'Failed to save date/time settings.');
                       }
                     }} style={{ ...styles.primaryButton, background: 'var(--red)', marginTop: 12 }}>
@@ -2581,7 +2559,7 @@ export default function AdminApp() {
                           saveSettingToDB('lockout_limit', lockoutLimit)
                         ]);
                         showCustomAlert('Success', 'Security settings saved to database.');
-                      } catch (e) {
+                      } catch {
                         showCustomAlert('Error', 'Failed to save security settings.');
                       }
                     }} style={{ ...styles.primaryButton, background: 'var(--red)', marginTop: 12 }}>
@@ -2651,7 +2629,7 @@ export default function AdminApp() {
                           saveSettingToDB('auto_reconnect', String(autoReconnect))
                         ]);
                         showCustomAlert('Success', 'Bluetooth settings saved to database.');
-                      } catch (e) {
+                      } catch {
                         showCustomAlert('Error', 'Failed to save bluetooth settings.');
                       }
                     }} style={{ ...styles.primaryButton, background: 'var(--red)', marginTop: 12 }}>
@@ -2873,7 +2851,7 @@ export default function AdminApp() {
                     setShowAddUser(false);
                     setNewFullName('');
                     setNewEmail('');
-                    setNewPhone('');
+
                     setNewPassword('');
                     setAddUserErrors({});
                   }}
@@ -2974,8 +2952,8 @@ export default function AdminApp() {
                   {(!selectedRider.motorcycles || selectedRider.motorcycles.length === 0) ? (
                     <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>No motorcycles registered.</div>
                   ) : (
-                    selectedRider.motorcycles.map((m: any, mIdx: number) => (
-                      <div key={mIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: mIdx < selectedRider.motorcycles.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                    selectedRider.motorcycles.map((m, mIdx: number) => (
+                      <div key={mIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: mIdx < (selectedRider.motorcycles?.length || 0) - 1 ? '1px solid var(--border)' : 'none' }}>
                         <div>
                           <strong>{m.model}</strong> (<code style={{ color: 'var(--red)' }}>{m.plate_number}</code>)
                           <div style={{ fontSize: 11, color: 'var(--muted)' }}>Year: {m.year} · Color: {m.color}</div>
@@ -3021,8 +2999,8 @@ export default function AdminApp() {
                   {(!selectedRider.contacts || selectedRider.contacts.length === 0) ? (
                     <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>No emergency contacts registered.</div>
                   ) : (
-                    selectedRider.contacts.map((c: any, cIdx: number) => (
-                      <div key={cIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: cIdx < selectedRider.contacts.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                    selectedRider.contacts.map((c, cIdx: number) => (
+                      <div key={cIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: cIdx < (selectedRider.contacts?.length || 0) - 1 ? '1px solid var(--border)' : 'none' }}>
                         <div>
                           <strong>{c.name}</strong> ({maskPhone(c.phone)})
                           <div style={{ fontSize: 11, color: 'var(--muted)' }}>Role: {c.role}</div>
