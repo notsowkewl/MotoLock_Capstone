@@ -34,5 +34,6 @@ build/
 .gradle/
 app/build/
 .work/native-verification/project/app/build/
+.work/firmware-check/
 
 node_modules/

@@ -13,6 +13,8 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <atomic>
+#include "MotoLockProtocol.h"
 
 constexpr uint8_t MQ3_ANALOG_PIN = 34;
 constexpr uint8_t IR_DIGITAL_PIN = 3;
@@ -28,7 +30,9 @@ constexpr uint16_t MQ3_ALCOHOL_DEADBAND_RAW = 35;
 constexpr uint16_t MQ3_RECOVERY_DELTA_RAW = 110;
 constexpr float ALCOHOL_LIMIT_PERCENT = 0.050f;
 constexpr float ALCOHOL_DISPLAY_MAX_PERCENT = 0.500f;
-constexpr uint32_t SEND_INTERVAL_MS = 1000;
+constexpr uint32_t SEND_INTERVAL_MS = 250;
+constexpr uint32_t SENSOR_DECISION_INTERVAL_MS = 1000;
+constexpr uint32_t IR_DEBOUNCE_MS = 100;
 
 // Must match the motor controller sketch exactly.
 #define MOTOLOCK_SERVICE_UUID        "7ce10001-6d79-4f8b-9a33-5f4739a90001"
@@ -49,45 +53,120 @@ struct __attribute__((packed)) HelmetPacket {
   uint16_t cleanAirBaseline;
   uint16_t sequence;
 };
+static_assert(sizeof(HelmetPacket) == 8, "Unexpected sensor snapshot size");
 
 BLECharacteristic *telemetryCharacteristic = nullptr;
-bool receiverConnected = false;
+std::atomic<bool> receiverConnected{false};
+std::atomic<bool> restartAdvertising{false};
+bool baselineReady = false;
+uint32_t sensorStartedMs = 0;
+uint16_t latestMqRaw = 0;
+bool worn = false;
 uint16_t cleanAirBaseline = 0;
-uint16_t sequenceNumber = 0;
+uint64_t sequenceNumber = 0;
 uint8_t highReadingCount = 0;
 uint8_t recoveryCount = 0;
 bool alcoholLatched = false;
+mbedtls_pk_context helmetSigningKey;
+String helmetIdentity;
+uint8_t helmetDeviceId[6];
+uint32_t helmetVisualId = 0;
+portMUX_TYPE challengeMux = portMUX_INITIALIZER_UNLOCKED;
+uint8_t challengeNonce[32]{};
+bool challengeReady = false;
+uint32_t challengeReceivedMs = 0;
+
+bool setupIdentity() {
+  mbedtls_pk_init(&helmetSigningKey);
+  Preferences identityStore;
+  if (!identityStore.begin("ml-helmet", false)) return false;
+  uint8_t keyDer[256];
+  const size_t savedSize = identityStore.getBytesLength("private");
+  bool ok = false;
+  if (savedSize > 0 && savedSize <= sizeof(keyDer)) {
+    identityStore.getBytes("private", keyDer, savedSize);
+    ok = mbedtls_pk_parse_key(&helmetSigningKey, keyDer, savedSize, nullptr, 0, mlRandom, nullptr) == 0;
+  } else if (savedSize == 0) {
+    ok = mbedtls_pk_setup(&helmetSigningKey, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY)) == 0 &&
+         mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1, mbedtls_pk_ec(helmetSigningKey), mlRandom, nullptr) == 0;
+    const int size = ok ? mbedtls_pk_write_key_der(&helmetSigningKey, keyDer, sizeof(keyDer)) : -1;
+    ok = size > 0 && identityStore.putBytes("private", keyDer + sizeof(keyDer) - size, size) == static_cast<size_t>(size);
+  }
+  memset(keyDer, 0, sizeof(keyDer));
+  identityStore.end();
+  if (!ok) return false;  // Never silently replace an unreadable paired identity.
+  mlPut(helmetDeviceId, ESP.getEfuseMac(), sizeof(helmetDeviceId));
+  helmetVisualId = static_cast<uint32_t>(ESP.getEfuseMac()) & 0x3ffff;
+  uint8_t publicDer[128];
+  const int publicSize = mbedtls_pk_write_pubkey_der(&helmetSigningKey, publicDer, sizeof(publicDer));
+  if (publicSize <= 0) return false;
+  helmetIdentity = mlHex(helmetDeviceId, sizeof(helmetDeviceId)) + "," +
+      mlVisualId(helmetVisualId) + "," + mlHex(publicDer + sizeof(publicDer) - publicSize, publicSize);
+  Serial.println("HELMET_ID:" + helmetIdentity);
+  return true;
+}
+
+class ChallengeCallbacks final : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *characteristic) override {
+    const auto value = characteristic->getValue();
+    if (value.length() != sizeof(challengeNonce)) return;
+    portENTER_CRITICAL(&challengeMux);
+    memcpy(challengeNonce, value.c_str(), sizeof(challengeNonce));
+    challengeReceivedMs = millis();
+    challengeReady = true;
+    portEXIT_CRITICAL(&challengeMux);
+  }
+};
 
 class ServerCallbacks final : public BLEServerCallbacks {
   void onConnect(BLEServer *) override { receiverConnected = true; }
 
-  void onDisconnect(BLEServer *server) override {
+  void onDisconnect(BLEServer *) override {
     receiverConnected = false;
-    delay(100);
-    server->getAdvertising()->start();
+    restartAdvertising = true;
+    portENTER_CRITICAL(&challengeMux);
+    challengeReady = false;
+    portEXIT_CRITICAL(&challengeMux);
   }
 };
 
-uint16_t averageMq3(uint8_t samples = 16) {
-  uint32_t total = 0;
-  for (uint8_t i = 0; i < samples; ++i) {
-    total += analogRead(MQ3_ANALOG_PIN);
-    delay(8);
+void updateSensors() {
+  const uint32_t now = millis();
+  static bool candidateWorn = false;
+  static uint32_t candidateSinceMs = 0;
+  const bool raw = digitalRead(IR_DIGITAL_PIN);
+  const bool detected = IR_ACTIVE_LOW ? !raw : raw;
+  if (detected != candidateWorn) {
+    candidateWorn = detected;
+    candidateSinceMs = now;
   }
-  return static_cast<uint16_t>(total / samples);
-}
+  if (now - candidateSinceMs >= IR_DEBOUNCE_MS) worn = candidateWorn;
 
-uint16_t establishCleanAirBaseline() {
-  Serial.println("Keep alcohol away from the sensor: establishing baseline...");
-  const uint32_t start = millis();
-  uint32_t total = 0;
-  uint16_t count = 0;
-
-  while (millis() - start < BASELINE_SAMPLE_MS) {
-    total += averageMq3(8);
-    ++count;
+  static uint32_t lastSampleMs = 0;
+  static uint32_t sampleTotal = 0;
+  static uint8_t sampleCount = 0;
+  static uint32_t baselineTotal = 0;
+  static uint32_t baselineCount = 0;
+  if (now - lastSampleMs < 8) return;
+  lastSampleMs = now;
+  const uint16_t sample = analogRead(MQ3_ANALOG_PIN);
+  sampleTotal += sample;
+  if (++sampleCount == 16) {
+    latestMqRaw = sampleTotal / sampleCount;
+    sampleTotal = 0;
+    sampleCount = 0;
   }
-  return count ? static_cast<uint16_t>(total / count) : 0;
+  const uint32_t elapsed = now - sensorStartedMs;
+  if (!baselineReady && elapsed >= MQ3_WARMUP_MS) {
+    if (elapsed < MQ3_WARMUP_MS + BASELINE_SAMPLE_MS) {
+      baselineTotal += sample;
+      ++baselineCount;
+    } else if (baselineCount != 0) {
+      cleanAirBaseline = baselineTotal / baselineCount;
+      baselineReady = true;
+      Serial.printf("Baseline ready: %u\n", cleanAirBaseline);
+    }
+  }
 }
 
 float estimateAlcoholPercent(uint16_t mqRaw) {
@@ -109,6 +188,7 @@ float estimateAlcoholPercent(uint16_t mqRaw) {
 
 void setupBle() {
   BLEDevice::init("MOTOLOCK_HELMET");
+  BLEDevice::setMTU(ML_MTU);
   BLEServer *server = BLEDevice::createServer();
   server->setCallbacks(new ServerCallbacks());
 
@@ -117,6 +197,12 @@ void setupBle() {
       MOTOLOCK_TELEMETRY_UUID,
       BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
   telemetryCharacteristic->addDescriptor(new BLE2902());
+  BLECharacteristic *identity = service->createCharacteristic(
+      MOTOLOCK_IDENTITY_UUID, BLECharacteristic::PROPERTY_READ);
+  identity->setValue(helmetIdentity.c_str());
+  BLECharacteristic *challenge = service->createCharacteristic(
+      MOTOLOCK_CHALLENGE_UUID, BLECharacteristic::PROPERTY_WRITE);
+  challenge->setCallbacks(new ChallengeCallbacks());
   service->start();
 
   BLEAdvertising *advertising = BLEDevice::getAdvertising();
@@ -129,81 +215,109 @@ void setupBle() {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(IR_DIGITAL_PIN, INPUT_PULLUP);
+  // An unplugged signal should read as not worn for either configured polarity.
+  pinMode(IR_DIGITAL_PIN, IR_ACTIVE_LOW ? INPUT_PULLUP : INPUT_PULLDOWN);
   analogReadResolution(12);
   analogSetPinAttenuation(MQ3_ANALOG_PIN, ADC_11db);
 
-  Serial.println("MQ-3 warming up...");
-  const uint32_t warmupStart = millis();
-  while (millis() - warmupStart < MQ3_WARMUP_MS) {
-    delay(20);
+  sensorStartedMs = millis();
+  if (!setupIdentity()) {
+    Serial.println("Helmet identity storage failed. Telemetry disabled.");
+    while (true) delay(1000);
   }
-  cleanAirBaseline = establishCleanAirBaseline();
   setupBle();
-  Serial.printf("Ready. Baseline=%u\n", cleanAirBaseline);
+  Serial.println("BLE ready. MQ-3 warming up; keep sensor in clean air for 75 seconds.");
 }
 
 void loop() {
+  if (restartAdvertising.exchange(false) && !receiverConnected.load()) {
+    BLEDevice::startAdvertising();
+  }
+  updateSensors();
   static uint32_t lastSend = 0;
   if (millis() - lastSend < SEND_INTERVAL_MS) {
-    delay(10);
+    delay(2);
     return;
   }
   lastSend = millis();
 
-  const uint16_t mqRaw = averageMq3();
+  const uint16_t mqRaw = latestMqRaw;
   const bool irRaw = digitalRead(IR_DIGITAL_PIN);
-  const bool worn = IR_ACTIVE_LOW ? !irRaw : irRaw;
-  const bool sensorOk = mqRaw > 5 && mqRaw < 4090 && cleanAirBaseline > 5;
+  const bool sensorOk = baselineReady && mqRaw > 5 && mqRaw < 4090 &&
+                        cleanAirBaseline > 5 && cleanAirBaseline < 4090;
   const float alcoholPercent = sensorOk ? estimateAlcoholPercent(mqRaw) : 0.0f;
   const bool readingAlcohol = sensorOk &&
                               alcoholPercent >= ALCOHOL_LIMIT_PERCENT;
 
-  if (readingAlcohol && worn) {
-    if (highReadingCount < 255) ++highReadingCount;
-    recoveryCount = 0;
-    if (highReadingCount >= ALCOHOL_CONFIRM_SAMPLES) alcoholLatched = true;
-  } else {
-    highReadingCount = 0;
-  }
+  static uint32_t lastDecisionMs = 0;
+  if (millis() - lastDecisionMs >= SENSOR_DECISION_INTERVAL_MS) {
+    lastDecisionMs = millis();
+    if (readingAlcohol) {
+      if (highReadingCount < 255) ++highReadingCount;
+      recoveryCount = 0;
+      if (highReadingCount >= ALCOHOL_CONFIRM_SAMPLES) alcoholLatched = true;
+    } else {
+      highReadingCount = 0;
+    }
+    if (!sensorOk || readingAlcohol) recoveryCount = 0;
 
-  // Once alcohol is detected, require several consecutive clean-air readings
-  // before clearing the lock. This prevents an immediate false PASS while the
-  // MQ-3 is still recovering from alcohol vapor.
-  if (alcoholLatched && sensorOk && !readingAlcohol) {
-    const bool recovered = mqRaw <=
-        static_cast<uint32_t>(cleanAirBaseline) + MQ3_RECOVERY_DELTA_RAW;
-    if (recovered) {
-      if (recoveryCount < 255) ++recoveryCount;
-      if (recoveryCount >= RECOVERY_CONFIRM_SAMPLES) {
-        alcoholLatched = false;
+    // Keep the one-second decision cadence independent of BLE notification rate.
+    if (alcoholLatched && sensorOk && !readingAlcohol) {
+      const bool recovered = mqRaw <=
+          static_cast<uint32_t>(cleanAirBaseline) + MQ3_RECOVERY_DELTA_RAW;
+      if (recovered) {
+        if (recoveryCount < 255) ++recoveryCount;
+        if (recoveryCount >= RECOVERY_CONFIRM_SAMPLES) {
+          alcoholLatched = false;
+          recoveryCount = 0;
+        }
+      } else {
         recoveryCount = 0;
       }
-    } else {
-      recoveryCount = 0;
     }
   }
 
   const bool stabilizing = alcoholLatched && !readingAlcohol;
-  const bool alcoholClear = sensorOk && !alcoholLatched;
+  const bool alcoholClear = sensorOk && !readingAlcohol && !alcoholLatched;
 
   HelmetPacket packet{};
-  packet.version = 1;
-  packet.flags = FLAG_WARMED_UP;
+  packet.version = 2;
+  packet.flags = baselineReady ? FLAG_WARMED_UP : 0;
   if (worn) packet.flags |= FLAG_WORN;
   if (alcoholClear) packet.flags |= FLAG_ALCOHOL_CLEAR;
   if (sensorOk) packet.flags |= FLAG_SENSOR_OK;
   if (stabilizing) packet.flags |= FLAG_STABILIZING;
   packet.mqRaw = mqRaw;
   packet.cleanAirBaseline = cleanAirBaseline;
-  packet.sequence = sequenceNumber++;
+  packet.sequence = static_cast<uint16_t>(sequenceNumber);
 
-  telemetryCharacteristic->setValue(
-      reinterpret_cast<uint8_t *>(&packet), sizeof(packet));
-  if (receiverConnected) telemetryCharacteristic->notify();
+  uint8_t frame[ML_FRAME_SIZE]{};
+  portENTER_CRITICAL(&challengeMux);
+  const bool canSign = challengeReady && millis() - challengeReceivedMs < 6000;
+  memcpy(frame + 11, challengeNonce, sizeof(challengeNonce));
+  portEXIT_CRITICAL(&challengeMux);
+  if (canSign && receiverConnected.load()) {
+    frame[0] = 2;
+    memcpy(frame + 1, helmetDeviceId, sizeof(helmetDeviceId));
+    mlPut(frame + 7, helmetVisualId, 4);
+    mlPut(frame + 43, ++sequenceNumber, 8);
+    frame[51] = packet.flags;
+    mlPut(frame + 52, mqRaw, 2);
+    mlPut(frame + 54, cleanAirBaseline, 2);
+    uint8_t hash[32];
+    size_t signatureSize = 0;
+    if (mbedtls_sha256(frame, ML_PAYLOAD_SIZE, hash, 0) == 0 &&
+        mbedtls_pk_sign(&helmetSigningKey, MBEDTLS_MD_SHA256, hash, sizeof(hash),
+          frame + ML_PAYLOAD_SIZE + 1, ML_SIGNATURE_MAX, &signatureSize, mlRandom, nullptr) == 0) {
+      frame[ML_PAYLOAD_SIZE] = signatureSize;
+      telemetryCharacteristic->setValue(frame, sizeof(frame));
+      telemetryCharacteristic->notify();
+    }
+  }
 
   Serial.printf("BLE=%d IRraw=%d worn=%d clear=%d stabilizing=%d "
-                "Alcohol=%.3f%% MQ=%u baseline=%u seq=%u\n",
-                receiverConnected, irRaw, worn, alcoholClear, stabilizing,
-                alcoholPercent, mqRaw, cleanAirBaseline, packet.sequence);
+                "Alcohol=%.3f%% MQ=%u baseline=%u seq=%llu\n",
+                receiverConnected.load(), irRaw, worn, alcoholClear, stabilizing,
+                alcoholPercent, mqRaw, cleanAirBaseline,
+                static_cast<unsigned long long>(sequenceNumber));
 }
