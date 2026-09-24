@@ -3,10 +3,59 @@ import type { Rider, Device, SafetyLog, AuditLog, DashboardData, ReportRow, ApiR
 import './browser-libraries';
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
+const describeEdgeFunctionError = (error: { message: string; context?: unknown }) => {
+  const context = error.context;
+  if (context instanceof Response) {
+    return `Account service returned HTTP ${context.status}. Check that the Supabase Edge Function is deployed and try again.`;
+  }
+  if (error.message.toLowerCase().includes('failed to send a request')) {
+    return 'Cannot reach the Supabase account service. Check your internet connection and confirm the admin-create-user/admin-update-user Edge Functions are deployed to this Supabase project.';
+  }
+  return error.message;
+};
 
 const SUPABASE_URL = 'https://bafziqymbvhrytziteuo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZnppcXltYnZocnl0eml0ZXVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MjAzMzUsImV4cCI6MjEwMzk5NjMzNX0.F1KVSKnN_x-8O2gKlh0d8XPydlBWTcsS0GPbCS6CP_c';
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const SUPABASE_PAGE_SIZE = 1000;
+const sampleContactNames: Record<string, string> = {
+  '4139d5f7-def8-5e0a-bb9c-e133268350f0': 'Maria Lourdes Basilio',
+  'f02ba8e0-e1ad-5e17-8b20-6e5358489bfe': 'Ramon Basilio',
+  '017066c1-6571-560b-80e0-e5ac9246ae77': 'Angela Baculi',
+  '6607c980-3ee0-54ff-9d23-7244fc6f5e73': 'Mark Baculi',
+  'ae8f5e97-7011-50d8-bafe-45aca600aa38': 'Catherine Roxas',
+  '23bc5655-991b-5410-9267-dca26aebe46e': 'Paolo Roxas',
+  '36a25b4e-5f8a-5202-bb29-a4f6103365d9': 'Rochelle Diaz',
+  '6cbfce8d-97e1-5428-a9c6-edbcaaf0d579': 'Miguel Diaz',
+  '9701544d-3481-55eb-82bf-84c34a5e13de': 'Grace Atractibo',
+  'a601a2a6-497c-53ee-b0da-2061e444eb6d': 'Daniel Atractibo',
+  'c9260b32-22c8-5e4b-bd9d-228cd368a946': 'Liza Rotoni',
+  '3e926011-c9c4-5526-8372-125b182e24a5': 'Carlo Rotoni',
+  'ff923600-daed-5312-ba00-0ba7c55c4787': 'Teresa Olaybal',
+  '8c6c544b-f8b6-5118-8990-3942ed956b3b': 'Noel Olaybal',
+};
+
+const displayContactName = (contact: { id?: string | number; name?: string }) => {
+  const name = contact.name || '';
+  if (!/^sample contact\s/i.test(name)) return name;
+  return sampleContactNames[String(contact.id)] || 'Emergency Contact';
+};
+
+const fetchAllSupabaseRows = async (table: string, orderBy = 'id') => {
+  if (!supabaseClient) throw new Error('Supabase client is not available.');
+  const rows: any[] = [];
+  for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await supabaseClient
+      .from(table)
+      .select('*')
+      .order(orderBy, { ascending: true })
+      .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data || []));
+    if (!data || data.length < SUPABASE_PAGE_SIZE) return rows;
+  }
+};
 
 
 
@@ -23,6 +72,14 @@ const Icon = ({ name, size = 18, color = 'currentColor' }: { name: string, size?
     sobriety: "M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2z",
     identity: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z",
     alerts: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
+    warning: "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2V9h2v5z",
+    check: "M9 16.17 4.83 12 3.41 13.41 9 19l12-12-1.41-1.41z",
+    close: "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
+    person: "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
+    helmet: "M12 3a9 9 0 0 0-9 9v3h18v-3a9 9 0 0 0-9-9zm-7 10v-1a7 7 0 0 1 14 0v1H5zm-2 4h12v2H3z",
+    lock: "M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM9 6a3 3 0 0 1 6 0v2H9zm3 11a2 2 0 1 1 0-4 2 2 0 0 1 0 4z",
+    unlock: "M18 8h-8V6a3 3 0 0 1 5.83-.99l1.94-.5A5 5 0 0 0 8 6v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zm-6 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4z",
+    refresh: "M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.93 9h-2.02A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z",
     analytics: "M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z",
     reports: "M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z",
     audit: "M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z",
@@ -449,48 +506,166 @@ export default function AdminApp() {
   // Log administrative actions
   const triggerAuditLog = async (action: string, module: string, targetRecord: string) => {
     try {
-      await apiFetch('/admin/audit-logs', {
-        method: 'POST',
-        body: JSON.stringify({ action, module, targetRecord })
+      if (!supabaseClient) throw new Error('Supabase client is not available.');
+      const { data: authData } = await supabaseClient.auth.getUser();
+      const { error } = await supabaseClient.from('audit_logs').insert({
+        user_id: authData.user?.id || null,
+        action_type: action,
+        action_details: { module, target_record: targetRecord },
+        created_at: new Date().toISOString(),
       });
-      fetchAuditLogs();
+      if (error) throw new Error(error.message);
+      void fetchAuditLogs();
     } catch (error) { console.error(error); }
   };
 
   // Fetch data functions
   const fetchDashboardStats = useCallback(async () => {
     try {
-      const d = await apiFetch('/admin/dashboard');
-      if (d.success) setDashboardData(d);
+      const [users, motorcycles, rides, deviceRows] = await Promise.all([
+        fetchAllSupabaseRows('users'),
+        fetchAllSupabaseRows('motorcycles'),
+        fetchAllSupabaseRows('ride_history'),
+        fetchAllSupabaseRows('devices'),
+      ]);
+      const dayKey = (value: string | Date) => {
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+      const sobrietyByDay = new Map<string, { date: string; passed: number; failed: number }>();
+      for (const ride of rides) {
+        const rideDate = new Date(ride.start_time);
+        if (!ride.start_time || Number.isNaN(rideDate.getTime()) || rideDate < thirtyDaysAgo) continue;
+        const date = dayKey(rideDate);
+        const summary = sobrietyByDay.get(date) || { date, passed: 0, failed: 0 };
+        if (['completed', 'passed'].includes(String(ride.status).toLowerCase())) summary.passed += 1;
+        if (['failed_brac', 'failed_face'].includes(String(ride.status).toLowerCase())) summary.failed += 1;
+        sobrietyByDay.set(date, summary);
+      }
+      const usersById = new Map(users.map((user) => [user.id, user]));
+      const devicesById = new Map(deviceRows.map((device) => [device.id, device]));
+      const recentAlerts = rides
+        .filter((ride) => ['failed_brac', 'failed_face', 'failed_helmet'].includes(String(ride.status).toLowerCase()))
+        .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
+        .slice(0, 10)
+        .map((ride) => {
+          const user = usersById.get(ride.user_id);
+          return {
+            ...ride,
+            created_at: ride.start_time,
+            full_name: user?.name || user?.full_name || user?.email || 'Unknown rider',
+            email: user?.email || '',
+            motorcycle_id: devicesById.get(ride.device_id)?.motorcycle_id || '',
+            brac: String(ride.initial_brac_level ?? 0),
+            alcohol_detected: ride.status === 'failed_brac',
+            face_verified: ride.status !== 'failed_face',
+            helmet_verified: ride.status !== 'failed_helmet',
+          };
+        });
+      setDashboardData({
+        totalRiders: users.filter((user) => user.role === 'rider').length,
+        totalMotorcycles: motorcycles.length,
+        activeDevices: deviceRows.filter((device) => device.status === 'online').length,
+        recentOverrides: rides.filter((ride) => String(ride.status || '').includes('override')).length,
+        todaysRides: rides.filter((ride) => ride.start_time && dayKey(ride.start_time) === dayKey(new Date())).length,
+        failedTests: rides.filter((ride) => ['failed_brac', 'failed_face'].includes(ride.status)).length,
+        sobrietySummary: Array.from(sobrietyByDay.values()),
+        recentAlerts,
+      });
     } catch (error) { console.error(error); }
-  }, [apiFetch]);
+  }, []);
 
   const fetchRiders = useCallback(async () => {
     try {
-      const d = await apiFetch('/admin/users');
-      if (d.success) setRiders(d.users);
+      const [users, motorcycles, contacts] = await Promise.all([
+        fetchAllSupabaseRows('users'),
+        fetchAllSupabaseRows('motorcycles'),
+        fetchAllSupabaseRows('emergency_contacts'),
+      ]);
+      const motorcyclesByUser = new Map<string, any[]>();
+      for (const motorcycle of motorcycles) {
+        const current = motorcyclesByUser.get(motorcycle.user_id) || [];
+        current.push(motorcycle);
+        motorcyclesByUser.set(motorcycle.user_id, current);
+      }
+      const contactsByUser = new Map<string, any[]>();
+      for (const contact of contacts) {
+        const current = contactsByUser.get(contact.user_id) || [];
+        current.push({ ...contact, name: displayContactName(contact), phone: contact.phone_number, role: contact.relationship });
+        contactsByUser.set(contact.user_id, current);
+      }
+      setRiders(users.map((user) => ({
+        ...user,
+        full_name: user.name || user.full_name || user.email,
+        face_enrolled: Boolean(user.face_descriptor || user.face_enrolled),
+        motorcycles: motorcyclesByUser.get(user.id) || [],
+        contacts: contactsByUser.get(user.id) || [],
+      })).sort((a, b) => {
+        const aUpdated = Date.parse(a.updated_at || a.created_at || '') || 0;
+        const bUpdated = Date.parse(b.updated_at || b.created_at || '') || 0;
+        return bUpdated - aUpdated;
+      }));
     } catch (error) { console.error(error); }
-  }, [apiFetch]);
+  }, []);
 
   const fetchOverrides = useCallback(async () => {
     try {
-      const d = await apiFetch('/admin/override-logs');
-      if (d.success) setOverrides(d.logs);
+      const [rides, users] = await Promise.all([
+        fetchAllSupabaseRows('ride_history'),
+        fetchAllSupabaseRows('users'),
+      ]);
+      const usersById = new Map(users.map((user) => [user.id, user]));
+      setOverrides(rides.map((ride) => {
+        const user = usersById.get(ride.user_id);
+        return {
+          ...ride,
+          created_at: ride.start_time || ride.created_at,
+          full_name: user?.name || user?.full_name || 'Unknown rider',
+          email: user?.email || '',
+          brac: String(ride.initial_brac_level ?? 0),
+          unlock_status: ride.status,
+          alcohol_detected: ['failed_brac'].includes(ride.status),
+          face_verified: ride.status !== 'failed_face',
+          helmet_verified: ride.status !== 'failed_helmet',
+        };
+      }));
     } catch (error) { console.error(error); }
-  }, [apiFetch]);
+  }, []);
 
   const fetchAuditLogs = useCallback(async () => {
     try {
-      const d = await apiFetch('/admin/audit-logs');
-      if (d.success) setAuditLogs(d.logs);
+      const [logs, users] = await Promise.all([
+        fetchAllSupabaseRows('audit_logs'),
+        fetchAllSupabaseRows('users'),
+      ]);
+      const usersById = new Map(users.map((user) => [user.id, user]));
+      setAuditLogs(logs.map((log) => {
+        const details = typeof log.action_details === 'string'
+          ? JSON.parse(log.action_details || '{}')
+          : (log.action_details || {});
+        return {
+          ...log,
+          action: log.action_type || log.action || 'event',
+          module: String(log.action_type || log.module || 'system').split('_')[0],
+          target_record: details.ride_id || details.name || details.email || details.result || '',
+          admin_name: usersById.get(log.user_id)?.name || details.actor || 'System',
+        };
+      }));
     } catch (error) { console.error(error); }
-  }, [apiFetch]);
+  }, []);
 
   const fetchSettings = useCallback(async () => {
     try {
-      const d = await apiFetch('/admin/settings');
-      if (d.success && d.settings) {
-        const s = d.settings;
+      const settings = await fetchAllSupabaseRows('system_settings', 'setting_key');
+      if (settings.length) {
+        const s = Object.fromEntries(settings.map((row) => [row.setting_key, row.setting_value]));
         if (s.alcohol_threshold) setAlcoholThreshold(s.alcohol_threshold);
         if (s.lockout_limit) setLockoutLimit(s.lockout_limit);
         if (s.session_timeout) setSessionTimeout(s.session_timeout);
@@ -517,28 +692,53 @@ export default function AdminApp() {
         if (s.auto_reconnect !== undefined) setAutoReconnect(s.auto_reconnect === 'true');
       }
     } catch (error) { console.error(error); }
-  }, [apiFetch]);
+  }, []);
 
   const saveSettingToDB = async (key: string, value: string) => {
-    await apiFetch('/admin/settings', {
-      method: 'POST',
-      body: JSON.stringify({ setting_key: key, setting_value: value })
-    });
+    if (!supabaseClient) throw new Error('Supabase client is not available.');
+    const { error } = await supabaseClient.from('system_settings').upsert(
+      { setting_key: key, setting_value: value },
+      { onConflict: 'setting_key' },
+    );
+    if (error) throw new Error(error.message);
   };
 
   const fetchDevices = useCallback(async () => {
     try {
-      const d = await apiFetch('/admin/devices');
-      if (d.success) setDevices(d.devices);
+      const [deviceRows, users, motorcycles] = await Promise.all([
+        fetchAllSupabaseRows('devices'),
+        fetchAllSupabaseRows('users'),
+        fetchAllSupabaseRows('motorcycles'),
+      ]);
+      const usersById = new Map(users.map((user) => [user.id, user]));
+      const motorcyclesById = new Map(motorcycles.map((motorcycle) => [motorcycle.id, motorcycle]));
+      setDevices(deviceRows.map((device) => ({
+        ...device,
+        model: motorcyclesById.get(device.motorcycle_id)?.model || device.firmware_version || 'MotoLock device',
+        rider_name: usersById.get(device.user_id)?.name || 'Unassigned',
+      })));
     } catch (error) { console.error(error); }
-  }, [apiFetch]);
+  }, []);
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const d = await apiFetch('/admin/notifications');
-      if (d.success) setNotifications(d.notifications || []);
+      const [rides, users] = await Promise.all([
+        fetchAllSupabaseRows('ride_history'),
+        fetchAllSupabaseRows('users'),
+      ]);
+      const usersById = new Map(users.map((user) => [user.id, user]));
+      setNotifications(rides
+        .filter((ride) => ['failed_brac', 'failed_face'].includes(ride.status))
+        .map((ride) => ({
+          ...ride,
+          created_at: ride.start_time || ride.created_at,
+          full_name: usersById.get(ride.user_id)?.name || 'Unknown rider',
+          email: usersById.get(ride.user_id)?.email || '',
+          brac: String(ride.initial_brac_level ?? 0),
+          alcohol_detected: ride.status === 'failed_brac',
+        })));
     } catch (error) { console.error(error); }
-  }, [apiFetch]);
+  }, []);
 
   const loadAllData = useCallback(async () => {
     await Promise.all([
@@ -565,14 +765,33 @@ export default function AdminApp() {
 
   // Helper alerts
   const showCustomAlert = (title: string, msg: string) => {
+    setConfirmTitle('');
+    setConfirmMsg('');
+    setConfirmCallback(null);
     setAlertTitle(title);
     setAlertMsg(msg);
   };
 
   const showCustomConfirm = (title: string, msg: string, callback: () => void) => {
+    setAlertTitle('');
+    setAlertMsg('');
+    setShowAddUser(false);
+    setSelectedRider(null);
     setConfirmTitle(title);
     setConfirmMsg(msg);
     setConfirmCallback(() => callback);
+  };
+
+  const showAddUserModal = () => {
+    setAlertTitle('');
+    setAlertMsg('');
+    setConfirmTitle('');
+    setConfirmMsg('');
+    setConfirmCallback(null);
+    setSelectedRider(null);
+    setNewRole('rider');
+    setAddUserErrors({});
+    setShowAddUser(true);
   };
 
   // Add User Trigger
@@ -582,15 +801,17 @@ export default function AdminApp() {
     let hasError = false;
     const errors: Record<string, string> = {};
     
-    if (!newFullName) {
+    const normalizedName = newFullName.trim();
+    const normalizedEmail = newEmail.trim().toLowerCase();
+    if (!normalizedName) {
       errors.fullName = 'Full Name is required';
       hasError = true;
     }
 
-    if (!newEmail) {
+    if (!normalizedEmail) {
       errors.email = 'Email is required';
       hasError = true;
-    } else if (!newEmail.includes('@') && newRole !== 'admin') {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       errors.email = 'Please enter a valid email address.';
       hasError = true;
     }
@@ -619,8 +840,8 @@ export default function AdminApp() {
 
       const { data, error } = await supabaseClient.functions.invoke('admin-create-user', {
         body: {
-          fullName: newFullName,
-          email: newEmail,
+          fullName: normalizedName,
+          email: normalizedEmail,
           password: newPassword,
           role: newRole,
         },
@@ -639,20 +860,19 @@ export default function AdminApp() {
           const errorBody = await response.clone().json().catch(() => null);
           functionMessage = errorBody?.error;
         }
-        throw new Error(functionMessage || error.message);
+        throw new Error(functionMessage || describeEdgeFunctionError(error));
       }
 
-      if (data?.user?.id) {
-        showCustomAlert('Success', '✅ Rider account created. A verification code will be sent when the rider first logs in.');
-        triggerAuditLog(`Created user ${newEmail} (${newRole})`, 'Users & Roles', newEmail);
-        setShowAddUser(false);
-        setNewFullName('');
-        setNewEmail('');
-
-        setNewPassword('');
-        setAddUserErrors({});
-        loadAllData();
-      }
+      if (!data?.user?.id) throw new Error('The account was created without a matching profile. Please refresh the user list.');
+      showCustomAlert('Success', `${newRole === 'admin' ? 'Administrator' : 'Rider'} account created successfully.`);
+      triggerAuditLog(`Created user ${normalizedEmail} (${newRole})`, 'Users & Roles', normalizedEmail);
+      setShowAddUser(false);
+      setNewFullName('');
+      setNewEmail('');
+      setNewPassword('');
+      setNewRole('rider');
+      setAddUserErrors({});
+      loadAllData();
     } catch (err) {
       setAddUserErrors({ general: errorMessage(err) });
     }
@@ -675,7 +895,7 @@ export default function AdminApp() {
           const errorBody = response instanceof Response
             ? await response.clone().json().catch(() => null)
             : null;
-          throw new Error(data?.error || errorBody?.error || error.message);
+          throw new Error(data?.error || errorBody?.error || describeEdgeFunctionError(error));
         }
 
         triggerAuditLog(`Deleted user account`, 'Users & Roles', email);
@@ -689,6 +909,12 @@ export default function AdminApp() {
 
   // Manage Rider actions
   const handleManageRider = (rider: Rider) => {
+    setAlertTitle('');
+    setAlertMsg('');
+    setConfirmTitle('');
+    setConfirmMsg('');
+    setConfirmCallback(null);
+    setShowAddUser(false);
     setSelectedRider(rider);
     setEditFullName(rider.full_name || '');
     setEditEmail(rider.email || '');
@@ -700,23 +926,52 @@ export default function AdminApp() {
   const handleSaveProfile = async (e: React.FormEvent) => {
     if (!selectedRider) return;
     e.preventDefault();
-    if (!editFullName || !editEmail) {
+    const normalizedName = editFullName.trim();
+    const normalizedEmail = editEmail.trim().toLowerCase();
+    if (!normalizedName || !normalizedEmail) {
       showCustomAlert('Missing Fields', 'Please complete all profile fields.');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      showCustomAlert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
     try {
-      await apiFetch(`/admin/users/${selectedRider.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          fullName: editFullName,
-          email: editEmail,
-          role: editRole
-        })
-      });
-      showCustomAlert('Success', 'Profile updated successfully.');
-      triggerAuditLog(`Updated rider profile for ${editEmail}`, 'Riders Directory', editEmail);
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      const session = sessionData.session;
+      if (!session) throw new Error('Your administrator session has expired. Please log out, then log in again.');
 
-      const updated = riders.map(r => r.id === selectedRider.id ? { ...r, full_name: editFullName, email: editEmail, role: editRole } : r);
+      const { data, error } = await supabaseClient.functions.invoke('admin-update-user', {
+        body: {
+          userId: selectedRider.id,
+          fullName: normalizedName,
+          email: normalizedEmail,
+          role: editRole,
+        },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (error) {
+        const response = error.context;
+        const errorBody = response instanceof Response ? await response.clone().json().catch(() => null) : null;
+        throw new Error(data?.error || errorBody?.error || describeEdgeFunctionError(error));
+      }
+      if (!data?.user?.id) throw new Error('The account update did not return a saved profile.');
+      showCustomAlert('Success', 'Profile updated successfully.');
+      triggerAuditLog(`Updated rider profile for ${normalizedEmail}`, 'Riders Directory', normalizedEmail);
+
+      const updatedAt = new Date().toISOString();
+      const updated = riders.map(r => r.id === selectedRider.id ? {
+        ...r,
+        name: normalizedName,
+        full_name: normalizedName,
+        email: normalizedEmail,
+        role: editRole,
+        updated_at: updatedAt,
+      } : r).sort((a, b) => {
+        const aUpdated = Date.parse(a.updated_at || a.created_at || '') || 0;
+        const bUpdated = Date.parse(b.updated_at || b.created_at || '') || 0;
+        return bUpdated - aUpdated;
+      });
       setRiders(updated);
       setSelectedRider(null);
       loadAllData();
@@ -1184,7 +1439,7 @@ export default function AdminApp() {
                     notifications.map((n, idx) => (
                       <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '12px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-                          <span style={{ color: 'var(--red)' }}>🚨 Safety Alert</span>
+                          <span style={{ color: 'var(--red)' }}><Icon name="warning" size={14} color="var(--red)" /> Safety Alert</span>
                           <span style={{ fontSize: '10px', color: 'var(--muted)' }}>
                             {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
@@ -1257,15 +1512,18 @@ export default function AdminApp() {
               // Generate last 30 days of dates to ensure the graph timeline is complete, populated by database counts
               const last30Days = Array.from({ length: 30 }).map((_, i) => {
                 const d = new Date();
+                d.setHours(0, 0, 0, 0);
                 d.setDate(d.getDate() - (29 - i));
-                return d.toISOString().split('T')[0];
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
               });
 
               const chartData = last30Days.map(dateStr => {
                 const dbMatch = sobrietySummary.find((item) => {
                   if (!item.date) return false;
                   // Handle potential date timezone differences
-                  const itemDateStr = new Date(item.date).toISOString().split('T')[0];
+                  const itemDate = new Date(item.date);
+                  if (Number.isNaN(itemDate.getTime())) return false;
+                  const itemDateStr = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}-${String(itemDate.getDate()).padStart(2, '0')}`;
                   return itemDateStr === dateStr;
                 });
                 return {
@@ -1281,7 +1539,11 @@ export default function AdminApp() {
               const passedPercentage = totalTests > 0 ? ((totalPassed / totalTests) * 100).toFixed(1) : '0.0';
               const failedPercentage = totalTests > 0 ? ((totalFailed / totalTests) * 100).toFixed(1) : '0.0';
 
-              const maxVal = Math.max(...chartData.map(d => Math.max(d.passed, d.failed, 1000)));
+              const peakDailyTests = Math.max(0, ...chartData.map(d => Math.max(d.passed, d.failed)));
+              const rawMax = Math.max(peakDailyTests, 1);
+              const magnitude = 10 ** Math.floor(Math.log10(rawMax));
+              const normalizedMax = rawMax / magnitude;
+              const maxVal = (normalizedMax <= 1 ? 1 : normalizedMax <= 2 ? 2 : normalizedMax <= 5 ? 5 : 10) * magnitude;
               const width = 450;
               const height = 500;
               const paddingLeft = 40;
@@ -1365,12 +1627,12 @@ export default function AdminApp() {
                             {/* Grid Lines */}
                             {[0, 0.2, 0.4, 0.6, 0.8, 1].map((ratio, index) => {
                               const y = paddingTop + ratio * (height - paddingTop - paddingBottom);
-                              const labelVal = Math.round(maxVal - ratio * maxVal);
+                              const labelVal = Math.round(maxVal * (1 - ratio));
                               return (
                                 <g key={index}>
                                   <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="var(--border)" strokeDasharray="3 3" />
                                   <text x={paddingLeft - 10} y={y + 4} textAnchor="end" fill="var(--muted)" style={{ fontSize: 10 }}>
-                                    {labelVal >= 1000 ? `${(labelVal / 1000).toFixed(0)}K` : labelVal}
+                                    {labelVal}
                                   </text>
                                 </g>
                               );
@@ -1404,7 +1666,7 @@ export default function AdminApp() {
                             {chartData.length > 0 && [0, Math.floor(chartData.length / 4), Math.floor(chartData.length / 2), Math.floor(3 * chartData.length / 4), chartData.length - 1].map((idx) => {
                               if (idx >= chartData.length) return null;
                               const pt = chartData[idx];
-                              const x = paddingLeft + (idx / (chartData.length - 1)) * (width - paddingLeft - paddingRight);
+                              const x = paddingLeft + (chartData.length <= 1 ? 0 : idx / (chartData.length - 1)) * (width - paddingLeft - paddingRight);
                               return (
                                 <text key={idx} x={x} y={height - 10} textAnchor="middle" fill="var(--muted)" style={{ fontSize: 10 }}>
                                   {pt.date}
@@ -1465,29 +1727,29 @@ export default function AdminApp() {
                           recentAlerts.slice(0, 5).map((r, idx: number) => {
                             let alertTitle = 'Ignition Session Completed';
                             let alertDesc = `Rider: ${r.full_name || 'Rider'} | Device: DEV-${r.motorcycle_id || 'N/A'}`;
-                            let alertIcon = '✅';
+                            let alertIcon = 'check';
                             let badgeColor = 'var(--green)';
                             let badgeBg = 'rgba(31,163,91,0.1)';
                             let badgeText = 'Low';
 
-                            if (r.alcohol_detected || parseFloat(r.brac) >= 0.05) {
+                            if (r.alcohol_detected || r.status === 'failed_brac' || parseFloat(r.brac) >= 0.05) {
                               alertTitle = 'High Alcohol Detected';
                               alertDesc = `Rider: ${r.full_name || 'Rider'} | Device: DEV-${r.motorcycle_id || 'N/A'}`;
-                              alertIcon = '🚨';
+                              alertIcon = 'warning';
                               badgeColor = 'var(--red)';
                               badgeBg = 'rgba(237,28,36,0.1)';
                               badgeText = 'High';
-                            } else if (!r.face_verified) {
+                            } else if (!r.face_verified || r.status === 'failed_face') {
                               alertTitle = 'Identity Verification Failed';
                               alertDesc = `Rider: ${r.full_name || 'Rider'} | Device: DEV-${r.motorcycle_id || 'N/A'}`;
-                              alertIcon = '👤';
+                              alertIcon = 'person';
                               badgeColor = 'var(--yellow)';
                               badgeBg = 'rgba(245,158,11,0.1)';
                               badgeText = 'Medium';
-                            } else if (!r.helmet_verified) {
+                            } else if (!r.helmet_verified || r.status === 'failed_helmet') {
                               alertTitle = 'Helmet Safety Lockout';
                               alertDesc = `Rider: ${r.full_name || 'Rider'} | Device: DEV-${r.motorcycle_id || 'N/A'}`;
-                              alertIcon = '🪖';
+                              alertIcon = 'helmet';
                               badgeColor = 'var(--yellow)';
                               badgeBg = 'rgba(245,158,11,0.1)';
                               badgeText = 'Medium';
@@ -1495,8 +1757,8 @@ export default function AdminApp() {
 
                             return (
                               <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderBottom: '1px solid var(--border)', fontSize: '13px' }}>
-                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: badgeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-                                  {alertIcon}
+                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: badgeBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Icon name={alertIcon} size={16} color={badgeColor} />
                                 </div>
                                 <div style={{ flex: 1 }}>
                                   <div style={{ fontWeight: 700 }}>{alertTitle}</div>
@@ -1583,7 +1845,7 @@ export default function AdminApp() {
                         </td>
                         <td style={styles.tableCell}>
                           <span style={{ color: d.is_locked ? 'var(--red)' : 'var(--green)', fontWeight: 700 }}>
-                            {d.is_locked ? '🔒 Locked' : '🔓 Unlocked'}
+                            <><Icon name={d.is_locked ? 'lock' : 'unlock'} size={14} color={d.is_locked ? 'var(--red)' : 'var(--green)'} /> {d.is_locked ? 'Locked' : 'Unlocked'}</>
                           </span>
                         </td>
                         <td style={styles.tableCell}>User ID: {d.user_id}</td>
@@ -1611,18 +1873,17 @@ export default function AdminApp() {
                     style={styles.input}
                   />
                 </div>
-                {adminRole === 'superadmin' && (
-                  <CustomSelect
-                    options={[
-                      { value: 'all', label: 'All Roles' },
-                      { value: 'rider', label: 'Riders' },
-                      { value: 'admin', label: 'Administrators' }
-                    ]}
-                    value={riderRoleFilter}
-                    onChange={val => setRiderRoleFilter(val)}
-                    style={{ width: '160px' }}
-                  />
-                )}
+                <CustomSelect
+                  options={[
+                    { value: 'all', label: 'All Roles' },
+                    { value: 'rider', label: 'Riders' },
+                    { value: 'admin', label: 'Administrators' },
+                    { value: 'superadmin', label: 'Super Administrators' },
+                  ]}
+                  value={riderRoleFilter}
+                  onChange={val => setRiderRoleFilter(val)}
+                  style={{ width: '190px' }}
+                />
                 <CustomSelect
                   options={[
                     { value: 'all', label: 'All Face ID' },
@@ -1633,7 +1894,7 @@ export default function AdminApp() {
                   onChange={val => setRiderFaceFilter(val)}
                   style={{ width: '160px' }}
                 />
-                <button onClick={() => setShowAddUser(true)} style={{ ...styles.actionBtn, height: '44px', whiteSpace: 'nowrap' }}>
+                <button onClick={showAddUserModal} style={{ ...styles.actionBtn, height: '44px', whiteSpace: 'nowrap' }}>
                   <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
                     <Icon name="users" size={14} />
                   </span>
@@ -1657,17 +1918,16 @@ export default function AdminApp() {
                 <tbody>
                   {riders
                     .filter(r => {
-                      const matchesRoleAccess = adminRole === 'superadmin' || r.role === 'rider';
                       const matchesQ = r.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                         r.email?.toLowerCase().includes(searchQuery.toLowerCase());
                       const matchesRole = riderRoleFilter === 'all' || r.role === riderRoleFilter;
                       const matchesFace = riderFaceFilter === 'all' ||
                         (riderFaceFilter === 'enrolled' && r.face_enrolled) ||
                         (riderFaceFilter === 'missing' && !r.face_enrolled);
-                      return matchesQ && matchesRole && matchesFace && matchesRoleAccess;
+                      return matchesQ && matchesRole && matchesFace;
                     })
-                    .map((r, idx) => (
-                      <tr key={idx}>
+                    .map((r) => (
+                      <tr key={r.id}>
                         <td style={styles.tableCell}>{r.full_name}</td>
                         <td style={styles.tableCell}>{r.email}</td>
                         <td style={styles.tableCell}>{maskPhone(r.phone)}</td>
@@ -1706,7 +1966,7 @@ export default function AdminApp() {
                             {r.role.toUpperCase()}
                           </span>
                         </td>
-                        <td style={styles.tableCell}>{r.face_enrolled ? '✅ Face Loaded' : '❌ Missing'}</td>
+                        <td style={styles.tableCell}><Icon name={r.face_enrolled ? 'check' : 'close'} size={14} color={r.face_enrolled ? 'var(--green)' : 'var(--red)'} /> {r.face_enrolled ? 'Face Loaded' : 'Missing'}</td>
                         <td style={styles.tableCell}>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button
@@ -1752,7 +2012,7 @@ export default function AdminApp() {
                   {devices.map((d, idx) => (
                     <tr key={idx}>
                       <td style={styles.tableCell}><code>DEV-{d.id}</code></td>
-                      <td style={styles.tableCell}>{d.is_locked ? '🔒 Secure Lock' : '🔓 Ignition Ready'}</td>
+                      <td style={styles.tableCell}><Icon name={d.is_locked ? 'lock' : 'unlock'} size={14} color={d.is_locked ? 'var(--red)' : 'var(--green)'} /> {d.is_locked ? 'Secure Lock' : 'Ignition Ready'}</td>
                       <td style={styles.tableCell}>SIM Card: {d.sim_number || 'N/A'}</td>
                       <td style={styles.tableCell}>
                         <button
@@ -1825,7 +2085,7 @@ export default function AdminApp() {
                     <tr key={idx}>
                       <td style={styles.tableCell}>{new Date(o.created_at).toLocaleDateString()}</td>
                       <td style={styles.tableCell}>{o.full_name}</td>
-                      <td style={styles.tableCell}>{o.face_verified ? '✅ Matched Face' : '❌ Verification Bypassed'}</td>
+                      <td style={styles.tableCell}><Icon name={o.face_verified ? 'check' : 'close'} size={14} color={o.face_verified ? 'var(--green)' : 'var(--red)'} /> {o.face_verified ? 'Matched Face' : 'Verification Bypassed'}</td>
                       <td style={styles.tableCell}>Ignition Status: {o.status}</td>
                     </tr>
                   ))}
@@ -1857,7 +2117,7 @@ export default function AdminApp() {
                         <td style={styles.tableCell}>{new Date(o.created_at).toLocaleString()}</td>
                         <td style={styles.tableCell}>{o.full_name} ({o.email})</td>
                         <td style={styles.tableCell}>Alcohol limit exceeded ({o.brac} BAC)</td>
-                        <td style={styles.tableCell}><span style={{ color: 'var(--red)', fontWeight: 700 }}>🚨 High Severity</span></td>
+                        <td style={styles.tableCell}><span style={{ color: 'var(--red)', fontWeight: 700 }}><Icon name="warning" size={14} color="var(--red)" /> High Severity</span></td>
                         <td style={styles.tableCell}>
                           <button
                             onClick={() => {
@@ -2058,7 +2318,7 @@ export default function AdminApp() {
             {/* PREVIEW CONTAINER */}
             {isGeneratingReport && (
               <div style={{ ...styles.card, marginTop: 24, textAlign: 'center', padding: 40 }}>
-                <div style={{ color: 'var(--muted)', fontSize: 14 }}>🔄 Compiling database records and generating preview safety sheets...</div>
+                <div style={{ color: 'var(--muted)', fontSize: 14 }}><Icon name="refresh" size={15} /> Compiling database records and generating preview safety sheets...</div>
               </div>
             )}
 
@@ -2135,7 +2395,7 @@ export default function AdminApp() {
                                 <td style={styles.tableCell}><strong>{row.brac} BAC</strong></td>
                                 <td style={styles.tableCell}>
                                   <span style={{ color: parseFloat(row.brac || '0') >= 0.05 ? 'var(--red)' : 'var(--green)', fontWeight: 700 }}>
-                                    {parseFloat(row.brac || '0') >= 0.05 ? '🚨 Intoxicated' : '✅ Sober'}
+                                    <><Icon name={parseFloat(row.brac || '0') >= 0.05 ? 'warning' : 'check'} size={14} color={parseFloat(row.brac || '0') >= 0.05 ? 'var(--red)' : 'var(--green)'} /> {parseFloat(row.brac || '0') >= 0.05 ? 'Intoxicated' : 'Sober'}</>
                                   </span>
                                 </td>
                                 <td style={styles.tableCell}>Ignition: {row.status}</td>
@@ -2734,7 +2994,7 @@ export default function AdminApp() {
 
       {/* POPUP CONTAINER MODAL - ALERT */}
       {alertTitle && (
-        <div style={{ ...styles.modalBackdrop, zIndex: 9999 }}>
+        <div style={{ ...styles.modalBackdrop, zIndex: 100001 }}>
           <div style={styles.modalContent}>
             <h3>{alertTitle}</h3>
             <p style={{ margin: '14px 0', fontSize: 14 }}>{alertMsg}</p>
@@ -2747,7 +3007,7 @@ export default function AdminApp() {
 
       {/* POPUP CONTAINER MODAL - CONFIRM */}
       {confirmTitle && (
-        <div style={{ ...styles.modalBackdrop, zIndex: 9999 }}>
+        <div style={{ ...styles.modalBackdrop, zIndex: 100001 }}>
           <div style={styles.modalContent}>
             <h3>{confirmTitle}</h3>
             <p style={{ margin: '14px 0', fontSize: 14 }}>{confirmMsg}</p>
@@ -2777,7 +3037,7 @@ export default function AdminApp() {
       )}
 
       {/* POPUP CONTAINER MODAL - ADD USER */}
-      {showAddUser && (
+      {showAddUser && !alertTitle && !confirmTitle && (
         <div style={styles.modalBackdrop}>
           <div style={styles.modalContent}>
             <h3>Register New User Account</h3>
@@ -2797,7 +3057,8 @@ export default function AdminApp() {
               <div style={styles.formGroup}>
                 <label style={styles.label}>Email Address</label>
                 <input
-                  type="text"
+                  type="email"
+                  autoComplete="email"
                   value={newEmail}
                   onChange={e => setNewEmail(e.target.value)}
                   style={{ ...styles.input, ...(addUserErrors.email ? { border: '1px solid var(--red)' } : {}) }}
@@ -2829,7 +3090,7 @@ export default function AdminApp() {
                   />
                   {newRole === 'rider' && (
                     <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, lineHeight: '14px' }}>
-                      💡 <strong>Note:</strong> Riders registered by an Admin start with no Face ID data. They will be automatically prompted to enroll/register their Face ID when they first log into the client mobile app.
+                      <Icon name="info" size={14} /> <strong>Note:</strong> Riders registered by an Admin start with no Face ID data. They will be automatically prompted to enroll/register their Face ID when they first log into the client mobile app.
                     </p>
                   )}
                 </div>
@@ -2853,6 +3114,7 @@ export default function AdminApp() {
                     setNewEmail('');
 
                     setNewPassword('');
+                    setNewRole('rider');
                     setAddUserErrors({});
                   }}
                   style={{ ...styles.primaryButton, background: '#737987' }}
@@ -2865,7 +3127,7 @@ export default function AdminApp() {
         </div>
       )}
 
-      {selectedRider && (
+      {selectedRider && !alertTitle && !confirmTitle && !showAddUser && (
         <div style={styles.modalBackdrop}>
           <div style={{ ...styles.modalContent, width: '600px', maxWidth: '95%' }}>
             <h3 style={styles.modalTitle}>Manage Rider: {selectedRider.full_name}</h3>
@@ -2925,9 +3187,9 @@ export default function AdminApp() {
                 </div>
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Email Address</label>
-                  <input type="text" value={editEmail} onChange={e => setEditEmail(e.target.value)} style={styles.input} required />
+                  <input type="email" autoComplete="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} style={styles.input} required />
                 </div>
-                <div style={styles.formGroup}>
+                {adminRole === 'superadmin' && <div style={styles.formGroup}>
                   <label style={styles.label}>Role</label>
                   <CustomSelect
                     options={[
@@ -2937,7 +3199,7 @@ export default function AdminApp() {
                     value={editRole}
                     onChange={val => setEditRole(val)}
                   />
-                </div>
+                </div>}
                 <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
                   <button type="submit" style={styles.primaryButton}>Save Profile</button>
                   <button type="button" onClick={() => setSelectedRider(null)} style={{ ...styles.primaryButton, background: '#737987' }}>Close</button>

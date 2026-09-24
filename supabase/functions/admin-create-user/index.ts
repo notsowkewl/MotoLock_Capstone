@@ -39,10 +39,19 @@ Deno.serve(async (request) => {
     }
 
     const { fullName, email, password, role = 'rider' } = await request.json()
-    const normalizedEmail = String(email || '').trim().toLowerCase()
+    const normalizedName = typeof fullName === 'string' ? fullName.trim() : ''
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
 
-    if (!fullName?.trim() || !normalizedEmail || !password) {
+    if (!normalizedName || !normalizedEmail || !password) {
       return Response.json({ error: 'Full name, email, and password are required.' }, { status: 400, headers: corsHeaders })
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return Response.json({ error: 'Enter a valid email address.' }, { status: 400, headers: corsHeaders })
+    }
+
+    if (!['rider', 'admin'].includes(role)) {
+      return Response.json({ error: 'Only rider or administrator accounts can be created here.' }, { status: 400, headers: corsHeaders })
     }
 
     if (password.length < 8) {
@@ -57,22 +66,42 @@ Deno.serve(async (request) => {
       email: normalizedEmail,
       password,
       email_confirm: false,
-      user_metadata: { fullName: fullName.trim() },
+      user_metadata: { full_name: normalizedName, fullName: normalizedName },
     })
 
     if (authError || !authData.user) {
       return Response.json({ error: authError?.message || 'Unable to create the login account.' }, { status: 400, headers: corsHeaders })
     }
 
-    const { data: riderProfile, error: insertError } = await adminClient
+    const now = new Date().toISOString()
+    const { data: existingProfile, error: existingProfileError } = await adminClient
       .from('users')
-      .insert({
-        id: authData.user.id,
-        name: fullName.trim(),
-        email: normalizedEmail,
-        password_hash: 'supabase-auth-managed',
-        role,
-      })
+      .select('id')
+      .eq('id', authData.user.id)
+      .maybeSingle()
+
+    if (existingProfileError) {
+      await adminClient.auth.admin.deleteUser(authData.user.id)
+      return Response.json({ error: existingProfileError.message }, { status: 400, headers: corsHeaders })
+    }
+
+    const profileValues = {
+      name: normalizedName,
+      email: normalizedEmail,
+      password_hash: 'supabase-auth-managed',
+      role,
+      status: 'active',
+      updated_at: now,
+    }
+    const profileQuery = existingProfile
+      ? adminClient.from('users').update(profileValues).eq('id', authData.user.id)
+      : adminClient.from('users').insert({
+          id: authData.user.id,
+          ...profileValues,
+          created_at: now,
+        })
+
+    const { data: riderProfile, error: insertError } = await profileQuery
       .select()
       .single()
 
