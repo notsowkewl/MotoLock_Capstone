@@ -341,16 +341,88 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
                     modifier = Modifier.fillMaxSize()
                 )
             } else if (currentStep == UnlockStep.CONNECTING) {
-                androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                    if (isConnectionFailed) {
-                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.BluetoothSearching, contentDescription = null, tint = androidx.compose.ui.graphics.Color.Gray, modifier = androidx.compose.ui.Modifier.size(48.dp))
+                val sharedPrefsCheck = context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE)
+                val hasPairedDevice = sharedPrefsCheck.getString("esp32_mac", null) != null
+                androidx.compose.foundation.layout.Column(
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                    modifier = androidx.compose.ui.Modifier.padding(24.dp)
+                ) {
+                    if (!hasPairedDevice) {
+                        // No device paired at all
+                        androidx.compose.material3.Icon(
+                            androidx.compose.material.icons.Icons.Default.BluetoothSearching,
+                            contentDescription = null,
+                            tint = androidx.compose.ui.graphics.Color(0xFFED1C24),
+                            modifier = androidx.compose.ui.Modifier.size(56.dp)
+                        )
                         androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(16.dp))
-                        androidx.compose.material3.Text("Retry Connection", color = androidx.compose.ui.graphics.Color(0xFFED1C24), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, modifier = androidx.compose.ui.Modifier.clickable {
-                            isConnectionFailed = false
-                            currentStep = UnlockStep.CONNECTING
-                        })
+                        androidx.compose.material3.Text(
+                            "No Device Paired",
+                            color = androidx.compose.ui.graphics.Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
+                        androidx.compose.material3.Text(
+                            "You need to pair your MotoLock device first before unlocking.",
+                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
+                            fontSize = 13.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(24.dp))
+                        androidx.compose.material3.Button(
+                            onClick = { onPairDevice() },
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFED1C24)),
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth(0.8f)
+                        ) {
+                            androidx.compose.material3.Text("Pair Device Now", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        }
+                    } else if (isConnectionFailed) {
+                        // Paired but can't reach it
+                        androidx.compose.material3.Icon(
+                            androidx.compose.material.icons.Icons.Default.BluetoothSearching,
+                            contentDescription = null,
+                            tint = androidx.compose.ui.graphics.Color.Gray,
+                            modifier = androidx.compose.ui.Modifier.size(56.dp)
+                        )
+                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(16.dp))
+                        androidx.compose.material3.Text(
+                            "Cannot Reach ESP32",
+                            color = androidx.compose.ui.graphics.Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
+                        androidx.compose.material3.Text(
+                            "Make sure the helmet device is powered on and within Bluetooth range.",
+                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
+                            fontSize = 13.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(24.dp))
+                        androidx.compose.material3.Button(
+                            onClick = {
+                                isConnectionFailed = false
+                                currentStep = UnlockStep.CONNECTING
+                            },
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFED1C24)),
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth(0.8f)
+                        ) {
+                            androidx.compose.material3.Text("Retry", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        }
+                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(12.dp))
+                        androidx.compose.material3.TextButton(onClick = { onPairDevice() }) {
+                            androidx.compose.material3.Text("Re-pair Device", color = androidx.compose.ui.graphics.Color(0xFFED1C24))
+                        }
                     } else {
+                        // Actively connecting
                         androidx.compose.material3.CircularProgressIndicator(color = androidx.compose.ui.graphics.Color(0xFFED1C24))
+                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(16.dp))
+                        androidx.compose.material3.Text(
+                            "Connecting to MotoLock...",
+                            color = androidx.compose.ui.graphics.Color.White,
+                            fontSize = 14.sp
+                        )
                     }
                 }
             } else if (currentStep == UnlockStep.SUCCESS) {
