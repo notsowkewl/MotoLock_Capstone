@@ -48,19 +48,18 @@ class BluetoothService(private val context: Context) {
     suspend fun sendProvisionCommand(secret: String): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         try {
             outputStream?.write("PROVISION:$secret\n".toByteArray())
+            outputStream?.flush()
             val reader = BufferedReader(InputStreamReader(inputStream))
-            var attempts = 0
-            while (attempts < 30) {
-                if (reader.ready()) {
+            
+            return@withContext kotlinx.coroutines.withTimeoutOrNull(5000L) {
+                while (true) {
                     val line = reader.readLine()?.trim()
-                    if (line == "OK_PROVISIONED") return@withContext Pair(true, "Success")
-                    if (line == "ERR_ALREADY_PROVISIONED") return@withContext Pair(false, "Device is already paired to a phone. Please clear ESP32 memory.")
-                    if (line == "ERR_PROVISIONING_NOT_ACTIVE") return@withContext Pair(false, "Hold the physical pairing button on the ESP32 for 3 seconds first.")
+                    if (line == "OK_PROVISIONED") return@withTimeoutOrNull Pair(true, "Success")
+                    if (line == "ERR_ALREADY_PROVISIONED") return@withTimeoutOrNull Pair(false, "Device is already paired to a phone. Please clear ESP32 memory.")
+                    if (line == "ERR_PROVISIONING_NOT_ACTIVE") return@withTimeoutOrNull Pair(false, "Hold the physical pairing button on the ESP32 for 3 seconds first.")
                 }
-                delay(100)
-                attempts++
-            }
-            return@withContext Pair(false, "Timeout waiting for ESP32 response.")
+                Pair(false, "Unknown response")
+            } ?: Pair(false, "Timeout waiting for ESP32 response.")
         } catch (e: Exception) {
             e.printStackTrace()
             return@withContext Pair(false, e.message ?: "Bluetooth error")
@@ -71,24 +70,22 @@ class BluetoothService(private val context: Context) {
         try {
             // 1. Send auth request
             outputStream?.write("AUTH_REQ\n".toByteArray())
+            outputStream?.flush()
             
             // 2. Wait for nonce from ESP32
             val reader = BufferedReader(InputStreamReader(inputStream))
-            var nonce = ""
-            var attempts = 0
-            while (attempts < 20) {
-                if (reader.ready()) {
+            
+            val nonce = kotlinx.coroutines.withTimeoutOrNull(2000L) {
+                while (true) {
                     val line = reader.readLine()
                     if (line?.startsWith("NONCE:") == true) {
-                        nonce = line.substringAfter("NONCE:").trim()
-                        break
+                        return@withTimeoutOrNull line.substringAfter("NONCE:").trim()
                     }
                 }
-                delay(100)
-                attempts++
+                ""
             }
             
-            if (nonce.isEmpty()) return@withContext false
+            if (nonce.isNullOrEmpty()) return@withContext false
             
             // 3. Compute HMAC-SHA256 of the nonce
             val mac = javax.crypto.Mac.getInstance("HmacSHA256")
@@ -99,18 +96,16 @@ class BluetoothService(private val context: Context) {
             
             // 4. Send signed unlock command
             outputStream?.write("UNLOCK:$hexHash\n".toByteArray())
+            outputStream?.flush()
             
             // 5. Check if successful
-            attempts = 0
-            while (attempts < 20) {
-                if (reader.ready()) {
-                    val line = reader.readLine()
-                    if (line == "OK_UNLOCKED") return@withContext true
+            return@withContext kotlinx.coroutines.withTimeoutOrNull(2000L) {
+                while (true) {
+                    val line = reader.readLine()?.trim()
+                    if (line == "OK_UNLOCKED") return@withTimeoutOrNull true
                 }
-                delay(100)
-                attempts++
-            }
-            return@withContext false
+                false
+            } ?: false
         } catch (e: Exception) {
             e.printStackTrace()
             return@withContext false
@@ -120,6 +115,7 @@ class BluetoothService(private val context: Context) {
     fun writeCommand(command: String) {
         try {
             outputStream?.write(command.toByteArray())
+            outputStream?.flush()
         } catch (e: Exception) {
             e.printStackTrace()
         }
