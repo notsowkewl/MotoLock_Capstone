@@ -107,7 +107,7 @@ void loop() {
     req.trim();
     
     if (req.startsWith("PROVISION:")) {
-      if (deviceSecret != "") {
+      if (deviceSecret != "" && !isProvisioningMode) {
         SerialBT.println("ERR_ALREADY_PROVISIONED");
       } else if (!isProvisioningMode) {
         SerialBT.println("ERR_PROVISIONING_NOT_ACTIVE");

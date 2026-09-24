@@ -34,3 +34,5 @@ build/
 .gradle/
 app/build/
 .work/native-verification/project/app/build/
+
+node_modules/

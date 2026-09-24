@@ -45,7 +45,7 @@ class BluetoothService(private val context: Context) {
         }
     }
 
-    suspend fun sendProvisionCommand(secret: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun sendProvisionCommand(secret: String): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         try {
             outputStream?.write("PROVISION:$secret\n".toByteArray())
             val reader = BufferedReader(InputStreamReader(inputStream))
@@ -53,17 +53,17 @@ class BluetoothService(private val context: Context) {
             while (attempts < 30) {
                 if (reader.ready()) {
                     val line = reader.readLine()?.trim()
-                    if (line == "OK_PROVISIONED") return@withContext true
-                    if (line == "ERR_ALREADY_PROVISIONED") return@withContext false
-                    if (line == "ERR_PROVISIONING_NOT_ACTIVE") return@withContext false
+                    if (line == "OK_PROVISIONED") return@withContext Pair(true, "Success")
+                    if (line == "ERR_ALREADY_PROVISIONED") return@withContext Pair(false, "Device is already paired to a phone. Please clear ESP32 memory.")
+                    if (line == "ERR_PROVISIONING_NOT_ACTIVE") return@withContext Pair(false, "Hold the physical pairing button on the ESP32 for 3 seconds first.")
                 }
                 delay(100)
                 attempts++
             }
-            return@withContext false
+            return@withContext Pair(false, "Timeout waiting for ESP32 response.")
         } catch (e: Exception) {
             e.printStackTrace()
-            return@withContext false
+            return@withContext Pair(false, e.message ?: "Bluetooth error")
         }
     }
 

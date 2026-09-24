@@ -134,9 +134,9 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                     val rawSecret = secretBytes.joinToString("") { "%02x".format(it) }
                     
                     // 2. Send provisioning command to ESP32
-                    val provisioned = btService.sendProvisionCommand(rawSecret)
-                    if (!provisioned) {
-                        throw Exception("Failed to provision ESP32. Please hold the pairing button on the hardware.")
+                    val provisionResult = btService.sendProvisionCommand(rawSecret)
+                    if (!provisionResult.first) {
+                        throw Exception(provisionResult.second)
                     }
 
                     // 3. Encrypt and save locally
