@@ -31,18 +31,45 @@ class BluetoothService(private val context: Context) {
     suspend fun connectToDevice(macAddress: String): Boolean = withContext(Dispatchers.IO) {
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return@withContext false
 
-        try {
-            val device: BluetoothDevice = bluetoothAdapter.getRemoteDevice(macAddress)
-            bluetoothSocket = device.createRfcommSocketToServiceRecord(MY_UUID)
-            bluetoothSocket?.connect()
-            inputStream = bluetoothSocket?.inputStream
-            outputStream = bluetoothSocket?.outputStream
-            true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            disconnect()
-            false
+        // Cancel any ongoing discovery — it slows down / blocks RFCOMM connect
+        try { bluetoothAdapter.cancelDiscovery() } catch (_: Exception) {}
+
+        val device: BluetoothDevice = bluetoothAdapter.getRemoteDevice(macAddress)
+
+        // Try insecure socket first (ESP32 BluetoothSerial uses insecure by default)
+        // then fall back to secure socket
+        val sockets = listOf(
+            runCatching { device.createInsecureRfcommSocketToServiceRecord(MY_UUID) }.getOrNull(),
+            runCatching { device.createRfcommSocketToServiceRecord(MY_UUID) }.getOrNull()
+        ).filterNotNull()
+
+        for (socket in sockets) {
+            bluetoothSocket = socket
+            try {
+                // BluetoothSocket.connect() is a blocking call with no built-in timeout.
+                // Run it on a plain Thread so we can interrupt it after 10 seconds.
+                val connectThread = Thread { socket.connect() }
+                connectThread.start()
+                connectThread.join(10_000L) // wait max 10 seconds
+
+                if (!socket.isConnected) {
+                    connectThread.interrupt()
+                    socket.close()
+                    continue // try next socket type
+                }
+
+                // Success
+                inputStream = socket.inputStream
+                outputStream = socket.outputStream
+                return@withContext true
+            } catch (e: Exception) {
+                e.printStackTrace()
+                try { socket.close() } catch (_: Exception) {}
+            }
         }
+
+        bluetoothSocket = null
+        false
     }
 
     suspend fun sendProvisionCommand(secret: String): Pair<Boolean, String> = withContext(Dispatchers.IO) {

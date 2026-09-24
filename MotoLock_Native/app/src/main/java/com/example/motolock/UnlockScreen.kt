@@ -164,7 +164,6 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
         if (currentStep != UnlockStep.CONNECTING) return@LaunchedEffect
 
         isConnectionFailed = false
-        currentStep = UnlockStep.CONNECTING
         statusMessage = "Connecting to MotoLock..."
 
         val sharedPrefs = context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE)
