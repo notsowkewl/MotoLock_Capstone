@@ -5,13 +5,13 @@
 BEGIN;
 
 INSERT INTO public.users (id, name, email, password_hash, role, status, face_descriptor, helmet_descriptor, created_at, updated_at) VALUES
-('007f347f-3305-5316-b7c2-74ad965b73b5', 'Joe Seth Basilio', 'joe.seth.basilio@example.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-11T09:00:00+08:00', '2026-08-11T09:00:00+08:00'),
-('c8307178-1baa-5dcb-a98b-52bca632ec1c', 'Nathaniel Baculi', 'nathaniel.baculi@example.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-12T09:00:00+08:00', '2026-08-12T09:00:00+08:00'),
-('7d0c47ab-8f3d-507b-9fee-4915c646aae6', 'Rose Marie Roxas', 'rose.marie.roxas@example.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-13T09:00:00+08:00', '2026-08-13T09:00:00+08:00'),
-('75921ea1-7dfb-5db3-b03a-8733e40134ab', 'Jenna Diaz', 'jenna.diaz@example.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-14T09:00:00+08:00', '2026-08-14T09:00:00+08:00'),
-('16431207-211f-5d42-a0f0-470d8fb58543', 'Jefferson Atractibo', 'jefferson.atractibo@example.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-15T09:00:00+08:00', '2026-08-15T09:00:00+08:00'),
-('39004512-17d0-5082-8238-c5599c7c6b61', 'Jeric Rotoni', 'jeric.rotoni@example.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-16T09:00:00+08:00', '2026-08-16T09:00:00+08:00'),
-('cbb02af8-dd60-56bc-b609-d4fded04b73c', 'Alexis Olaybal', 'alexis.olaybal@example.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-17T09:00:00+08:00', '2026-08-17T09:00:00+08:00');
+('007f347f-3305-5316-b7c2-74ad965b73b5', 'Joe Seth Basilio', 'joe.seth.basilio@gmail.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-11T09:00:00+08:00', '2026-08-11T09:00:00+08:00'),
+('c8307178-1baa-5dcb-a98b-52bca632ec1c', 'Nathaniel Baculi', 'nathaniel.baculi@gmail.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-12T09:00:00+08:00', '2026-08-12T09:00:00+08:00'),
+('7d0c47ab-8f3d-507b-9fee-4915c646aae6', 'Rose Marie Roxas', 'rose.marie.roxas@gmail.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-13T09:00:00+08:00', '2026-08-13T09:00:00+08:00'),
+('75921ea1-7dfb-5db3-b03a-8733e40134ab', 'Jenna Diaz', 'jenna.diaz@gmail.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-14T09:00:00+08:00', '2026-08-14T09:00:00+08:00'),
+('16431207-211f-5d42-a0f0-470d8fb58543', 'Jefferson Atractibo', 'jefferson.atractibo@gmail.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-15T09:00:00+08:00', '2026-08-15T09:00:00+08:00'),
+('39004512-17d0-5082-8238-c5599c7c6b61', 'Jeric Rotoni', 'jeric.rotoni@gmail.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-16T09:00:00+08:00', '2026-08-16T09:00:00+08:00'),
+('cbb02af8-dd60-56bc-b609-d4fded04b73c', 'Alexis Olaybal', 'alexis.olaybal@gmail.com', 'supabase-auth-managed', 'rider', 'active', NULL, NULL, '2026-08-17T09:00:00+08:00', '2026-08-17T09:00:00+08:00');
 
 INSERT INTO public.motorcycles (id, user_id, plate_number, brand, model, created_at, updated_at, color, year) VALUES
 ('c35d4a85-c539-54be-80ba-84a0fca8e61c', '007f347f-3305-5316-b7c2-74ad965b73b5', 'NCA 4821', 'Honda', 'Click 125i', '2026-08-11T09:00:00+08:00', '2026-08-11T09:00:00+08:00', 'Black', 2024),
@@ -32,20 +32,20 @@ INSERT INTO public.devices (id, motorcycle_id, mac_address, firmware_version, st
 ('60f300c8-dbb9-5251-966d-c9399e8f8284', '16c0517d-6245-5c4b-87f8-d9102cf94392', '02:4d:4c:00:00:07', '1.0.0', 'maintenance', '2026-09-22T16:00:00+08:00', '2026-08-17T09:00:00+08:00', 'cbb02af8-dd60-56bc-b609-d4fded04b73c');
 
 INSERT INTO public.emergency_contacts (id, user_id, name, phone_number, relationship, created_at, is_primary) VALUES
-('4139d5f7-def8-5e0a-bb9c-e133268350f0', '007f347f-3305-5316-b7c2-74ad965b73b5', 'Sample Contact 1A', '0917 482 6315', 'Sibling', '2026-08-11T09:00:00+08:00', TRUE),
-('f02ba8e0-e1ad-5e17-8b20-6e5358489bfe', '007f347f-3305-5316-b7c2-74ad965b73b5', 'Sample Contact 1B', '0928 315 7406', 'Friend', '2026-08-11T09:00:00+08:00', FALSE),
-('017066c1-6571-560b-80e0-e5ac9246ae77', 'c8307178-1baa-5dcb-a98b-52bca632ec1c', 'Sample Contact 2A', '0935 864 2197', 'Sibling', '2026-08-12T09:00:00+08:00', TRUE),
-('6607c980-3ee0-54ff-9d23-7244fc6f5e73', 'c8307178-1baa-5dcb-a98b-52bca632ec1c', 'Sample Contact 2B', '0947 203 5816', 'Friend', '2026-08-12T09:00:00+08:00', FALSE),
-('ae8f5e97-7011-50d8-bafe-45aca600aa38', '7d0c47ab-8f3d-507b-9fee-4915c646aae6', 'Sample Contact 3A', '0956 731 4082', 'Sibling', '2026-08-13T09:00:00+08:00', TRUE),
-('23bc5655-991b-5410-9267-dca26aebe46e', '7d0c47ab-8f3d-507b-9fee-4915c646aae6', 'Sample Contact 3B', '0968 542 1937', 'Friend', '2026-08-13T09:00:00+08:00', FALSE),
-('36a25b4e-5f8a-5202-bb29-a4f6103365d9', '75921ea1-7dfb-5db3-b03a-8733e40134ab', 'Sample Contact 4A', '0975 186 9240', 'Sibling', '2026-08-14T09:00:00+08:00', TRUE),
-('6cbfce8d-97e1-5428-a9c6-edbcaaf0d579', '75921ea1-7dfb-5db3-b03a-8733e40134ab', 'Sample Contact 4B', '0991 407 6382', 'Friend', '2026-08-14T09:00:00+08:00', FALSE),
-('9701544d-3481-55eb-82bf-84c34a5e13de', '16431207-211f-5d42-a0f0-470d8fb58543', 'Sample Contact 5A', '0918 653 2074', 'Sibling', '2026-08-15T09:00:00+08:00', TRUE),
-('a601a2a6-497c-53ee-b0da-2061e444eb6d', '16431207-211f-5d42-a0f0-470d8fb58543', 'Sample Contact 5B', '0927 940 3168', 'Friend', '2026-08-15T09:00:00+08:00', FALSE),
-('c9260b32-22c8-5e4b-bd9d-228cd368a946', '39004512-17d0-5082-8238-c5599c7c6b61', 'Sample Contact 6A', '0938 271 6054', 'Sibling', '2026-08-16T09:00:00+08:00', TRUE),
-('3e926011-c9c4-5526-8372-125b182e24a5', '39004512-17d0-5082-8238-c5599c7c6b61', 'Sample Contact 6B', '0949 532 8170', 'Friend', '2026-08-16T09:00:00+08:00', FALSE),
-('ff923600-daed-5312-ba00-0ba7c55c4787', 'cbb02af8-dd60-56bc-b609-d4fded04b73c', 'Sample Contact 7A', '0955 094 2761', 'Sibling', '2026-08-17T09:00:00+08:00', TRUE),
-('8c6c544b-f8b6-5118-8990-3942ed956b3b', 'cbb02af8-dd60-56bc-b609-d4fded04b73c', 'Sample Contact 7B', '0966 318 7452', 'Friend', '2026-08-17T09:00:00+08:00', FALSE);
+('4139d5f7-def8-5e0a-bb9c-e133268350f0', '007f347f-3305-5316-b7c2-74ad965b73b5', 'Maria Lourdes Basilio', '0917 482 6315', 'Sibling', '2026-08-11T09:00:00+08:00', TRUE),
+('f02ba8e0-e1ad-5e17-8b20-6e5358489bfe', '007f347f-3305-5316-b7c2-74ad965b73b5', 'Ramon Basilio', '0928 315 7406', 'Friend', '2026-08-11T09:00:00+08:00', FALSE),
+('017066c1-6571-560b-80e0-e5ac9246ae77', 'c8307178-1baa-5dcb-a98b-52bca632ec1c', 'Angela Baculi', '0935 864 2197', 'Sibling', '2026-08-12T09:00:00+08:00', TRUE),
+('6607c980-3ee0-54ff-9d23-7244fc6f5e73', 'c8307178-1baa-5dcb-a98b-52bca632ec1c', 'Mark Baculi', '0947 203 5816', 'Friend', '2026-08-12T09:00:00+08:00', FALSE),
+('ae8f5e97-7011-50d8-bafe-45aca600aa38', '7d0c47ab-8f3d-507b-9fee-4915c646aae6', 'Catherine Roxas', '0956 731 4082', 'Sibling', '2026-08-13T09:00:00+08:00', TRUE),
+('23bc5655-991b-5410-9267-dca26aebe46e', '7d0c47ab-8f3d-507b-9fee-4915c646aae6', 'Paolo Roxas', '0968 542 1937', 'Friend', '2026-08-13T09:00:00+08:00', FALSE),
+('36a25b4e-5f8a-5202-bb29-a4f6103365d9', '75921ea1-7dfb-5db3-b03a-8733e40134ab', 'Rochelle Diaz', '0975 186 9240', 'Sibling', '2026-08-14T09:00:00+08:00', TRUE),
+('6cbfce8d-97e1-5428-a9c6-edbcaaf0d579', '75921ea1-7dfb-5db3-b03a-8733e40134ab', 'Miguel Diaz', '0991 407 6382', 'Friend', '2026-08-14T09:00:00+08:00', FALSE),
+('9701544d-3481-55eb-82bf-84c34a5e13de', '16431207-211f-5d42-a0f0-470d8fb58543', 'Grace Atractibo', '0918 653 2074', 'Sibling', '2026-08-15T09:00:00+08:00', TRUE),
+('a601a2a6-497c-53ee-b0da-2061e444eb6d', '16431207-211f-5d42-a0f0-470d8fb58543', 'Daniel Atractibo', '0927 940 3168', 'Friend', '2026-08-15T09:00:00+08:00', FALSE),
+('c9260b32-22c8-5e4b-bd9d-228cd368a946', '39004512-17d0-5082-8238-c5599c7c6b61', 'Liza Rotoni', '0938 271 6054', 'Sibling', '2026-08-16T09:00:00+08:00', TRUE),
+('3e926011-c9c4-5526-8372-125b182e24a5', '39004512-17d0-5082-8238-c5599c7c6b61', 'Carlo Rotoni', '0949 532 8170', 'Friend', '2026-08-16T09:00:00+08:00', FALSE),
+('ff923600-daed-5312-ba00-0ba7c55c4787', 'cbb02af8-dd60-56bc-b609-d4fded04b73c', 'Teresa Olaybal', '0955 094 2761', 'Sibling', '2026-08-17T09:00:00+08:00', TRUE),
+('8c6c544b-f8b6-5118-8990-3942ed956b3b', 'cbb02af8-dd60-56bc-b609-d4fded04b73c', 'Noel Olaybal', '0966 318 7452', 'Friend', '2026-08-17T09:00:00+08:00', FALSE);
 
 INSERT INTO public.ride_history (id, user_id, device_id, start_time, end_time, initial_brac_level, final_brac_level, status, gps_start_lat, gps_start_lng, gps_end_lat, gps_end_lng) VALUES
 ('27cf606a-a8f1-5f23-8b33-6c19bd66a99b', '007f347f-3305-5316-b7c2-74ad965b73b5', '5ab0effe-6135-561a-834a-a55e7d7fa85a', '2026-09-01T08:00:00+08:00', '2026-09-01T08:21:00+08:00', 0, 0, 'completed', 14.601, 121.001, 14.616, 121.013),

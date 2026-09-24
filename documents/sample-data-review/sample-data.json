@@ -16,7 +16,7 @@
       {
         "id": "007f347f-3305-5316-b7c2-74ad965b73b5",
         "name": "Joe Seth Basilio",
-        "email": "joe.seth.basilio@example.com",
+        "email": "joe.seth.basilio@gmail.com",
         "password_hash": "supabase-auth-managed",
         "role": "rider",
         "status": "active",
@@ -28,7 +28,7 @@
       {
         "id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
         "name": "Nathaniel Baculi",
-        "email": "nathaniel.baculi@example.com",
+        "email": "nathaniel.baculi@gmail.com",
         "password_hash": "supabase-auth-managed",
         "role": "rider",
         "status": "active",
@@ -40,7 +40,7 @@
       {
         "id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
         "name": "Rose Marie Roxas",
-        "email": "rose.marie.roxas@example.com",
+        "email": "rose.marie.roxas@gmail.com",
         "password_hash": "supabase-auth-managed",
         "role": "rider",
         "status": "active",
@@ -52,7 +52,7 @@
       {
         "id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
         "name": "Jenna Diaz",
-        "email": "jenna.diaz@example.com",
+        "email": "jenna.diaz@gmail.com",
         "password_hash": "supabase-auth-managed",
         "role": "rider",
         "status": "active",
@@ -64,7 +64,7 @@
       {
         "id": "16431207-211f-5d42-a0f0-470d8fb58543",
         "name": "Jefferson Atractibo",
-        "email": "jefferson.atractibo@example.com",
+        "email": "jefferson.atractibo@gmail.com",
         "password_hash": "supabase-auth-managed",
         "role": "rider",
         "status": "active",
@@ -76,7 +76,7 @@
       {
         "id": "39004512-17d0-5082-8238-c5599c7c6b61",
         "name": "Jeric Rotoni",
-        "email": "jeric.rotoni@example.com",
+        "email": "jeric.rotoni@gmail.com",
         "password_hash": "supabase-auth-managed",
         "role": "rider",
         "status": "active",
@@ -88,7 +88,7 @@
       {
         "id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
         "name": "Alexis Olaybal",
-        "email": "alexis.olaybal@example.com",
+        "email": "alexis.olaybal@gmail.com",
         "password_hash": "supabase-auth-managed",
         "role": "rider",
         "status": "active",
@@ -253,7 +253,7 @@
       {
         "id": "4139d5f7-def8-5e0a-bb9c-e133268350f0",
         "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
-        "name": "Sample Contact 1A",
+        "name": "Maria Lourdes Basilio",
         "phone_number": "0917 482 6315",
         "relationship": "Sibling",
         "created_at": "2026-08-11T09:00:00+08:00",
@@ -262,7 +262,7 @@
       {
         "id": "f02ba8e0-e1ad-5e17-8b20-6e5358489bfe",
         "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
-        "name": "Sample Contact 1B",
+        "name": "Ramon Basilio",
         "phone_number": "0928 315 7406",
         "relationship": "Friend",
         "created_at": "2026-08-11T09:00:00+08:00",
@@ -271,7 +271,7 @@
       {
         "id": "017066c1-6571-560b-80e0-e5ac9246ae77",
         "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
-        "name": "Sample Contact 2A",
+        "name": "Angela Baculi",
         "phone_number": "0935 864 2197",
         "relationship": "Sibling",
         "created_at": "2026-08-12T09:00:00+08:00",
@@ -280,7 +280,7 @@
       {
         "id": "6607c980-3ee0-54ff-9d23-7244fc6f5e73",
         "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
-        "name": "Sample Contact 2B",
+        "name": "Mark Baculi",
         "phone_number": "0947 203 5816",
         "relationship": "Friend",
         "created_at": "2026-08-12T09:00:00+08:00",
@@ -289,7 +289,7 @@
       {
         "id": "ae8f5e97-7011-50d8-bafe-45aca600aa38",
         "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
-        "name": "Sample Contact 3A",
+        "name": "Catherine Roxas",
         "phone_number": "0956 731 4082",
         "relationship": "Sibling",
         "created_at": "2026-08-13T09:00:00+08:00",
@@ -298,7 +298,7 @@
       {
         "id": "23bc5655-991b-5410-9267-dca26aebe46e",
         "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
-        "name": "Sample Contact 3B",
+        "name": "Paolo Roxas",
         "phone_number": "0968 542 1937",
         "relationship": "Friend",
         "created_at": "2026-08-13T09:00:00+08:00",
@@ -307,7 +307,7 @@
       {
         "id": "36a25b4e-5f8a-5202-bb29-a4f6103365d9",
         "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
-        "name": "Sample Contact 4A",
+        "name": "Rochelle Diaz",
         "phone_number": "0975 186 9240",
         "relationship": "Sibling",
         "created_at": "2026-08-14T09:00:00+08:00",
@@ -316,7 +316,7 @@
       {
         "id": "6cbfce8d-97e1-5428-a9c6-edbcaaf0d579",
         "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
-        "name": "Sample Contact 4B",
+        "name": "Miguel Diaz",
         "phone_number": "0991 407 6382",
         "relationship": "Friend",
         "created_at": "2026-08-14T09:00:00+08:00",
@@ -325,7 +325,7 @@
       {
         "id": "9701544d-3481-55eb-82bf-84c34a5e13de",
         "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
-        "name": "Sample Contact 5A",
+        "name": "Grace Atractibo",
         "phone_number": "0918 653 2074",
         "relationship": "Sibling",
         "created_at": "2026-08-15T09:00:00+08:00",
@@ -334,7 +334,7 @@
       {
         "id": "a601a2a6-497c-53ee-b0da-2061e444eb6d",
         "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
-        "name": "Sample Contact 5B",
+        "name": "Daniel Atractibo",
         "phone_number": "0927 940 3168",
         "relationship": "Friend",
         "created_at": "2026-08-15T09:00:00+08:00",
@@ -343,7 +343,7 @@
       {
         "id": "c9260b32-22c8-5e4b-bd9d-228cd368a946",
         "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
-        "name": "Sample Contact 6A",
+        "name": "Liza Rotoni",
         "phone_number": "0938 271 6054",
         "relationship": "Sibling",
         "created_at": "2026-08-16T09:00:00+08:00",
@@ -352,7 +352,7 @@
       {
         "id": "3e926011-c9c4-5526-8372-125b182e24a5",
         "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
-        "name": "Sample Contact 6B",
+        "name": "Carlo Rotoni",
         "phone_number": "0949 532 8170",
         "relationship": "Friend",
         "created_at": "2026-08-16T09:00:00+08:00",
@@ -361,7 +361,7 @@
       {
         "id": "ff923600-daed-5312-ba00-0ba7c55c4787",
         "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
-        "name": "Sample Contact 7A",
+        "name": "Teresa Olaybal",
         "phone_number": "0955 094 2761",
         "relationship": "Sibling",
         "created_at": "2026-08-17T09:00:00+08:00",
@@ -370,7 +370,7 @@
       {
         "id": "8c6c544b-f8b6-5118-8990-3942ed956b3b",
         "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
-        "name": "Sample Contact 7B",
+        "name": "Noel Olaybal",
         "phone_number": "0966 318 7452",
         "relationship": "Friend",
         "created_at": "2026-08-17T09:00:00+08:00",
