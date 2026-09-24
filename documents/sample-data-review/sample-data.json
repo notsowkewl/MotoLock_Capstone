@@ -1,0 +1,3165 @@
+{
+  "metadata": {
+    "dataset": "motolock-supabase-sample-v1",
+    "synthetic": true,
+    "review_only": true,
+    "schema_basis": "User-supplied public table definitions and enum values",
+    "timezone": "Asia/Manila",
+    "note": "Names supplied by user; all other details, readings, coordinates and histories are invented. No actual hardware or rider behavior is represented.",
+    "auth_note": "Public profiles only; no Supabase Auth accounts, usable passwords, PINs or biometrics. Provided users DDL has no auth.users FK; triggers/RLS were not supplied.",
+    "snapshot_note": "Fixed September 23, 2026 snapshot; online/ongoing are simulated and do not update.",
+    "brac_note": "Values test current application cutoff only; physical units/calibration are not established.",
+    "contact_note": "Phone values are fictional Philippine-style mobile number examples and are not verified or intended for contact."
+  },
+  "tables": {
+    "users": [
+      {
+        "id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "name": "Joe Seth Basilio",
+        "email": "joe.seth.basilio@example.com",
+        "password_hash": "supabase-auth-managed",
+        "role": "rider",
+        "status": "active",
+        "face_descriptor": null,
+        "helmet_descriptor": null,
+        "created_at": "2026-08-11T09:00:00+08:00",
+        "updated_at": "2026-08-11T09:00:00+08:00"
+      },
+      {
+        "id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "name": "Nathaniel Baculi",
+        "email": "nathaniel.baculi@example.com",
+        "password_hash": "supabase-auth-managed",
+        "role": "rider",
+        "status": "active",
+        "face_descriptor": null,
+        "helmet_descriptor": null,
+        "created_at": "2026-08-12T09:00:00+08:00",
+        "updated_at": "2026-08-12T09:00:00+08:00"
+      },
+      {
+        "id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "name": "Rose Marie Roxas",
+        "email": "rose.marie.roxas@example.com",
+        "password_hash": "supabase-auth-managed",
+        "role": "rider",
+        "status": "active",
+        "face_descriptor": null,
+        "helmet_descriptor": null,
+        "created_at": "2026-08-13T09:00:00+08:00",
+        "updated_at": "2026-08-13T09:00:00+08:00"
+      },
+      {
+        "id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "name": "Jenna Diaz",
+        "email": "jenna.diaz@example.com",
+        "password_hash": "supabase-auth-managed",
+        "role": "rider",
+        "status": "active",
+        "face_descriptor": null,
+        "helmet_descriptor": null,
+        "created_at": "2026-08-14T09:00:00+08:00",
+        "updated_at": "2026-08-14T09:00:00+08:00"
+      },
+      {
+        "id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "name": "Jefferson Atractibo",
+        "email": "jefferson.atractibo@example.com",
+        "password_hash": "supabase-auth-managed",
+        "role": "rider",
+        "status": "active",
+        "face_descriptor": null,
+        "helmet_descriptor": null,
+        "created_at": "2026-08-15T09:00:00+08:00",
+        "updated_at": "2026-08-15T09:00:00+08:00"
+      },
+      {
+        "id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "name": "Jeric Rotoni",
+        "email": "jeric.rotoni@example.com",
+        "password_hash": "supabase-auth-managed",
+        "role": "rider",
+        "status": "active",
+        "face_descriptor": null,
+        "helmet_descriptor": null,
+        "created_at": "2026-08-16T09:00:00+08:00",
+        "updated_at": "2026-08-16T09:00:00+08:00"
+      },
+      {
+        "id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "name": "Alexis Olaybal",
+        "email": "alexis.olaybal@example.com",
+        "password_hash": "supabase-auth-managed",
+        "role": "rider",
+        "status": "active",
+        "face_descriptor": null,
+        "helmet_descriptor": null,
+        "created_at": "2026-08-17T09:00:00+08:00",
+        "updated_at": "2026-08-17T09:00:00+08:00"
+      }
+    ],
+    "motorcycles": [
+      {
+        "id": "c35d4a85-c539-54be-80ba-84a0fca8e61c",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "plate_number": "NCA 4821",
+        "brand": "Honda",
+        "model": "Click 125i",
+        "created_at": "2026-08-11T09:00:00+08:00",
+        "updated_at": "2026-08-11T09:00:00+08:00",
+        "color": "Black",
+        "year": 2024
+      },
+      {
+        "id": "694dd970-0a32-5eb8-a1c6-58555a894204",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "plate_number": "DAB 7316",
+        "brand": "Yamaha",
+        "model": "Mio i 125",
+        "created_at": "2026-08-12T09:00:00+08:00",
+        "updated_at": "2026-08-12T09:00:00+08:00",
+        "color": "Blue",
+        "year": 2023
+      },
+      {
+        "id": "29a896cf-cc09-57a5-83ec-35169123c179",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "plate_number": "GHT 2058",
+        "brand": "Honda",
+        "model": "BeAT",
+        "created_at": "2026-08-13T09:00:00+08:00",
+        "updated_at": "2026-08-13T09:00:00+08:00",
+        "color": "White",
+        "year": 2024
+      },
+      {
+        "id": "a95d21b5-43ed-5b6d-b9db-09688d91dcbb",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "plate_number": "KLM 6943",
+        "brand": "Yamaha",
+        "model": "Mio Gear",
+        "created_at": "2026-08-14T09:00:00+08:00",
+        "updated_at": "2026-08-14T09:00:00+08:00",
+        "color": "Red",
+        "year": 2025
+      },
+      {
+        "id": "0ba11a8c-0d12-581b-9130-5c310554fc18",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "plate_number": "MNP 8172",
+        "brand": "Suzuki",
+        "model": "Raider R150",
+        "created_at": "2026-08-15T09:00:00+08:00",
+        "updated_at": "2026-08-15T09:00:00+08:00",
+        "color": "Black",
+        "year": 2023
+      },
+      {
+        "id": "a221587f-90d9-5b40-9e33-eb6c729ef462",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "plate_number": "RBC 3509",
+        "brand": "Honda",
+        "model": "ADV160",
+        "created_at": "2026-08-16T09:00:00+08:00",
+        "updated_at": "2026-08-16T09:00:00+08:00",
+        "color": "Gray",
+        "year": 2025
+      },
+      {
+        "id": "16c0517d-6245-5c4b-87f8-d9102cf94392",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "plate_number": "VXZ 1264",
+        "brand": "Yamaha",
+        "model": "NMAX",
+        "created_at": "2026-08-17T09:00:00+08:00",
+        "updated_at": "2026-08-17T09:00:00+08:00",
+        "color": "Silver",
+        "year": 2024
+      }
+    ],
+    "devices": [
+      {
+        "id": "5ab0effe-6135-561a-834a-a55e7d7fa85a",
+        "motorcycle_id": "c35d4a85-c539-54be-80ba-84a0fca8e61c",
+        "mac_address": "02:4d:4c:00:00:01",
+        "firmware_version": "1.0.0",
+        "status": "online",
+        "last_ping_at": "2026-09-23T17:55:00+08:00",
+        "created_at": "2026-08-11T09:00:00+08:00",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5"
+      },
+      {
+        "id": "ee8c63e2-17c3-58b4-9d64-45061cc628cb",
+        "motorcycle_id": "694dd970-0a32-5eb8-a1c6-58555a894204",
+        "mac_address": "02:4d:4c:00:00:02",
+        "firmware_version": "1.0.0",
+        "status": "online",
+        "last_ping_at": "2026-09-23T17:55:00+08:00",
+        "created_at": "2026-08-12T09:00:00+08:00",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c"
+      },
+      {
+        "id": "28125a54-2913-5ab9-a02c-6ff2ab68f635",
+        "motorcycle_id": "29a896cf-cc09-57a5-83ec-35169123c179",
+        "mac_address": "02:4d:4c:00:00:03",
+        "firmware_version": "1.0.0",
+        "status": "online",
+        "last_ping_at": "2026-09-23T17:55:00+08:00",
+        "created_at": "2026-08-13T09:00:00+08:00",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6"
+      },
+      {
+        "id": "efee6efc-0008-55a7-933f-77c0ee17566f",
+        "motorcycle_id": "a95d21b5-43ed-5b6d-b9db-09688d91dcbb",
+        "mac_address": "02:4d:4c:00:00:04",
+        "firmware_version": "1.0.0",
+        "status": "online",
+        "last_ping_at": "2026-09-23T17:55:00+08:00",
+        "created_at": "2026-08-14T09:00:00+08:00",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab"
+      },
+      {
+        "id": "74d1cc98-16dc-5309-9d35-685d1ce8370e",
+        "motorcycle_id": "0ba11a8c-0d12-581b-9130-5c310554fc18",
+        "mac_address": "02:4d:4c:00:00:05",
+        "firmware_version": "1.0.0",
+        "status": "online",
+        "last_ping_at": "2026-09-23T17:55:00+08:00",
+        "created_at": "2026-08-15T09:00:00+08:00",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543"
+      },
+      {
+        "id": "15a143a0-e9c3-5a16-a167-10bed698b91f",
+        "motorcycle_id": "a221587f-90d9-5b40-9e33-eb6c729ef462",
+        "mac_address": "02:4d:4c:00:00:06",
+        "firmware_version": "1.0.0",
+        "status": "offline",
+        "last_ping_at": "2026-09-22T16:00:00+08:00",
+        "created_at": "2026-08-16T09:00:00+08:00",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61"
+      },
+      {
+        "id": "60f300c8-dbb9-5251-966d-c9399e8f8284",
+        "motorcycle_id": "16c0517d-6245-5c4b-87f8-d9102cf94392",
+        "mac_address": "02:4d:4c:00:00:07",
+        "firmware_version": "1.0.0",
+        "status": "maintenance",
+        "last_ping_at": "2026-09-22T16:00:00+08:00",
+        "created_at": "2026-08-17T09:00:00+08:00",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c"
+      }
+    ],
+    "emergency_contacts": [
+      {
+        "id": "4139d5f7-def8-5e0a-bb9c-e133268350f0",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "name": "Sample Contact 1A",
+        "phone_number": "0917 482 6315",
+        "relationship": "Sibling",
+        "created_at": "2026-08-11T09:00:00+08:00",
+        "is_primary": true
+      },
+      {
+        "id": "f02ba8e0-e1ad-5e17-8b20-6e5358489bfe",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "name": "Sample Contact 1B",
+        "phone_number": "0928 315 7406",
+        "relationship": "Friend",
+        "created_at": "2026-08-11T09:00:00+08:00",
+        "is_primary": false
+      },
+      {
+        "id": "017066c1-6571-560b-80e0-e5ac9246ae77",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "name": "Sample Contact 2A",
+        "phone_number": "0935 864 2197",
+        "relationship": "Sibling",
+        "created_at": "2026-08-12T09:00:00+08:00",
+        "is_primary": true
+      },
+      {
+        "id": "6607c980-3ee0-54ff-9d23-7244fc6f5e73",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "name": "Sample Contact 2B",
+        "phone_number": "0947 203 5816",
+        "relationship": "Friend",
+        "created_at": "2026-08-12T09:00:00+08:00",
+        "is_primary": false
+      },
+      {
+        "id": "ae8f5e97-7011-50d8-bafe-45aca600aa38",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "name": "Sample Contact 3A",
+        "phone_number": "0956 731 4082",
+        "relationship": "Sibling",
+        "created_at": "2026-08-13T09:00:00+08:00",
+        "is_primary": true
+      },
+      {
+        "id": "23bc5655-991b-5410-9267-dca26aebe46e",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "name": "Sample Contact 3B",
+        "phone_number": "0968 542 1937",
+        "relationship": "Friend",
+        "created_at": "2026-08-13T09:00:00+08:00",
+        "is_primary": false
+      },
+      {
+        "id": "36a25b4e-5f8a-5202-bb29-a4f6103365d9",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "name": "Sample Contact 4A",
+        "phone_number": "0975 186 9240",
+        "relationship": "Sibling",
+        "created_at": "2026-08-14T09:00:00+08:00",
+        "is_primary": true
+      },
+      {
+        "id": "6cbfce8d-97e1-5428-a9c6-edbcaaf0d579",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "name": "Sample Contact 4B",
+        "phone_number": "0991 407 6382",
+        "relationship": "Friend",
+        "created_at": "2026-08-14T09:00:00+08:00",
+        "is_primary": false
+      },
+      {
+        "id": "9701544d-3481-55eb-82bf-84c34a5e13de",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "name": "Sample Contact 5A",
+        "phone_number": "0918 653 2074",
+        "relationship": "Sibling",
+        "created_at": "2026-08-15T09:00:00+08:00",
+        "is_primary": true
+      },
+      {
+        "id": "a601a2a6-497c-53ee-b0da-2061e444eb6d",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "name": "Sample Contact 5B",
+        "phone_number": "0927 940 3168",
+        "relationship": "Friend",
+        "created_at": "2026-08-15T09:00:00+08:00",
+        "is_primary": false
+      },
+      {
+        "id": "c9260b32-22c8-5e4b-bd9d-228cd368a946",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "name": "Sample Contact 6A",
+        "phone_number": "0938 271 6054",
+        "relationship": "Sibling",
+        "created_at": "2026-08-16T09:00:00+08:00",
+        "is_primary": true
+      },
+      {
+        "id": "3e926011-c9c4-5526-8372-125b182e24a5",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "name": "Sample Contact 6B",
+        "phone_number": "0949 532 8170",
+        "relationship": "Friend",
+        "created_at": "2026-08-16T09:00:00+08:00",
+        "is_primary": false
+      },
+      {
+        "id": "ff923600-daed-5312-ba00-0ba7c55c4787",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "name": "Sample Contact 7A",
+        "phone_number": "0955 094 2761",
+        "relationship": "Sibling",
+        "created_at": "2026-08-17T09:00:00+08:00",
+        "is_primary": true
+      },
+      {
+        "id": "8c6c544b-f8b6-5118-8990-3942ed956b3b",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "name": "Sample Contact 7B",
+        "phone_number": "0966 318 7452",
+        "relationship": "Friend",
+        "created_at": "2026-08-17T09:00:00+08:00",
+        "is_primary": false
+      }
+    ],
+    "ride_history": [
+      {
+        "id": "27cf606a-a8f1-5f23-8b33-6c19bd66a99b",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "device_id": "5ab0effe-6135-561a-834a-a55e7d7fa85a",
+        "start_time": "2026-09-01T08:00:00+08:00",
+        "end_time": "2026-09-01T08:21:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.601,
+        "gps_start_lng": 121.001,
+        "gps_end_lat": 14.616,
+        "gps_end_lng": 121.013
+      },
+      {
+        "id": "98acc642-7487-5c35-8efe-2f72cbe95e13",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "device_id": "5ab0effe-6135-561a-834a-a55e7d7fa85a",
+        "start_time": "2026-09-04T08:00:00+08:00",
+        "end_time": "2026-09-04T08:22:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.601,
+        "gps_start_lng": 121.001,
+        "gps_end_lat": 14.616,
+        "gps_end_lng": 121.013
+      },
+      {
+        "id": "3318f436-d0bc-5103-aec8-8f581b445cc3",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "device_id": "5ab0effe-6135-561a-834a-a55e7d7fa85a",
+        "start_time": "2026-09-07T08:00:00+08:00",
+        "end_time": "2026-09-07T08:23:00+08:00",
+        "initial_brac_level": 0.02,
+        "final_brac_level": 0.015,
+        "status": "completed",
+        "gps_start_lat": 14.601,
+        "gps_start_lng": 121.001,
+        "gps_end_lat": 14.616,
+        "gps_end_lng": 121.013
+      },
+      {
+        "id": "c6b9fbb7-3ea3-5ebf-970c-6ae5461e9de7",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "device_id": "5ab0effe-6135-561a-834a-a55e7d7fa85a",
+        "start_time": "2026-09-10T08:00:00+08:00",
+        "end_time": "2026-09-10T08:24:00+08:00",
+        "initial_brac_level": 0.049,
+        "final_brac_level": 0.044,
+        "status": "completed",
+        "gps_start_lat": 14.601,
+        "gps_start_lng": 121.001,
+        "gps_end_lat": 14.616,
+        "gps_end_lng": 121.013
+      },
+      {
+        "id": "97ce7e96-0a3d-5862-a462-4eb9833f728f",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "device_id": "5ab0effe-6135-561a-834a-a55e7d7fa85a",
+        "start_time": "2026-09-13T08:00:00+08:00",
+        "end_time": "2026-09-13T08:25:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.601,
+        "gps_start_lng": 121.001,
+        "gps_end_lat": 14.616,
+        "gps_end_lng": 121.013
+      },
+      {
+        "id": "29685a52-e5e8-5f63-a9e5-29044c98bcd5",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "device_id": "5ab0effe-6135-561a-834a-a55e7d7fa85a",
+        "start_time": "2026-09-16T08:00:00+08:00",
+        "end_time": "2026-09-16T08:26:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.601,
+        "gps_start_lng": 121.001,
+        "gps_end_lat": 14.616,
+        "gps_end_lng": 121.013
+      },
+      {
+        "id": "541ca3a0-f77e-5fb6-a721-1eb60887b454",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "device_id": "5ab0effe-6135-561a-834a-a55e7d7fa85a",
+        "start_time": "2026-09-17T08:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0.05,
+        "final_brac_level": null,
+        "status": "failed_brac",
+        "gps_start_lat": 14.601,
+        "gps_start_lng": 121.001,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "962fa3db-6fde-53e0-af9d-0f0aed2d083e",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "device_id": "5ab0effe-6135-561a-834a-a55e7d7fa85a",
+        "start_time": "2026-09-18T08:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "failed_face",
+        "gps_start_lat": 14.601,
+        "gps_start_lng": 121.001,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "bdb13673-802f-5c01-9e81-5ac0af73b73c",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "device_id": "5ab0effe-6135-561a-834a-a55e7d7fa85a",
+        "start_time": "2026-09-22T08:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "passed",
+        "gps_start_lat": 14.601,
+        "gps_start_lng": 121.001,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "598f83de-7131-53e8-9f37-17332575f6fe",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "device_id": "5ab0effe-6135-561a-834a-a55e7d7fa85a",
+        "start_time": "2026-09-23T17:11:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "ongoing",
+        "gps_start_lat": 14.601,
+        "gps_start_lng": 121.001,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "9f883548-1ed5-5b9d-89df-45806ee786e8",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "device_id": "ee8c63e2-17c3-58b4-9d64-45061cc628cb",
+        "start_time": "2026-09-01T09:00:00+08:00",
+        "end_time": "2026-09-01T09:24:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.602,
+        "gps_start_lng": 121.002,
+        "gps_end_lat": 14.617,
+        "gps_end_lng": 121.014
+      },
+      {
+        "id": "945e4c74-d30a-5cfd-9b05-86cd2cf661f5",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "device_id": "ee8c63e2-17c3-58b4-9d64-45061cc628cb",
+        "start_time": "2026-09-04T09:00:00+08:00",
+        "end_time": "2026-09-04T09:25:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.602,
+        "gps_start_lng": 121.002,
+        "gps_end_lat": 14.617,
+        "gps_end_lng": 121.014
+      },
+      {
+        "id": "fb8f7a5b-fcce-545d-b439-754b6796b6f6",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "device_id": "ee8c63e2-17c3-58b4-9d64-45061cc628cb",
+        "start_time": "2026-09-07T09:00:00+08:00",
+        "end_time": "2026-09-07T09:26:00+08:00",
+        "initial_brac_level": 0.02,
+        "final_brac_level": 0.015,
+        "status": "completed",
+        "gps_start_lat": 14.602,
+        "gps_start_lng": 121.002,
+        "gps_end_lat": 14.617,
+        "gps_end_lng": 121.014
+      },
+      {
+        "id": "2c9d515a-dd47-5df8-a8ba-d466a9a21577",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "device_id": "ee8c63e2-17c3-58b4-9d64-45061cc628cb",
+        "start_time": "2026-09-10T09:00:00+08:00",
+        "end_time": "2026-09-10T09:27:00+08:00",
+        "initial_brac_level": 0.049,
+        "final_brac_level": 0.044,
+        "status": "completed",
+        "gps_start_lat": 14.602,
+        "gps_start_lng": 121.002,
+        "gps_end_lat": 14.617,
+        "gps_end_lng": 121.014
+      },
+      {
+        "id": "34112425-118b-5b56-b472-8d2ea9cf8378",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "device_id": "ee8c63e2-17c3-58b4-9d64-45061cc628cb",
+        "start_time": "2026-09-13T09:00:00+08:00",
+        "end_time": "2026-09-13T09:28:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.602,
+        "gps_start_lng": 121.002,
+        "gps_end_lat": 14.617,
+        "gps_end_lng": 121.014
+      },
+      {
+        "id": "359240d5-dec4-537a-875a-18d752f00a2d",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "device_id": "ee8c63e2-17c3-58b4-9d64-45061cc628cb",
+        "start_time": "2026-09-16T09:00:00+08:00",
+        "end_time": "2026-09-16T09:29:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.602,
+        "gps_start_lng": 121.002,
+        "gps_end_lat": 14.617,
+        "gps_end_lng": 121.014
+      },
+      {
+        "id": "51529080-0c6c-5b9c-ba33-f05eca718582",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "device_id": "ee8c63e2-17c3-58b4-9d64-45061cc628cb",
+        "start_time": "2026-09-17T09:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0.08,
+        "final_brac_level": null,
+        "status": "failed_brac",
+        "gps_start_lat": 14.602,
+        "gps_start_lng": 121.002,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "07eec919-5118-572d-9179-45865d6b398b",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "device_id": "ee8c63e2-17c3-58b4-9d64-45061cc628cb",
+        "start_time": "2026-09-18T09:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "failed_face",
+        "gps_start_lat": 14.602,
+        "gps_start_lng": 121.002,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "ea7cfbac-f0f1-574d-a423-521d08a0a4f4",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "device_id": "ee8c63e2-17c3-58b4-9d64-45061cc628cb",
+        "start_time": "2026-09-22T09:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "passed",
+        "gps_start_lat": 14.602,
+        "gps_start_lng": 121.002,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "efcf21d9-9b8a-5adb-9cca-a02967dca016",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "device_id": "ee8c63e2-17c3-58b4-9d64-45061cc628cb",
+        "start_time": "2026-09-23T17:12:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "ongoing",
+        "gps_start_lat": 14.602,
+        "gps_start_lng": 121.002,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "9778d6eb-c72f-5dce-b7fe-fa28d3ef86ac",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "device_id": "28125a54-2913-5ab9-a02c-6ff2ab68f635",
+        "start_time": "2026-09-01T10:00:00+08:00",
+        "end_time": "2026-09-01T10:27:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.603,
+        "gps_start_lng": 121.003,
+        "gps_end_lat": 14.618,
+        "gps_end_lng": 121.015
+      },
+      {
+        "id": "b2475bcc-9e81-5b16-a07a-1e80a428351d",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "device_id": "28125a54-2913-5ab9-a02c-6ff2ab68f635",
+        "start_time": "2026-09-04T10:00:00+08:00",
+        "end_time": "2026-09-04T10:28:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.603,
+        "gps_start_lng": 121.003,
+        "gps_end_lat": 14.618,
+        "gps_end_lng": 121.015
+      },
+      {
+        "id": "bae733cc-81b8-5846-8ea3-9538edafe611",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "device_id": "28125a54-2913-5ab9-a02c-6ff2ab68f635",
+        "start_time": "2026-09-07T10:00:00+08:00",
+        "end_time": "2026-09-07T10:29:00+08:00",
+        "initial_brac_level": 0.02,
+        "final_brac_level": 0.015,
+        "status": "completed",
+        "gps_start_lat": 14.603,
+        "gps_start_lng": 121.003,
+        "gps_end_lat": 14.618,
+        "gps_end_lng": 121.015
+      },
+      {
+        "id": "bfcc8f1f-4c37-55c8-9476-f9c701376628",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "device_id": "28125a54-2913-5ab9-a02c-6ff2ab68f635",
+        "start_time": "2026-09-10T10:00:00+08:00",
+        "end_time": "2026-09-10T10:30:00+08:00",
+        "initial_brac_level": 0.049,
+        "final_brac_level": 0.044,
+        "status": "completed",
+        "gps_start_lat": 14.603,
+        "gps_start_lng": 121.003,
+        "gps_end_lat": 14.618,
+        "gps_end_lng": 121.015
+      },
+      {
+        "id": "4a093c0f-f836-5fb8-b3c0-a4c7c4ddef2b",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "device_id": "28125a54-2913-5ab9-a02c-6ff2ab68f635",
+        "start_time": "2026-09-13T10:00:00+08:00",
+        "end_time": "2026-09-13T10:31:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.603,
+        "gps_start_lng": 121.003,
+        "gps_end_lat": 14.618,
+        "gps_end_lng": 121.015
+      },
+      {
+        "id": "37122691-fcf7-5397-82df-9877a15a698c",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "device_id": "28125a54-2913-5ab9-a02c-6ff2ab68f635",
+        "start_time": "2026-09-16T10:00:00+08:00",
+        "end_time": "2026-09-16T10:32:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.603,
+        "gps_start_lng": 121.003,
+        "gps_end_lat": 14.618,
+        "gps_end_lng": 121.015
+      },
+      {
+        "id": "e4543eab-a32f-5f12-bf23-cf90e17cefa2",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "device_id": "28125a54-2913-5ab9-a02c-6ff2ab68f635",
+        "start_time": "2026-09-17T10:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0.05,
+        "final_brac_level": null,
+        "status": "failed_brac",
+        "gps_start_lat": 14.603,
+        "gps_start_lng": 121.003,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "22cb7d75-0f3c-5865-8295-94dde1b6f128",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "device_id": "28125a54-2913-5ab9-a02c-6ff2ab68f635",
+        "start_time": "2026-09-18T10:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "failed_face",
+        "gps_start_lat": 14.603,
+        "gps_start_lng": 121.003,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "ad51a19e-2b32-5930-8f49-ce0d48720022",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "device_id": "28125a54-2913-5ab9-a02c-6ff2ab68f635",
+        "start_time": "2026-09-22T10:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "passed",
+        "gps_start_lat": 14.603,
+        "gps_start_lng": 121.003,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "8477c81b-5bf2-5cd4-9ac7-b1dd68bd795c",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "device_id": "28125a54-2913-5ab9-a02c-6ff2ab68f635",
+        "start_time": "2026-09-23T17:13:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "ongoing",
+        "gps_start_lat": 14.603,
+        "gps_start_lng": 121.003,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "140c4224-6906-52f9-80e9-36d72e681de7",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "device_id": "efee6efc-0008-55a7-933f-77c0ee17566f",
+        "start_time": "2026-09-01T11:00:00+08:00",
+        "end_time": "2026-09-01T11:30:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.604,
+        "gps_start_lng": 121.004,
+        "gps_end_lat": 14.619,
+        "gps_end_lng": 121.016
+      },
+      {
+        "id": "1409ae5d-9652-530a-a2ca-8bd78a88a35f",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "device_id": "efee6efc-0008-55a7-933f-77c0ee17566f",
+        "start_time": "2026-09-04T11:00:00+08:00",
+        "end_time": "2026-09-04T11:31:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.604,
+        "gps_start_lng": 121.004,
+        "gps_end_lat": 14.619,
+        "gps_end_lng": 121.016
+      },
+      {
+        "id": "de3489ec-411f-504b-9af2-a43be7717aa0",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "device_id": "efee6efc-0008-55a7-933f-77c0ee17566f",
+        "start_time": "2026-09-07T11:00:00+08:00",
+        "end_time": "2026-09-07T11:32:00+08:00",
+        "initial_brac_level": 0.02,
+        "final_brac_level": 0.015,
+        "status": "completed",
+        "gps_start_lat": 14.604,
+        "gps_start_lng": 121.004,
+        "gps_end_lat": 14.619,
+        "gps_end_lng": 121.016
+      },
+      {
+        "id": "ff6864a4-bc06-5d11-b5bd-2addadbc5492",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "device_id": "efee6efc-0008-55a7-933f-77c0ee17566f",
+        "start_time": "2026-09-10T11:00:00+08:00",
+        "end_time": "2026-09-10T11:33:00+08:00",
+        "initial_brac_level": 0.049,
+        "final_brac_level": 0.044,
+        "status": "completed",
+        "gps_start_lat": 14.604,
+        "gps_start_lng": 121.004,
+        "gps_end_lat": 14.619,
+        "gps_end_lng": 121.016
+      },
+      {
+        "id": "a422721e-791a-5965-b3cd-ab3941746919",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "device_id": "efee6efc-0008-55a7-933f-77c0ee17566f",
+        "start_time": "2026-09-13T11:00:00+08:00",
+        "end_time": "2026-09-13T11:34:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.604,
+        "gps_start_lng": 121.004,
+        "gps_end_lat": 14.619,
+        "gps_end_lng": 121.016
+      },
+      {
+        "id": "bd23e049-d008-55be-b50c-24388af7c754",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "device_id": "efee6efc-0008-55a7-933f-77c0ee17566f",
+        "start_time": "2026-09-16T11:00:00+08:00",
+        "end_time": "2026-09-16T11:35:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.604,
+        "gps_start_lng": 121.004,
+        "gps_end_lat": 14.619,
+        "gps_end_lng": 121.016
+      },
+      {
+        "id": "c55d2290-dba0-54ea-9e75-bbf1eefb815e",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "device_id": "efee6efc-0008-55a7-933f-77c0ee17566f",
+        "start_time": "2026-09-17T11:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0.08,
+        "final_brac_level": null,
+        "status": "failed_brac",
+        "gps_start_lat": 14.604,
+        "gps_start_lng": 121.004,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "c57ef480-67f2-54ec-a0ac-0199c2e24884",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "device_id": "efee6efc-0008-55a7-933f-77c0ee17566f",
+        "start_time": "2026-09-18T11:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "failed_face",
+        "gps_start_lat": 14.604,
+        "gps_start_lng": 121.004,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "fc538076-0205-5ac6-80bb-2e6d3654d1fd",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "device_id": "efee6efc-0008-55a7-933f-77c0ee17566f",
+        "start_time": "2026-09-22T11:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "passed",
+        "gps_start_lat": 14.604,
+        "gps_start_lng": 121.004,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "01103545-f7eb-5127-9d5a-d433cb0076f3",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "device_id": "efee6efc-0008-55a7-933f-77c0ee17566f",
+        "start_time": "2026-09-23T17:14:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "ongoing",
+        "gps_start_lat": 14.604,
+        "gps_start_lng": 121.004,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "2f5e2303-a5ab-581f-821c-af4709d8b42c",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "device_id": "74d1cc98-16dc-5309-9d35-685d1ce8370e",
+        "start_time": "2026-09-01T12:00:00+08:00",
+        "end_time": "2026-09-01T12:33:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.605,
+        "gps_start_lng": 121.005,
+        "gps_end_lat": 14.62,
+        "gps_end_lng": 121.017
+      },
+      {
+        "id": "c6f30244-4dbf-5b18-a7b0-2bcbc694ddaf",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "device_id": "74d1cc98-16dc-5309-9d35-685d1ce8370e",
+        "start_time": "2026-09-04T12:00:00+08:00",
+        "end_time": "2026-09-04T12:34:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.605,
+        "gps_start_lng": 121.005,
+        "gps_end_lat": 14.62,
+        "gps_end_lng": 121.017
+      },
+      {
+        "id": "9c1340d6-0318-575c-8f74-28fab113140d",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "device_id": "74d1cc98-16dc-5309-9d35-685d1ce8370e",
+        "start_time": "2026-09-07T12:00:00+08:00",
+        "end_time": "2026-09-07T12:35:00+08:00",
+        "initial_brac_level": 0.02,
+        "final_brac_level": 0.015,
+        "status": "completed",
+        "gps_start_lat": 14.605,
+        "gps_start_lng": 121.005,
+        "gps_end_lat": 14.62,
+        "gps_end_lng": 121.017
+      },
+      {
+        "id": "9373acec-e410-58e2-b996-b145eb93e1a7",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "device_id": "74d1cc98-16dc-5309-9d35-685d1ce8370e",
+        "start_time": "2026-09-10T12:00:00+08:00",
+        "end_time": "2026-09-10T12:36:00+08:00",
+        "initial_brac_level": 0.049,
+        "final_brac_level": 0.044,
+        "status": "completed",
+        "gps_start_lat": 14.605,
+        "gps_start_lng": 121.005,
+        "gps_end_lat": 14.62,
+        "gps_end_lng": 121.017
+      },
+      {
+        "id": "7bfae710-d452-5388-bc85-54d9ea9b86b9",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "device_id": "74d1cc98-16dc-5309-9d35-685d1ce8370e",
+        "start_time": "2026-09-13T12:00:00+08:00",
+        "end_time": "2026-09-13T12:37:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.605,
+        "gps_start_lng": 121.005,
+        "gps_end_lat": 14.62,
+        "gps_end_lng": 121.017
+      },
+      {
+        "id": "5fdcfbb1-7f52-5a8a-aa80-9b820229dd5a",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "device_id": "74d1cc98-16dc-5309-9d35-685d1ce8370e",
+        "start_time": "2026-09-16T12:00:00+08:00",
+        "end_time": "2026-09-16T12:38:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.605,
+        "gps_start_lng": 121.005,
+        "gps_end_lat": 14.62,
+        "gps_end_lng": 121.017
+      },
+      {
+        "id": "79ccc403-f18a-52c5-a440-fa3ed71f51cf",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "device_id": "74d1cc98-16dc-5309-9d35-685d1ce8370e",
+        "start_time": "2026-09-17T12:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0.05,
+        "final_brac_level": null,
+        "status": "failed_brac",
+        "gps_start_lat": 14.605,
+        "gps_start_lng": 121.005,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "d986989a-c748-5b5f-809b-8512e0752174",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "device_id": "74d1cc98-16dc-5309-9d35-685d1ce8370e",
+        "start_time": "2026-09-18T12:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "failed_face",
+        "gps_start_lat": 14.605,
+        "gps_start_lng": 121.005,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "84fce36f-2ce3-5ec8-9137-c66b784bb9bc",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "device_id": "74d1cc98-16dc-5309-9d35-685d1ce8370e",
+        "start_time": "2026-09-22T12:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "passed",
+        "gps_start_lat": 14.605,
+        "gps_start_lng": 121.005,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "12bbbbe4-8d4b-5875-9278-a908172999f2",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "device_id": "74d1cc98-16dc-5309-9d35-685d1ce8370e",
+        "start_time": "2026-09-23T17:15:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "ongoing",
+        "gps_start_lat": 14.605,
+        "gps_start_lng": 121.005,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "5a9f59e0-0c0d-5cd5-918c-68fc6a0db653",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "device_id": "15a143a0-e9c3-5a16-a167-10bed698b91f",
+        "start_time": "2026-09-01T13:00:00+08:00",
+        "end_time": "2026-09-01T13:36:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.606,
+        "gps_start_lng": 121.006,
+        "gps_end_lat": 14.621,
+        "gps_end_lng": 121.018
+      },
+      {
+        "id": "1e1362f0-3c46-596b-9592-305f9f2d14c6",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "device_id": "15a143a0-e9c3-5a16-a167-10bed698b91f",
+        "start_time": "2026-09-04T13:00:00+08:00",
+        "end_time": "2026-09-04T13:37:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.606,
+        "gps_start_lng": 121.006,
+        "gps_end_lat": 14.621,
+        "gps_end_lng": 121.018
+      },
+      {
+        "id": "914e82fe-fd12-59d0-ad23-9e8c41873f7f",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "device_id": "15a143a0-e9c3-5a16-a167-10bed698b91f",
+        "start_time": "2026-09-07T13:00:00+08:00",
+        "end_time": "2026-09-07T13:38:00+08:00",
+        "initial_brac_level": 0.02,
+        "final_brac_level": 0.015,
+        "status": "completed",
+        "gps_start_lat": 14.606,
+        "gps_start_lng": 121.006,
+        "gps_end_lat": 14.621,
+        "gps_end_lng": 121.018
+      },
+      {
+        "id": "13cfd662-f728-50e6-b192-1aa6eff91c2f",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "device_id": "15a143a0-e9c3-5a16-a167-10bed698b91f",
+        "start_time": "2026-09-10T13:00:00+08:00",
+        "end_time": "2026-09-10T13:39:00+08:00",
+        "initial_brac_level": 0.049,
+        "final_brac_level": 0.044,
+        "status": "completed",
+        "gps_start_lat": 14.606,
+        "gps_start_lng": 121.006,
+        "gps_end_lat": 14.621,
+        "gps_end_lng": 121.018
+      },
+      {
+        "id": "2324fcc3-f0fd-533b-b2ab-03d33b254ccb",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "device_id": "15a143a0-e9c3-5a16-a167-10bed698b91f",
+        "start_time": "2026-09-13T13:00:00+08:00",
+        "end_time": "2026-09-13T13:40:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.606,
+        "gps_start_lng": 121.006,
+        "gps_end_lat": 14.621,
+        "gps_end_lng": 121.018
+      },
+      {
+        "id": "2dd187b1-8e91-51eb-85c6-15d780c0d0ac",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "device_id": "15a143a0-e9c3-5a16-a167-10bed698b91f",
+        "start_time": "2026-09-16T13:00:00+08:00",
+        "end_time": "2026-09-16T13:41:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.606,
+        "gps_start_lng": 121.006,
+        "gps_end_lat": 14.621,
+        "gps_end_lng": 121.018
+      },
+      {
+        "id": "c3eca3fe-5731-558a-9372-5ec99e216a36",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "device_id": "15a143a0-e9c3-5a16-a167-10bed698b91f",
+        "start_time": "2026-09-17T13:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0.08,
+        "final_brac_level": null,
+        "status": "failed_brac",
+        "gps_start_lat": 14.606,
+        "gps_start_lng": 121.006,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "fdd00013-b4ee-54f3-8e27-fedb598b70bf",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "device_id": "15a143a0-e9c3-5a16-a167-10bed698b91f",
+        "start_time": "2026-09-18T13:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "failed_face",
+        "gps_start_lat": 14.606,
+        "gps_start_lng": 121.006,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "77d0aa67-6ee9-5ca0-a661-0ffc6ba06020",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "device_id": "15a143a0-e9c3-5a16-a167-10bed698b91f",
+        "start_time": "2026-09-22T13:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "passed",
+        "gps_start_lat": 14.606,
+        "gps_start_lng": 121.006,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "12f4b863-2f44-55d8-ade7-b7400f8d50be",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "device_id": null,
+        "start_time": "2026-09-23T17:16:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "ongoing",
+        "gps_start_lat": 14.606,
+        "gps_start_lng": 121.006,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "acdaa00f-d49f-5a0f-a31b-8b6b2d9c1957",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "device_id": "60f300c8-dbb9-5251-966d-c9399e8f8284",
+        "start_time": "2026-09-01T14:00:00+08:00",
+        "end_time": "2026-09-01T14:39:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.607,
+        "gps_start_lng": 121.007,
+        "gps_end_lat": 14.622,
+        "gps_end_lng": 121.019
+      },
+      {
+        "id": "447face9-aebf-5592-bd61-a4450a18458d",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "device_id": "60f300c8-dbb9-5251-966d-c9399e8f8284",
+        "start_time": "2026-09-04T14:00:00+08:00",
+        "end_time": "2026-09-04T14:40:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.607,
+        "gps_start_lng": 121.007,
+        "gps_end_lat": 14.622,
+        "gps_end_lng": 121.019
+      },
+      {
+        "id": "14b42d8c-eb93-519c-8a3a-3c0d7b6b645d",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "device_id": "60f300c8-dbb9-5251-966d-c9399e8f8284",
+        "start_time": "2026-09-07T14:00:00+08:00",
+        "end_time": "2026-09-07T14:41:00+08:00",
+        "initial_brac_level": 0.02,
+        "final_brac_level": 0.015,
+        "status": "completed",
+        "gps_start_lat": 14.607,
+        "gps_start_lng": 121.007,
+        "gps_end_lat": 14.622,
+        "gps_end_lng": 121.019
+      },
+      {
+        "id": "e228f887-fcc0-599f-aeeb-b18768b1e9fc",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "device_id": "60f300c8-dbb9-5251-966d-c9399e8f8284",
+        "start_time": "2026-09-10T14:00:00+08:00",
+        "end_time": "2026-09-10T14:42:00+08:00",
+        "initial_brac_level": 0.049,
+        "final_brac_level": 0.044,
+        "status": "completed",
+        "gps_start_lat": 14.607,
+        "gps_start_lng": 121.007,
+        "gps_end_lat": 14.622,
+        "gps_end_lng": 121.019
+      },
+      {
+        "id": "49e65d28-c49a-5a1a-b45d-1cc478ba5d2e",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "device_id": "60f300c8-dbb9-5251-966d-c9399e8f8284",
+        "start_time": "2026-09-13T14:00:00+08:00",
+        "end_time": "2026-09-13T14:43:00+08:00",
+        "initial_brac_level": 0,
+        "final_brac_level": 0,
+        "status": "completed",
+        "gps_start_lat": 14.607,
+        "gps_start_lng": 121.007,
+        "gps_end_lat": 14.622,
+        "gps_end_lng": 121.019
+      },
+      {
+        "id": "cc1b239b-c2f4-519e-a0ca-024e8d45643a",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "device_id": "60f300c8-dbb9-5251-966d-c9399e8f8284",
+        "start_time": "2026-09-16T14:00:00+08:00",
+        "end_time": "2026-09-16T14:44:00+08:00",
+        "initial_brac_level": 0.01,
+        "final_brac_level": 0.005,
+        "status": "completed",
+        "gps_start_lat": 14.607,
+        "gps_start_lng": 121.007,
+        "gps_end_lat": 14.622,
+        "gps_end_lng": 121.019
+      },
+      {
+        "id": "524e02eb-7e73-5143-a3f0-0db5e1e39b08",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "device_id": "60f300c8-dbb9-5251-966d-c9399e8f8284",
+        "start_time": "2026-09-17T14:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0.05,
+        "final_brac_level": null,
+        "status": "failed_brac",
+        "gps_start_lat": 14.607,
+        "gps_start_lng": 121.007,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "d8208ae2-48bb-5af0-af01-b303dbf5ade4",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "device_id": "60f300c8-dbb9-5251-966d-c9399e8f8284",
+        "start_time": "2026-09-18T14:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "failed_face",
+        "gps_start_lat": 14.607,
+        "gps_start_lng": 121.007,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "01b46040-01a2-56ca-8847-18aa99085af4",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "device_id": "60f300c8-dbb9-5251-966d-c9399e8f8284",
+        "start_time": "2026-09-22T14:00:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "passed",
+        "gps_start_lat": 14.607,
+        "gps_start_lng": 121.007,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      },
+      {
+        "id": "0bf9f218-5bbe-5813-8802-795ecbedbed4",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "device_id": null,
+        "start_time": "2026-09-23T17:17:00+08:00",
+        "end_time": null,
+        "initial_brac_level": 0,
+        "final_brac_level": null,
+        "status": "ongoing",
+        "gps_start_lat": 14.607,
+        "gps_start_lng": 121.007,
+        "gps_end_lat": null,
+        "gps_end_lng": null
+      }
+    ],
+    "audit_logs": [
+      {
+        "id": "173a8dd3-dfe0-5f31-b93d-dcdd824d20d2",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "profile_created",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "name": "Joe Seth Basilio",
+          "motorcycle_id": "c35d4a85-c539-54be-80ba-84a0fca8e61c",
+          "device_id": "5ab0effe-6135-561a-834a-a55e7d7fa85a"
+        },
+        "ip_address": null,
+        "created_at": "2026-08-11T09:00:00+08:00"
+      },
+      {
+        "id": "34be8d67-c95d-5b15-ae9e-3d4de059d4b7",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "27cf606a-a8f1-5f23-8b33-6c19bd66a99b",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T08:21:00+08:00"
+      },
+      {
+        "id": "650f4714-e1bc-598e-a941-59bb5b90a8fa",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "98acc642-7487-5c35-8efe-2f72cbe95e13",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-04T08:22:00+08:00"
+      },
+      {
+        "id": "ff9835a4-2d66-5413-b168-80a1169f6d00",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "3318f436-d0bc-5103-aec8-8f581b445cc3",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-07T08:23:00+08:00"
+      },
+      {
+        "id": "9784ecc7-940f-567f-8280-d146279b39ec",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "c6b9fbb7-3ea3-5ebf-970c-6ae5461e9de7",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-10T08:24:00+08:00"
+      },
+      {
+        "id": "6c8e230b-e9e6-5e03-9076-31298aeae022",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "97ce7e96-0a3d-5862-a462-4eb9833f728f",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T08:25:00+08:00"
+      },
+      {
+        "id": "bc86f351-83d4-59b0-ab06-59706ebd7081",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "override_authorized",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "97ce7e96-0a3d-5862-a462-4eb9833f728f",
+          "reason": "Simulated stationary relay recovery after checks passed",
+          "actor": "Sample Administrator (fictional; no Auth account)",
+          "initial_brac_level": 0,
+          "face_check": "simulated_pass",
+          "helmet_check": "simulated_pass"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T08:00:00+08:00"
+      },
+      {
+        "id": "716481e7-200f-5c72-8847-f0f655e6b945",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "29685a52-e5e8-5f63-a9e5-29044c98bcd5",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-16T08:26:00+08:00"
+      },
+      {
+        "id": "29e42a9e-6607-5402-a716-f9526025b02c",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "ride_failed_brac",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "541ca3a0-f77e-5fb6-a721-1eb60887b454",
+          "status": "failed_brac",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T08:00:00+08:00"
+      },
+      {
+        "id": "0b43ade6-bf22-5ba5-9f78-c20d654e94d0",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "541ca3a0-f77e-5fb6-a721-1eb60887b454",
+          "reason": "failed_brac",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T08:00:00+08:00"
+      },
+      {
+        "id": "49cdfb9b-434b-55d2-b7f7-8a29df7761ea",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "incident_resolved",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "541ca3a0-f77e-5fb6-a721-1eb60887b454",
+          "resolution": "Simulated review; no ride authorized",
+          "ignition": "locked"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T08:30:00+08:00"
+      },
+      {
+        "id": "9984f73e-c019-5307-80ed-bca68d5d437a",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "ride_failed_face",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "962fa3db-6fde-53e0-af9d-0f0aed2d083e",
+          "status": "failed_face",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T08:00:00+08:00"
+      },
+      {
+        "id": "f438ef91-0885-54e2-a1f6-b24bd2bedd0f",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "962fa3db-6fde-53e0-af9d-0f0aed2d083e",
+          "reason": "failed_face",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T08:00:00+08:00"
+      },
+      {
+        "id": "250e2de0-57f2-5ddf-8b57-3b5f4e0dbffb",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "incident_resolved",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "962fa3db-6fde-53e0-af9d-0f0aed2d083e",
+          "resolution": "Simulated review; no ride authorized",
+          "ignition": "locked"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T08:30:00+08:00"
+      },
+      {
+        "id": "3c257606-df18-597d-b513-30c55ca47d80",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "ride_passed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "bdb13673-802f-5c01-9e81-5ac0af73b73c",
+          "status": "passed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-22T08:00:00+08:00"
+      },
+      {
+        "id": "5e56b101-bc2a-541f-be86-bc775474ca9d",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "ride_ongoing",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "598f83de-7131-53e8-9f37-17332575f6fe",
+          "status": "ongoing",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-23T17:11:00+08:00"
+      },
+      {
+        "id": "20467d0d-6720-5f2b-964c-142598d0d454",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "login_failed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "failed",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:00:00+08:00"
+      },
+      {
+        "id": "0a3eab04-a7d2-52eb-aa07-723e70cc93cd",
+        "user_id": "007f347f-3305-5316-b7c2-74ad965b73b5",
+        "action_type": "login_success",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "success",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:01:00+08:00"
+      },
+      {
+        "id": "2a7cd693-0ed0-5bde-9d14-54dcb0dcca3b",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "profile_created",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "name": "Nathaniel Baculi",
+          "motorcycle_id": "694dd970-0a32-5eb8-a1c6-58555a894204",
+          "device_id": "ee8c63e2-17c3-58b4-9d64-45061cc628cb"
+        },
+        "ip_address": null,
+        "created_at": "2026-08-12T09:00:00+08:00"
+      },
+      {
+        "id": "1c36b1de-d7f5-5bc8-a4ec-a172b0c805ee",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "9f883548-1ed5-5b9d-89df-45806ee786e8",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T09:24:00+08:00"
+      },
+      {
+        "id": "193497b6-652b-5c80-874d-e8c2ec1094b8",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "945e4c74-d30a-5cfd-9b05-86cd2cf661f5",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-04T09:25:00+08:00"
+      },
+      {
+        "id": "6032cf3b-13fb-58c2-a752-70bb78cc1856",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "fb8f7a5b-fcce-545d-b439-754b6796b6f6",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-07T09:26:00+08:00"
+      },
+      {
+        "id": "a8086b3a-112b-5b01-81c5-2cf47dee6119",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "2c9d515a-dd47-5df8-a8ba-d466a9a21577",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-10T09:27:00+08:00"
+      },
+      {
+        "id": "8c6f50a7-7ee2-5e8c-a150-8f0adcbaf02f",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "34112425-118b-5b56-b472-8d2ea9cf8378",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T09:28:00+08:00"
+      },
+      {
+        "id": "304b8f5b-e36e-5640-b56a-6d3e2fb2b14d",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "override_authorized",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "34112425-118b-5b56-b472-8d2ea9cf8378",
+          "reason": "Simulated stationary relay recovery after checks passed",
+          "actor": "Sample Administrator (fictional; no Auth account)",
+          "initial_brac_level": 0,
+          "face_check": "simulated_pass",
+          "helmet_check": "simulated_pass"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T09:00:00+08:00"
+      },
+      {
+        "id": "dfbf1dd6-b7ce-5a16-ac72-75b009227066",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "359240d5-dec4-537a-875a-18d752f00a2d",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-16T09:29:00+08:00"
+      },
+      {
+        "id": "cf2f4f19-252a-5039-a8b8-f81d574d75ca",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "ride_failed_brac",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "51529080-0c6c-5b9c-ba33-f05eca718582",
+          "status": "failed_brac",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T09:00:00+08:00"
+      },
+      {
+        "id": "4c7647a8-71ae-5215-9fbc-fb21dbce2616",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "51529080-0c6c-5b9c-ba33-f05eca718582",
+          "reason": "failed_brac",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T09:00:00+08:00"
+      },
+      {
+        "id": "dc7a5792-602c-55c6-9e28-df40a6700993",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "ride_failed_face",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "07eec919-5118-572d-9179-45865d6b398b",
+          "status": "failed_face",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T09:00:00+08:00"
+      },
+      {
+        "id": "99fc492a-49ac-5363-86c7-97f5b6697e9b",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "07eec919-5118-572d-9179-45865d6b398b",
+          "reason": "failed_face",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T09:00:00+08:00"
+      },
+      {
+        "id": "9956e074-c494-5616-ba76-8271d9aeb6da",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "ride_passed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "ea7cfbac-f0f1-574d-a423-521d08a0a4f4",
+          "status": "passed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-22T09:00:00+08:00"
+      },
+      {
+        "id": "9735fc62-0662-5683-818c-560df9d48c59",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "ride_ongoing",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "efcf21d9-9b8a-5adb-9cca-a02967dca016",
+          "status": "ongoing",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-23T17:12:00+08:00"
+      },
+      {
+        "id": "f8225cd7-1ae6-5b06-8b30-e0e43eb79b75",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "login_failed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "failed",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:00:00+08:00"
+      },
+      {
+        "id": "6a84ae0e-8f19-5a23-8efd-93f2f183be16",
+        "user_id": "c8307178-1baa-5dcb-a98b-52bca632ec1c",
+        "action_type": "login_success",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "success",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:01:00+08:00"
+      },
+      {
+        "id": "50ae17bc-c85b-59e7-9e7b-4e2e459f1f55",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "profile_created",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "name": "Rose Marie Roxas",
+          "motorcycle_id": "29a896cf-cc09-57a5-83ec-35169123c179",
+          "device_id": "28125a54-2913-5ab9-a02c-6ff2ab68f635"
+        },
+        "ip_address": null,
+        "created_at": "2026-08-13T09:00:00+08:00"
+      },
+      {
+        "id": "8f1e18df-8178-5c97-a5b1-4d0b875e6667",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "9778d6eb-c72f-5dce-b7fe-fa28d3ef86ac",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T10:27:00+08:00"
+      },
+      {
+        "id": "984e3100-02ec-5b01-90ca-3bd179e91fbe",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "b2475bcc-9e81-5b16-a07a-1e80a428351d",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-04T10:28:00+08:00"
+      },
+      {
+        "id": "519d8f5f-e16f-5959-9dba-f7e303bec49d",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "bae733cc-81b8-5846-8ea3-9538edafe611",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-07T10:29:00+08:00"
+      },
+      {
+        "id": "607c7906-62e6-52e1-82f3-357413fe6e35",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "bfcc8f1f-4c37-55c8-9476-f9c701376628",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-10T10:30:00+08:00"
+      },
+      {
+        "id": "2269564a-2543-50f8-963d-08914acd276b",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "4a093c0f-f836-5fb8-b3c0-a4c7c4ddef2b",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T10:31:00+08:00"
+      },
+      {
+        "id": "239d273d-fc89-529e-9875-a85682350095",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "override_authorized",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "4a093c0f-f836-5fb8-b3c0-a4c7c4ddef2b",
+          "reason": "Simulated stationary relay recovery after checks passed",
+          "actor": "Sample Administrator (fictional; no Auth account)",
+          "initial_brac_level": 0,
+          "face_check": "simulated_pass",
+          "helmet_check": "simulated_pass"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T10:00:00+08:00"
+      },
+      {
+        "id": "f60a91a4-e6f8-54cd-8d94-734535164494",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "37122691-fcf7-5397-82df-9877a15a698c",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-16T10:32:00+08:00"
+      },
+      {
+        "id": "3471c14b-d435-5ca6-9879-6131d30cb458",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "ride_failed_brac",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "e4543eab-a32f-5f12-bf23-cf90e17cefa2",
+          "status": "failed_brac",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T10:00:00+08:00"
+      },
+      {
+        "id": "58c5d9ff-b68d-55cb-9df5-3c872dc649e6",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "e4543eab-a32f-5f12-bf23-cf90e17cefa2",
+          "reason": "failed_brac",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T10:00:00+08:00"
+      },
+      {
+        "id": "f4d9fe7e-2c04-504a-b80d-f0f2453d9e47",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "incident_resolved",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "e4543eab-a32f-5f12-bf23-cf90e17cefa2",
+          "resolution": "Simulated review; no ride authorized",
+          "ignition": "locked"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T10:30:00+08:00"
+      },
+      {
+        "id": "44f13491-f5b0-5ae9-8395-546296b64ad4",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "ride_failed_face",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "22cb7d75-0f3c-5865-8295-94dde1b6f128",
+          "status": "failed_face",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T10:00:00+08:00"
+      },
+      {
+        "id": "6c0f4d04-f0c0-52a7-a9f6-af3383a3b244",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "22cb7d75-0f3c-5865-8295-94dde1b6f128",
+          "reason": "failed_face",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T10:00:00+08:00"
+      },
+      {
+        "id": "65144622-ce8e-57ae-b5fe-2cac68280807",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "incident_resolved",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "22cb7d75-0f3c-5865-8295-94dde1b6f128",
+          "resolution": "Simulated review; no ride authorized",
+          "ignition": "locked"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T10:30:00+08:00"
+      },
+      {
+        "id": "8bc3dc73-aa3e-5f1f-a710-877b0c7c8186",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "ride_passed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "ad51a19e-2b32-5930-8f49-ce0d48720022",
+          "status": "passed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-22T10:00:00+08:00"
+      },
+      {
+        "id": "e26bd9d5-52b6-51e8-aa63-36673aa3fce2",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "ride_ongoing",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "8477c81b-5bf2-5cd4-9ac7-b1dd68bd795c",
+          "status": "ongoing",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-23T17:13:00+08:00"
+      },
+      {
+        "id": "e606310c-32a9-5ba7-99a3-fa5439c4db96",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "login_failed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "failed",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:00:00+08:00"
+      },
+      {
+        "id": "b4b4b361-f3d3-5e28-a996-418c2a9d6b62",
+        "user_id": "7d0c47ab-8f3d-507b-9fee-4915c646aae6",
+        "action_type": "login_success",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "success",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:01:00+08:00"
+      },
+      {
+        "id": "5e2fe5dc-3e8d-5f89-8a5c-ef293db7a0ee",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "profile_created",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "name": "Jenna Diaz",
+          "motorcycle_id": "a95d21b5-43ed-5b6d-b9db-09688d91dcbb",
+          "device_id": "efee6efc-0008-55a7-933f-77c0ee17566f"
+        },
+        "ip_address": null,
+        "created_at": "2026-08-14T09:00:00+08:00"
+      },
+      {
+        "id": "6353f1bc-303c-5216-839c-1b81d8bdd558",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "140c4224-6906-52f9-80e9-36d72e681de7",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T11:30:00+08:00"
+      },
+      {
+        "id": "31e5ccbc-9bff-5586-bba5-3bbd7d2a69e6",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "1409ae5d-9652-530a-a2ca-8bd78a88a35f",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-04T11:31:00+08:00"
+      },
+      {
+        "id": "230cfb66-4a95-56ef-a504-815d80e82155",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "de3489ec-411f-504b-9af2-a43be7717aa0",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-07T11:32:00+08:00"
+      },
+      {
+        "id": "0f5b51cd-6216-5178-881d-c6cdfa9dc263",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "ff6864a4-bc06-5d11-b5bd-2addadbc5492",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-10T11:33:00+08:00"
+      },
+      {
+        "id": "1855615c-aeaf-5eeb-8059-4d3a508da10e",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "a422721e-791a-5965-b3cd-ab3941746919",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T11:34:00+08:00"
+      },
+      {
+        "id": "df0c3789-62d0-55b6-9c25-d3dfba86db1d",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "override_authorized",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "a422721e-791a-5965-b3cd-ab3941746919",
+          "reason": "Simulated stationary relay recovery after checks passed",
+          "actor": "Sample Administrator (fictional; no Auth account)",
+          "initial_brac_level": 0,
+          "face_check": "simulated_pass",
+          "helmet_check": "simulated_pass"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T11:00:00+08:00"
+      },
+      {
+        "id": "f37b5f4a-5cad-5ca7-ba25-f9b19a974e44",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "bd23e049-d008-55be-b50c-24388af7c754",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-16T11:35:00+08:00"
+      },
+      {
+        "id": "b6902985-dc92-511a-9b0f-0f6fefccbe06",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "ride_failed_brac",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "c55d2290-dba0-54ea-9e75-bbf1eefb815e",
+          "status": "failed_brac",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T11:00:00+08:00"
+      },
+      {
+        "id": "f1d472d7-1094-5d72-9bf8-936c425e0a08",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "c55d2290-dba0-54ea-9e75-bbf1eefb815e",
+          "reason": "failed_brac",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T11:00:00+08:00"
+      },
+      {
+        "id": "bb8bfd05-ef69-5076-b993-979907c3b9b7",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "ride_failed_face",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "c57ef480-67f2-54ec-a0ac-0199c2e24884",
+          "status": "failed_face",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T11:00:00+08:00"
+      },
+      {
+        "id": "84d125f3-4111-5ff2-9255-e07f8f91e989",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "c57ef480-67f2-54ec-a0ac-0199c2e24884",
+          "reason": "failed_face",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T11:00:00+08:00"
+      },
+      {
+        "id": "053f485a-1f4d-57df-afb7-3b767e619e43",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "ride_passed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "fc538076-0205-5ac6-80bb-2e6d3654d1fd",
+          "status": "passed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-22T11:00:00+08:00"
+      },
+      {
+        "id": "1395b024-f9c3-5f5c-8b0c-2b29a522f600",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "ride_ongoing",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "01103545-f7eb-5127-9d5a-d433cb0076f3",
+          "status": "ongoing",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-23T17:14:00+08:00"
+      },
+      {
+        "id": "1d750d83-b4de-5633-b6e1-7f5e2e1b391f",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "login_failed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "failed",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:00:00+08:00"
+      },
+      {
+        "id": "112ebffd-a867-5bb0-87d6-d32139201608",
+        "user_id": "75921ea1-7dfb-5db3-b03a-8733e40134ab",
+        "action_type": "login_success",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "success",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:01:00+08:00"
+      },
+      {
+        "id": "b6ee0696-832a-535e-b53e-d492bd41acf1",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "profile_created",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "name": "Jefferson Atractibo",
+          "motorcycle_id": "0ba11a8c-0d12-581b-9130-5c310554fc18",
+          "device_id": "74d1cc98-16dc-5309-9d35-685d1ce8370e"
+        },
+        "ip_address": null,
+        "created_at": "2026-08-15T09:00:00+08:00"
+      },
+      {
+        "id": "37f3465c-3281-5172-95b6-5b99250df032",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "2f5e2303-a5ab-581f-821c-af4709d8b42c",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T12:33:00+08:00"
+      },
+      {
+        "id": "7bf9c7be-db9a-501a-ab91-2edb1ced41f7",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "c6f30244-4dbf-5b18-a7b0-2bcbc694ddaf",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-04T12:34:00+08:00"
+      },
+      {
+        "id": "5471b807-38a6-5b10-b350-3355d0c9bb8c",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "9c1340d6-0318-575c-8f74-28fab113140d",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-07T12:35:00+08:00"
+      },
+      {
+        "id": "de5fd126-0135-5f7c-84ff-6bc848a325f7",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "9373acec-e410-58e2-b996-b145eb93e1a7",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-10T12:36:00+08:00"
+      },
+      {
+        "id": "04b52f1f-9947-5057-bc16-31188f2c815d",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "7bfae710-d452-5388-bc85-54d9ea9b86b9",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T12:37:00+08:00"
+      },
+      {
+        "id": "2e1388ac-0e40-591b-97c2-ce37b56a9809",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "override_authorized",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "7bfae710-d452-5388-bc85-54d9ea9b86b9",
+          "reason": "Simulated stationary relay recovery after checks passed",
+          "actor": "Sample Administrator (fictional; no Auth account)",
+          "initial_brac_level": 0,
+          "face_check": "simulated_pass",
+          "helmet_check": "simulated_pass"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T12:00:00+08:00"
+      },
+      {
+        "id": "f3067f19-1a8a-5843-983e-889f9204202f",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "5fdcfbb1-7f52-5a8a-aa80-9b820229dd5a",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-16T12:38:00+08:00"
+      },
+      {
+        "id": "2804d751-ea20-5337-9831-eb9a80288f18",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "ride_failed_brac",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "79ccc403-f18a-52c5-a440-fa3ed71f51cf",
+          "status": "failed_brac",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T12:00:00+08:00"
+      },
+      {
+        "id": "3cd22859-7a9b-59c9-bb59-d4aa88d5df92",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "79ccc403-f18a-52c5-a440-fa3ed71f51cf",
+          "reason": "failed_brac",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T12:00:00+08:00"
+      },
+      {
+        "id": "67040ea0-d5d8-543c-9a99-169f29dff40e",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "incident_resolved",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "79ccc403-f18a-52c5-a440-fa3ed71f51cf",
+          "resolution": "Simulated review; no ride authorized",
+          "ignition": "locked"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T12:30:00+08:00"
+      },
+      {
+        "id": "b4c8fe00-3591-51a3-85ef-18754f62c022",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "ride_failed_face",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "d986989a-c748-5b5f-809b-8512e0752174",
+          "status": "failed_face",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T12:00:00+08:00"
+      },
+      {
+        "id": "5a9dd495-64dd-53a9-b12e-1500d0d18dd3",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "d986989a-c748-5b5f-809b-8512e0752174",
+          "reason": "failed_face",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T12:00:00+08:00"
+      },
+      {
+        "id": "ac2fb3ac-382f-59af-94c5-afe68849af46",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "incident_resolved",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "d986989a-c748-5b5f-809b-8512e0752174",
+          "resolution": "Simulated review; no ride authorized",
+          "ignition": "locked"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T12:30:00+08:00"
+      },
+      {
+        "id": "3adc00fb-7a86-5791-a911-234608567f75",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "ride_passed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "84fce36f-2ce3-5ec8-9137-c66b784bb9bc",
+          "status": "passed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-22T12:00:00+08:00"
+      },
+      {
+        "id": "e06349cd-e8d6-5c9c-9075-7df61839d651",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "ride_ongoing",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "12bbbbe4-8d4b-5875-9278-a908172999f2",
+          "status": "ongoing",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-23T17:15:00+08:00"
+      },
+      {
+        "id": "36a95062-2cd8-5a47-b76f-b0fbb1d8c2b6",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "login_failed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "failed",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:00:00+08:00"
+      },
+      {
+        "id": "e00ed6a8-7727-5539-ae64-2ccb3ebdfcf9",
+        "user_id": "16431207-211f-5d42-a0f0-470d8fb58543",
+        "action_type": "login_success",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "success",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:01:00+08:00"
+      },
+      {
+        "id": "c60867be-8606-5830-ba2a-5f1eeabeb5df",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "profile_created",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "name": "Jeric Rotoni",
+          "motorcycle_id": "a221587f-90d9-5b40-9e33-eb6c729ef462",
+          "device_id": "15a143a0-e9c3-5a16-a167-10bed698b91f"
+        },
+        "ip_address": null,
+        "created_at": "2026-08-16T09:00:00+08:00"
+      },
+      {
+        "id": "b7433d9b-00f9-5e33-95a4-946953ce616a",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "5a9f59e0-0c0d-5cd5-918c-68fc6a0db653",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T13:36:00+08:00"
+      },
+      {
+        "id": "64eae7e7-e696-5061-b08d-e2a3ae692af8",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "1e1362f0-3c46-596b-9592-305f9f2d14c6",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-04T13:37:00+08:00"
+      },
+      {
+        "id": "20435f60-94b6-5154-8175-06467f0f03da",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "914e82fe-fd12-59d0-ad23-9e8c41873f7f",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-07T13:38:00+08:00"
+      },
+      {
+        "id": "020bc4bd-300e-5ef6-9d2a-c6f16f884b81",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "13cfd662-f728-50e6-b192-1aa6eff91c2f",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-10T13:39:00+08:00"
+      },
+      {
+        "id": "18ce3c8a-40e9-5675-973a-37eab3814f2d",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "2324fcc3-f0fd-533b-b2ab-03d33b254ccb",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T13:40:00+08:00"
+      },
+      {
+        "id": "660950c0-bdc4-5a05-9025-f41e732ec3d2",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "override_authorized",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "2324fcc3-f0fd-533b-b2ab-03d33b254ccb",
+          "reason": "Simulated stationary relay recovery after checks passed",
+          "actor": "Sample Administrator (fictional; no Auth account)",
+          "initial_brac_level": 0,
+          "face_check": "simulated_pass",
+          "helmet_check": "simulated_pass"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T13:00:00+08:00"
+      },
+      {
+        "id": "af8095b1-611a-52ef-95f8-3eadc2535f92",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "2dd187b1-8e91-51eb-85c6-15d780c0d0ac",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-16T13:41:00+08:00"
+      },
+      {
+        "id": "86c52c33-3d67-5aec-8172-db94ccf7e74a",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "ride_failed_brac",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "c3eca3fe-5731-558a-9372-5ec99e216a36",
+          "status": "failed_brac",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T13:00:00+08:00"
+      },
+      {
+        "id": "8c7902de-3aad-585f-bb16-be672b3032c2",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "c3eca3fe-5731-558a-9372-5ec99e216a36",
+          "reason": "failed_brac",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T13:00:00+08:00"
+      },
+      {
+        "id": "d162f39a-d8d6-5e50-80fb-d2581b528d32",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "ride_failed_face",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "fdd00013-b4ee-54f3-8e27-fedb598b70bf",
+          "status": "failed_face",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T13:00:00+08:00"
+      },
+      {
+        "id": "3a88ff3c-8ec1-58ea-8f1c-049ec6ed9c19",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "fdd00013-b4ee-54f3-8e27-fedb598b70bf",
+          "reason": "failed_face",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T13:00:00+08:00"
+      },
+      {
+        "id": "2c395ede-0390-5bd7-9073-aa1b455d1b3f",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "ride_passed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "77d0aa67-6ee9-5ca0-a661-0ffc6ba06020",
+          "status": "passed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-22T13:00:00+08:00"
+      },
+      {
+        "id": "e6058724-1862-5d58-b23b-5db7d4c9278e",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "ride_ongoing",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "12f4b863-2f44-55d8-ade7-b7400f8d50be",
+          "status": "ongoing",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "unavailable"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-23T17:16:00+08:00"
+      },
+      {
+        "id": "eeb9faa5-69ed-5e18-906d-c6e1670099b5",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "login_failed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "failed",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:00:00+08:00"
+      },
+      {
+        "id": "241f025c-1295-5fe0-8358-adb03feac648",
+        "user_id": "39004512-17d0-5082-8238-c5599c7c6b61",
+        "action_type": "login_success",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "success",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:01:00+08:00"
+      },
+      {
+        "id": "1f960674-c9fa-53fa-bd28-655a8f6cccea",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "profile_created",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "name": "Alexis Olaybal",
+          "motorcycle_id": "16c0517d-6245-5c4b-87f8-d9102cf94392",
+          "device_id": "60f300c8-dbb9-5251-966d-c9399e8f8284"
+        },
+        "ip_address": null,
+        "created_at": "2026-08-17T09:00:00+08:00"
+      },
+      {
+        "id": "e0811bcd-2fa9-5fbb-8a21-81623f5b6e6c",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "acdaa00f-d49f-5a0f-a31b-8b6b2d9c1957",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T14:39:00+08:00"
+      },
+      {
+        "id": "770a72a1-a124-54c1-9197-2df6899bf6fb",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "447face9-aebf-5592-bd61-a4450a18458d",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-04T14:40:00+08:00"
+      },
+      {
+        "id": "d6c3e1e0-7dab-5ad9-b211-cf112be42891",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "14b42d8c-eb93-519c-8a3a-3c0d7b6b645d",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-07T14:41:00+08:00"
+      },
+      {
+        "id": "23be28e6-5688-5f60-aa52-19415cdf47e0",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "e228f887-fcc0-599f-aeeb-b18768b1e9fc",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-10T14:42:00+08:00"
+      },
+      {
+        "id": "91ae73f9-909f-5277-b827-782797e9ab39",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "49e65d28-c49a-5a1a-b45d-1cc478ba5d2e",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T14:43:00+08:00"
+      },
+      {
+        "id": "e26914d8-acff-5bec-a052-d7b46d2a95a4",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "override_authorized",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "49e65d28-c49a-5a1a-b45d-1cc478ba5d2e",
+          "reason": "Simulated stationary relay recovery after checks passed",
+          "actor": "Sample Administrator (fictional; no Auth account)",
+          "initial_brac_level": 0,
+          "face_check": "simulated_pass",
+          "helmet_check": "simulated_pass"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-13T14:00:00+08:00"
+      },
+      {
+        "id": "5ea169c1-1222-5cce-b5c3-0fc8161631df",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "ride_completed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "cc1b239b-c2f4-519e-a0ca-024e8d45643a",
+          "status": "completed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-16T14:44:00+08:00"
+      },
+      {
+        "id": "59780115-ef22-537a-ae7b-1d2ab8d1920d",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "ride_failed_brac",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "524e02eb-7e73-5143-a3f0-0db5e1e39b08",
+          "status": "failed_brac",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T14:00:00+08:00"
+      },
+      {
+        "id": "1ff95658-5de5-5c2a-a0c5-5188452cbd20",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "524e02eb-7e73-5143-a3f0-0db5e1e39b08",
+          "reason": "failed_brac",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T14:00:00+08:00"
+      },
+      {
+        "id": "a9901346-c5c1-55b0-9ce8-264f8bd76504",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "incident_resolved",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "524e02eb-7e73-5143-a3f0-0db5e1e39b08",
+          "resolution": "Simulated review; no ride authorized",
+          "ignition": "locked"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-17T14:30:00+08:00"
+      },
+      {
+        "id": "1dea1b8e-648b-5cda-8891-79032606b412",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "ride_failed_face",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "d8208ae2-48bb-5af0-af01-b303dbf5ade4",
+          "status": "failed_face",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T14:00:00+08:00"
+      },
+      {
+        "id": "d7a10466-d399-5058-ab69-25cc4227ce0b",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "incident_opened",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "d8208ae2-48bb-5af0-af01-b303dbf5ade4",
+          "reason": "failed_face",
+          "ignition": "locked",
+          "notification": "simulated; no message sent"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T14:00:00+08:00"
+      },
+      {
+        "id": "7a70aaea-28ce-5e1e-af36-df9a517c52e0",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "incident_resolved",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "d8208ae2-48bb-5af0-af01-b303dbf5ade4",
+          "resolution": "Simulated review; no ride authorized",
+          "ignition": "locked"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-18T14:30:00+08:00"
+      },
+      {
+        "id": "6d2bc9f4-d067-509d-a296-0f9fd88d09af",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "ride_passed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "01b46040-01a2-56ca-8847-18aa99085af4",
+          "status": "passed",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "simulated"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-22T14:00:00+08:00"
+      },
+      {
+        "id": "caa51111-2d0e-5eb0-8607-b5c0d9b9e099",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "ride_ongoing",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "ride_id": "0bf9f218-5bbe-5813-8802-795ecbedbed4",
+          "status": "ongoing",
+          "note": "Simulated software test event; no real sensor measurement or rider conduct.",
+          "device_telemetry": "unavailable"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-23T17:17:00+08:00"
+      },
+      {
+        "id": "27b2f3e9-c345-51f9-9313-e017144b4794",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "login_failed",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "failed",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:00:00+08:00"
+      },
+      {
+        "id": "4e6e7e07-d6be-57e9-8193-33af71b618dd",
+        "user_id": "cbb02af8-dd60-56bc-b609-d4fded04b73c",
+        "action_type": "login_success",
+        "action_details": {
+          "synthetic": true,
+          "dataset": "motolock-supabase-sample-v1",
+          "result": "success",
+          "note": "Simulated audit event only; no authentication attempted"
+        },
+        "ip_address": null,
+        "created_at": "2026-09-01T06:01:00+08:00"
+      }
+    ]
+  },
+  "expected_summary": {
+    "table_counts": {
+      "users": 7,
+      "motorcycles": 7,
+      "devices": 7,
+      "emergency_contacts": 14,
+      "ride_history": 70,
+      "audit_logs": 120
+    },
+    "ride_status_counts": {
+      "completed": 42,
+      "failed_brac": 7,
+      "failed_face": 7,
+      "passed": 7,
+      "ongoing": 7
+    },
+    "device_status_counts": {
+      "online": 5,
+      "offline": 1,
+      "maintenance": 1
+    },
+    "override_events": 7,
+    "incidents_opened": 14,
+    "incidents_resolved": 8,
+    "incidents_remaining_open": 6,
+    "login_events": 14,
+    "september_23_history_rows": 7,
+    "as_of": "2026-09-23T18:00:00+08:00"
+  }
+}
