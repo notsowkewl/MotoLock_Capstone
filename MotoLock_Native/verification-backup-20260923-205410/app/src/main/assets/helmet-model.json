@@ -1,0 +1,6 @@
+{
+  "labelsVerified": false,
+  "helmetClassId": 0,
+  "coordinates": "pixels",
+  "note": "Camera-only provisional class-0 mapping retained from the original app. NOT verified: the public AdvHelmet.pt reference has 3 classes, while this TFLite has 2. Do not use these predictions to authorize hardware."
+}

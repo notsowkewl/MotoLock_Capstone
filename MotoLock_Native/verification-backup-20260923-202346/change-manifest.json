@@ -1,0 +1,92 @@
+[
+  {
+    "path": "app/src/main/java/com/example/motolock/CameraScreen.kt",
+    "remove": false,
+    "originalHash": "40DB9D514450B27A21EEF8B0A969531AB96F5F7FFAAE4EA98E533F852F9A468A",
+    "stagedHash": "F3BF064B0C67777F9E16AD47D9F892DA15842E26F25F02A7613FA9CC6714E5AA"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/UnlockScreen.kt",
+    "remove": false,
+    "originalHash": "65C5902AA9522752306443B2B4D39F7E1BD1C2EE5767A28ABB81F0DB2205261B",
+    "stagedHash": "A86E76C4749A714A8FD9DC03B8D767E14B8865AB4CCC90B81E1AB93220368FA7"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/VerificationCamera.kt",
+    "remove": false,
+    "originalHash": "9AC407CA94911CE6BBA24992F4253D416F54D777891225F9A709746FAD3ED17B",
+    "stagedHash": "9AC407CA94911CE6BBA24992F4253D416F54D777891225F9A709746FAD3ED17B"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/DashboardScreen.kt",
+    "remove": false,
+    "originalHash": "ED933CDEE7A29B6E44266D8D03BF74C55CF937D77B77FA4463D11D3E3307EC70",
+    "stagedHash": "67237FFCC56BBA926D9FF6A6957993253D4AF6A0B904B3D706CCE095688855C9"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/SetupRouterScreen.kt",
+    "remove": false,
+    "originalHash": "2A80D9E759F1A8E56DAA1DA4303D829AEAAFB8B0AAEA48AD56A2CA84BC2EACD3",
+    "stagedHash": "D5881C92D881DA6CF433300F41E54C5753EAD03F3AB468A422D9D39C01501A1C"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/data/BluetoothService.kt",
+    "remove": false,
+    "originalHash": "B413FE7EDC77C7032CFBA60A0865CD3FDC58F1B0C4374F7F624D8DA277CDE339",
+    "stagedHash": "FBE85F70D52D3FECD6CD491FCECD5928F7007E99AD713E2BFD06F1E45A3DAB2A"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/data/HardwareStatus.kt",
+    "remove": true,
+    "originalHash": "45EEA01E0A40589B942876BA25BB219F075BC191C9D6F90D57C266B2E1809479",
+    "stagedHash": null
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/data/FaceProfiles.kt",
+    "remove": false,
+    "originalHash": null,
+    "stagedHash": "D2F9C85A291A6801953B5BD14F6FC02472F8F89E8B19DDC5FF9D771EE9DF8B12"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/data/CameraCheck.kt",
+    "remove": false,
+    "originalHash": null,
+    "stagedHash": "EE80439FCD8AEED4F808482DF113E29F62112791BB30806C51E2C18126F71410"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/data/NativeVision.kt",
+    "remove": false,
+    "originalHash": "600DD147A8B2648FA04A81EB9FA70A959B154FE2EC201B96BEA27D9FF45D41DE",
+    "stagedHash": "F08237EA1478D283A4ACF6819109FA2413C097D4C397980E26338C29C37973BE"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/data/VerificationPolicy.kt",
+    "remove": false,
+    "originalHash": "22D4D634C08E543DA33B85B6480D54419D1311CE5B764479C54F6DCB5AB88CA8",
+    "stagedHash": "83259E36C5DB81E41F93879B744AB97434DD23BE39798C72B9509B9BD3B62C4D"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/data/TensorPixels.kt",
+    "remove": false,
+    "originalHash": "1FCC57DEFE0BCAEC29EC17BD7D0BE16314FA4A381A717D61ED2E5B646707FB6C",
+    "stagedHash": "1FCC57DEFE0BCAEC29EC17BD7D0BE16314FA4A381A717D61ED2E5B646707FB6C"
+  },
+  {
+    "path": "app/src/main/assets/helmet-model.json",
+    "remove": false,
+    "originalHash": "7D0EB43346FB4BFBD35C3C60BE0BA39F80CBDA4B68789668062A735D1E36A4A2",
+    "stagedHash": "B6280227B62AEF0EFBF697A823220AFD603B6E81DFC65C5770D17A5AD0A12A8C"
+  },
+  {
+    "path": "app/src/test/java/com/example/motolock/VerificationPolicyTest.kt",
+    "remove": false,
+    "originalHash": "D41BF1A314E995C2CFCB749EC36FD580E03911CD2EBCABA261C1875ED855D3DA",
+    "stagedHash": "8689B980F6524A4A26702ACA5FD900953817775C508E42E1CDABBC773DDDA3F0"
+  },
+  {
+    "path": "VERIFICATION.md",
+    "remove": false,
+    "originalHash": "3CE7D1EE5C4A1A3C8F5C693FFB0358E8448DD311D8532B6033A52922EC750D90",
+    "stagedHash": "BBCD6D46198A2D49EC55E055532FF3A1E52DD299B7449E7AF5ADC3709788F458"
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "path": "app/src/main/java/com/example/motolock/CameraScreen.kt",
+    "remove": false,
+    "originalHash": "410C799986D93C6B3C99E98ADF199521B48DFEE1EDC6B364AE62A6B399F24224",
+    "stagedHash": "1F205A08C000AB58B09D8E4CEAB53AE854D0E5F7D5077E2F1FBF98E8E0BFC509"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/VerificationCamera.kt",
+    "remove": false,
+    "originalHash": "8E1FF988A674CFF927C8BE8A4D222F302E74CDD13451D94F2CC13289A676E44D",
+    "stagedHash": "79A7EA2177DD16F423C0B7C835F584CBCCDA9C14692DA75B8AED847D0606DC8F"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/data/EnrollmentChallenge.kt",
+    "remove": false,
+    "originalHash": null,
+    "stagedHash": "4A156A14422B8F8BD98E9C6785D882A64883415C0DDB8BDF18732AD8245912CC"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/data/NativeVision.kt",
+    "remove": false,
+    "originalHash": "F08237EA1478D283A4ACF6819109FA2413C097D4C397980E26338C29C37973BE",
+    "stagedHash": "040E30BCA9E9761BC8FEC04261893A329F0882827003A79522FBDC80D5CD0C89"
+  },
+  {
+    "path": "app/src/test/java/com/example/motolock/VerificationPolicyTest.kt",
+    "remove": false,
+    "originalHash": "8689B980F6524A4A26702ACA5FD900953817775C508E42E1CDABBC773DDDA3F0",
+    "stagedHash": "4C1CC563499227F0BD62B1ACB8FBB115F54AEB9283612EB4BE169B542007A840"
+  },
+  {
+    "path": "VERIFICATION.md",
+    "remove": false,
+    "originalHash": "11CA7162D5B909E56804E3705A74065263C5C48A66A56A58A1CED6E35BB74727",
+    "stagedHash": "A6FEECB81400B90CED4CE759ED8A495C547DE47BA6C86F82EDAC69741CEC5307"
+  }
+]

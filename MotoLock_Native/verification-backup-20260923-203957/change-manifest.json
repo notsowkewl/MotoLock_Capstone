@@ -1,0 +1,38 @@
+[
+  {
+    "path": "app/src/main/java/com/example/motolock/CameraScreen.kt",
+    "remove": false,
+    "originalHash": "F3BF064B0C67777F9E16AD47D9F892DA15842E26F25F02A7613FA9CC6714E5AA",
+    "stagedHash": "410C799986D93C6B3C99E98ADF199521B48DFEE1EDC6B364AE62A6B399F24224"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/UnlockScreen.kt",
+    "remove": false,
+    "originalHash": "A86E76C4749A714A8FD9DC03B8D767E14B8865AB4CCC90B81E1AB93220368FA7",
+    "stagedHash": "EA5A29948E9992F5AB6D6C657E6FF4FA23FC34C21428E05DFDE6C3A865577E0F"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/VerificationCamera.kt",
+    "remove": false,
+    "originalHash": "9AC407CA94911CE6BBA24992F4253D416F54D777891225F9A709746FAD3ED17B",
+    "stagedHash": "8E1FF988A674CFF927C8BE8A4D222F302E74CDD13451D94F2CC13289A676E44D"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/DashboardScreen.kt",
+    "remove": false,
+    "originalHash": "67237FFCC56BBA926D9FF6A6957993253D4AF6A0B904B3D706CCE095688855C9",
+    "stagedHash": "F94686BA5E977C17A803E07136A7EFA38D0EAF7DA4987CA6F631D14386E19A7A"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/data/FaceProfiles.kt",
+    "remove": false,
+    "originalHash": "D2F9C85A291A6801953B5BD14F6FC02472F8F89E8B19DDC5FF9D771EE9DF8B12",
+    "stagedHash": "EE4F01919DE722CA496D2F52A3AEB8468D062ECD0832DD63B5EE33D367F948B1"
+  },
+  {
+    "path": "VERIFICATION.md",
+    "remove": false,
+    "originalHash": "BBCD6D46198A2D49EC55E055532FF3A1E52DD299B7449E7AF5ADC3709788F458",
+    "stagedHash": "11CA7162D5B909E56804E3705A74065263C5C48A66A56A58A1CED6E35BB74727"
+  }
+]

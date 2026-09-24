@@ -29,3 +29,8 @@ yarn-error.log*
 
 # Optional eslint cache
 .eslintcache
+
+build/
+.gradle/
+app/build/
+.work/native-verification/project/app/build/

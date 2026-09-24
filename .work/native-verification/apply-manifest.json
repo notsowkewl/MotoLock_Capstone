@@ -1,0 +1,32 @@
+[
+  {
+    "path": "app/src/main/java/com/example/motolock/data/DualAiAnalyzer.kt",
+    "remove": false,
+    "originalHash": "0FDB7CD00DD1BB17ED8119D62440B6436563AF3EB6B98BF86A368940824C8BCE",
+    "stagedHash": "6B6F2A111EB3B11E6DF2105F68288D5FD8D896F1DE9341A6E37207A345AC4B3E"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/data/FaceData.kt",
+    "remove": false,
+    "originalHash": "C17CCE06DA2C2720F267912ADB57825928A9D142D2413BE1E4BADDE4117F6458",
+    "stagedHash": "8849A80C7A394CDB1B3D644A8D3DFAC1FD0C1B7864DFD1572C2EAC7BFCB98035"
+  },
+  {
+    "path": "app/src/main/java/com/example/motolock/data/CameraDecision.kt",
+    "remove": false,
+    "originalHash": "4B0B46AD380C9A8B57BA71B44A1976487F67EB0DB387958AB979657DF5600C0B",
+    "stagedHash": "4DF9A3FEF7B229DF224AFF025F90C0B33401AF105C5A67559105F03CAC52DEBD"
+  },
+  {
+    "path": "app/src/test/java/com/example/motolock/CameraFlowTest.kt",
+    "remove": false,
+    "originalHash": "322E37E9153F65F355FC9FF2F2053736780CB8DC19191CAA3B6F623F01D5B864",
+    "stagedHash": "43F46462BB25F6B58480E93B427BEAE991AD728D8ED713ADFC47F96260B40A63"
+  },
+  {
+    "path": "VERIFICATION.md",
+    "remove": false,
+    "originalHash": "C81FE2FCAE2B15E1DDEFDE454A37DB5C992BDC35A1843A33DCBC3AC8D2FAF50B",
+    "stagedHash": "84251DE540288A006410FBF9716C505F2377222CF548A136D8DC8738ECAABC82"
+  }
+]
