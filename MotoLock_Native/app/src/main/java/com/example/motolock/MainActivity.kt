@@ -80,9 +80,20 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MotoLockApp() {
     val navController = rememberNavController()
-    val startDest = if (SupabaseClientManager.client.auth.currentSessionOrNull() != null) "dashboard" else "login"
+    val startDest = if (SupabaseClientManager.client.auth.currentSessionOrNull() != null) "pin_unlock" else "login"
 
     NavHost(navController = navController, startDestination = startDest) {
+
+        composable("pin_unlock") {
+            PinUnlockScreen(
+                onUnlockSuccess = {
+                    navController.navigate("dashboard") { popUpTo("pin_unlock") { inclusive = true } }
+                },
+                onLogout = {
+                    navController.navigate("login") { popUpTo(0) }
+                }
+            )
+        }
 
         composable("login") {
             LoginScreen(
