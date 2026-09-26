@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Rider, Device, SafetyLog, AuditLog, DashboardData, ReportRow, ApiResponses } from './types';
 import './browser-libraries';
+import AlertsPage from './AlertsPage';
+import TablePagination, { useTablePagination } from './TablePagination';
+import AuditLogsPage from './AuditLogsPage';
+import { normalizeAuditLog, sortAuditLogs } from './audit-records';
+import type { AlertStore } from './alert-records';
+import { getIdentityDisplay, getIdentityLockAction, formatVerificationTime, getVerificationMethod, getIdentityDetails, filterIdentityRecords } from './identity-status';
+import { alcoholResults, overallStatuses, getSobrietyOutcome, getSobrietyDetails } from './sobriety-status';
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 const describeEdgeFunctionError = (error: { message: string; context?: unknown }) => {
@@ -55,6 +62,21 @@ const fetchAllSupabaseRows = async (table: string, orderBy = 'id') => {
     rows.push(...(data || []));
     if (!data || data.length < SUPABASE_PAGE_SIZE) return rows;
   }
+};
+
+const alertStore: AlertStore = {
+  read: fetchAllSupabaseRows,
+  getActor: async () => {
+    const { data, error } = await supabaseClient.auth.getUser();
+    if (error) throw new Error(error.message);
+    return data.user;
+  },
+  insert: async event => {
+    const { data, error } = await supabaseClient.from('audit_logs').insert(event).select('*').single();
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error('Supabase did not confirm the resolution. Refresh alerts before retrying.');
+    return data;
+  },
 };
 
 
@@ -299,6 +321,13 @@ export default function AdminApp() {
   const [riders, setRiders] = useState<Rider[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [overrides, setOverrides] = useState<SafetyLog[]>([]);
+  const [sobrietyResultFilter, setSobrietyResultFilter] = useState('all');
+  const [sobrietyStatusFilter, setSobrietyStatusFilter] = useState('all');
+  const [sobrietySearch, setSobrietySearch] = useState('');
+  const [identityResultFilter, setIdentityResultFilter] = useState('all');
+  const [identitySearch, setIdentitySearch] = useState('');
+  const [identityDetails, setIdentityDetails] = useState<{ title: string; text: string } | null>(null);
+  const [identityActionFilter, setIdentityActionFilter] = useState('all');
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   // Search/Filter states
@@ -344,6 +373,36 @@ export default function AdminApp() {
 
   // Settings Edit states
   const [alcoholThreshold, setAlcoholThreshold] = useState('0.05');
+  const sobrietyTests = overrides.map(log => ({ log, ...getSobrietyOutcome(log, alcoholThreshold) }));
+  const filteredIdentityRecords = filterIdentityRecords(sobrietyTests.map(({ log, alcoholResult }) => ({
+    ...log,
+    identity_display: log.identity_display ? {
+      ...log.identity_display,
+      lockAction: getIdentityLockAction(log.identity_display, alcoholResult),
+    } : undefined,
+  })), identitySearch, identityResultFilter, identityActionFilter);
+  const filteredSobrietyTests = sobrietyTests.filter(test =>
+    test.log.full_name.toLocaleLowerCase().includes(sobrietySearch.trim().toLocaleLowerCase())
+    && (sobrietyResultFilter === 'all' || test.alcoholResult === sobrietyResultFilter)
+    && (sobrietyStatusFilter === 'all' || test.overallStatus === sobrietyStatusFilter)
+  ).sort((a, b) => {
+    const aTime = Date.parse(a.log.created_at);
+    const bTime = Date.parse(b.log.created_at);
+    // Sort the saved Supabase timestamps; records without a valid time go last.
+    return (Number.isFinite(bTime) ? bTime : -Infinity)
+      - (Number.isFinite(aTime) ? aTime : -Infinity);
+  });
+  const filteredRiders = riders.filter(r => {
+    const query = searchQuery.toLowerCase();
+    const matchesQuery = r.full_name?.toLowerCase().includes(query) || r.email?.toLowerCase().includes(query);
+    const matchesRole = riderRoleFilter === 'all' || r.role === riderRoleFilter;
+    const matchesFace = riderFaceFilter === 'all' || (riderFaceFilter === 'enrolled' && r.face_enrolled) || (riderFaceFilter === 'missing' && !r.face_enrolled);
+    return matchesQuery && matchesRole && matchesFace;
+  });
+  const riderPagination = useTablePagination(filteredRiders, JSON.stringify([searchQuery, riderRoleFilter, riderFaceFilter]));
+  const devicePagination = useTablePagination(devices);
+  const sobrietyPagination = useTablePagination(filteredSobrietyTests, JSON.stringify([sobrietySearch, sobrietyResultFilter, sobrietyStatusFilter, alcoholThreshold]));
+  const identityPagination = useTablePagination(filteredIdentityRecords, JSON.stringify([identitySearch, identityResultFilter, identityActionFilter, alcoholThreshold]));
   const [lockoutLimit, setLockoutLimit] = useState('3');
   const [sessionTimeout, setSessionTimeout] = useState('30');
 
@@ -629,11 +688,12 @@ export default function AdminApp() {
           created_at: ride.start_time || ride.created_at,
           full_name: user?.name || user?.full_name || 'Unknown rider',
           email: user?.email || '',
-          brac: String(ride.initial_brac_level ?? 0),
+          brac: String(ride.initial_brac_level ?? ''),
+          identity_display: getIdentityDisplay(ride),
           unlock_status: ride.status,
           alcohol_detected: ['failed_brac'].includes(ride.status),
-          face_verified: ride.status !== 'failed_face',
-          helmet_verified: ride.status !== 'failed_helmet',
+          face_verified: ride.face_verified ?? (ride.status !== 'failed_face'),
+          helmet_verified: ride.helmet_verified ?? (ride.status !== 'failed_helmet'),
         };
       }));
     } catch (error) { console.error(error); }
@@ -646,18 +706,7 @@ export default function AdminApp() {
         fetchAllSupabaseRows('users'),
       ]);
       const usersById = new Map(users.map((user) => [user.id, user]));
-      setAuditLogs(logs.map((log) => {
-        const details = typeof log.action_details === 'string'
-          ? JSON.parse(log.action_details || '{}')
-          : (log.action_details || {});
-        return {
-          ...log,
-          action: log.action_type || log.action || 'event',
-          module: String(log.action_type || log.module || 'system').split('_')[0],
-          target_record: details.ride_id || details.name || details.email || details.result || '',
-          admin_name: usersById.get(log.user_id)?.name || details.actor || 'System',
-        };
-      }));
+      setAuditLogs(sortAuditLogs(logs.map(log => normalizeAuditLog(log, usersById.get(log.user_id)?.name))));
     } catch (error) { console.error(error); }
   }, []);
 
@@ -800,7 +849,7 @@ export default function AdminApp() {
     setAddUserErrors({});
     let hasError = false;
     const errors: Record<string, string> = {};
-    
+
     const normalizedName = newFullName.trim();
     const normalizedEmail = newEmail.trim().toLowerCase();
     if (!normalizedName) {
@@ -815,7 +864,7 @@ export default function AdminApp() {
       errors.email = 'Please enter a valid email address.';
       hasError = true;
     }
-    
+
     if (!newPassword) {
       errors.password = 'Password is required';
       hasError = true;
@@ -1916,16 +1965,7 @@ export default function AdminApp() {
                   </tr>
                 </thead>
                 <tbody>
-                  {riders
-                    .filter(r => {
-                      const matchesQ = r.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        r.email?.toLowerCase().includes(searchQuery.toLowerCase());
-                      const matchesRole = riderRoleFilter === 'all' || r.role === riderRoleFilter;
-                      const matchesFace = riderFaceFilter === 'all' ||
-                        (riderFaceFilter === 'enrolled' && r.face_enrolled) ||
-                        (riderFaceFilter === 'missing' && !r.face_enrolled);
-                      return matchesQ && matchesRole && matchesFace;
-                    })
+                  {riderPagination.rows
                     .map((r) => (
                       <tr key={r.id}>
                         <td style={styles.tableCell}>{r.full_name}</td>
@@ -1991,6 +2031,7 @@ export default function AdminApp() {
                     ))}
                 </tbody>
               </table>
+              <TablePagination pagination={riderPagination} label="Riders" styles={styles} />
             </div>
           </div>
         )}
@@ -2009,7 +2050,7 @@ export default function AdminApp() {
                   </tr>
                 </thead>
                 <tbody>
-                  {devices.map((d, idx) => (
+                  {devicePagination.rows.map((d, idx) => (
                     <tr key={idx}>
                       <td style={styles.tableCell}><code>DEV-{d.id}</code></td>
                       <td style={styles.tableCell}><Icon name={d.is_locked ? 'lock' : 'unlock'} size={14} color={d.is_locked ? 'var(--red)' : 'var(--green)'} /> {d.is_locked ? 'Secure Lock' : 'Ignition Ready'}</td>
@@ -2026,6 +2067,7 @@ export default function AdminApp() {
                   ))}
                 </tbody>
               </table>
+              <TablePagination pagination={devicePagination} label="MotoLock devices" styles={styles} />
             </div>
           </div>
         )}
@@ -2033,6 +2075,35 @@ export default function AdminApp() {
         {/* Tab 6: Sobriety Tests */}
         {activeTab === 'sobriety' && (
           <div>
+            <div style={{ ...styles.card, display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: 16, marginBottom: 20 }}>
+              <label style={{ display: 'grid', gap: 8, minWidth: 200 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Rider Name</span>
+                <input type="search" value={sobrietySearch} onChange={e => setSobrietySearch(e.target.value)} placeholder="Search by rider name" style={styles.input} />
+              </label>
+              <label style={{ display: 'grid', gap: 8, minWidth: 200 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Alcohol Result</span>
+                <select value={sobrietyResultFilter} onChange={e => setSobrietyResultFilter(e.target.value)} style={styles.input}>
+                  <option value="all">All Results</option>
+                  {alcoholResults.map(result => <option key={result} value={result}>{result}</option>)}
+
+                </select>
+              </label>
+              <label style={{ display: 'grid', gap: 8, minWidth: 220 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Overall Status</span>
+                <select value={sobrietyStatusFilter} onChange={e => setSobrietyStatusFilter(e.target.value)} style={styles.input}>
+                  <option value="all">All Statuses</option>
+                  {overallStatuses.map(status => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" onClick={() => { setSobrietySearch(''); setSobrietyResultFilter('all'); setSobrietyStatusFilter('all'); }} style={{ ...styles.actionBtn, minHeight: 42, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                Clear Filters
+              </button>
+              <span role="status" style={{ fontSize: 13, color: 'var(--muted)' }}>
+                Showing {filteredSobrietyTests.length} of {overrides.length} tests
+              </span>
+            </div>
             <div style={styles.card}>
               <table style={styles.table}>
                 <thead>
@@ -2040,29 +2111,45 @@ export default function AdminApp() {
                     <th style={styles.tableHeader}>Test Time</th>
                     <th style={styles.tableHeader}>Rider Info</th>
                     <th style={styles.tableHeader}>Blood Alcohol Level (BrAC)</th>
-                    <th style={styles.tableHeader}>Status</th>
-                    <th style={styles.tableHeader}>Verification Audit</th>
+                    <th style={styles.tableHeader}>Alcohol Result</th>
+                    <th style={styles.tableHeader}>Overall Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {overrides.map((o, idx) => (
+                  {sobrietyPagination.rows.map(({ log: o, brac, alcoholResult, overallStatus, alcoholColor, overallColor }, idx) => (
                     <tr key={idx}>
                       <td style={styles.tableCell}>{new Date(o.created_at).toLocaleString()}</td>
                       <td style={styles.tableCell}>{o.full_name} ({o.email})</td>
-                      <td style={styles.tableCell}><strong>{o.brac} BAC</strong></td>
+                      <td style={styles.tableCell}><strong>{brac === null ? 'N/A' : brac + ' BAC'}</strong></td>
                       <td style={styles.tableCell}>
                         <span style={{
-                          color: parseFloat(o.brac) >= 0.05 ? 'var(--red)' : 'var(--green)',
+                          color: alcoholColor,
                           fontWeight: 700
                         }}>
-                          {parseFloat(o.brac) >= 0.05 ? 'Intoxicated Alert' : 'Passed Compliance'}
+                          {alcoholResult}
                         </span>
                       </td>
-                      <td style={styles.tableCell}>{o.unlock_status}</td>
+                      <td style={styles.tableCell}>
+                        {getSobrietyDetails(o, overallStatus) ? (
+                          <button type="button" aria-haspopup="dialog" aria-label={overallStatus + ': view details'}
+                            onClick={() => showCustomAlert(overallStatus, getSobrietyDetails(o, overallStatus)!)}
+                            style={{ color: overallColor, fontWeight: 700, background: 'none', border: 0, padding: 0, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 4 }}>
+                            {overallStatus}
+                          </button>
+                        ) : <span style={{ color: overallColor, fontWeight: 700 }}>{overallStatus}</span>}
+                      </td>
                     </tr>
                   ))}
+                  {filteredSobrietyTests.length === 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ ...styles.tableCell, textAlign: 'center', color: 'var(--muted)' }}>
+                        {overrides.length === 0 ? 'No sobriety tests available.' : 'No sobriety tests match the selected filters.'}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
+              <TablePagination pagination={sobrietyPagination} label="Sobriety tests" styles={styles} />
             </div>
           </div>
         )}
@@ -2070,71 +2157,73 @@ export default function AdminApp() {
         {/* Tab 7: Identity Verification */}
         {activeTab === 'identity' && (
           <div>
+            <div style={{ ...styles.card, display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: 16, marginBottom: 20 }}>
+              <label style={{ display: 'grid', gap: 8, minWidth: 200 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Rider Name</span>
+                <input type="search" value={identitySearch} onChange={e => setIdentitySearch(e.target.value)} placeholder="Search by rider name" style={styles.input} />
+              </label>
+              <label style={{ display: 'grid', gap: 8, minWidth: 200 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Verification Result</span>
+                <select value={identityResultFilter} onChange={e => setIdentityResultFilter(e.target.value)} style={styles.input}>
+                  <option value="all">All Results</option>
+                  {['Verified', 'Failed', 'Bypassed', 'Not Recorded'].map(value => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label style={{ display: 'grid', gap: 8, minWidth: 200 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Hardware Lock Action</span>
+                <select value={identityActionFilter} onChange={e => setIdentityActionFilter(e.target.value)} style={styles.input}>
+                  <option value="all">All Actions</option>
+                  {['Locked', 'Unlocked', 'Awaiting Alcohol Test', 'Pending'].map(value => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <button type="button" onClick={() => { setIdentityResultFilter('all'); setIdentityActionFilter('all'); }} style={{ ...styles.actionBtn, minHeight: 42, flexShrink: 0, whiteSpace: 'nowrap' }}>Clear Filters</button>
+              <span role="status" style={{ fontSize: 13, color: 'var(--muted)' }}>Showing {filteredIdentityRecords.length} of {overrides.length} records</span>
+            </div>
             <div style={styles.card}>
               <table style={styles.table}>
                 <thead>
                   <tr>
-                    <th style={styles.tableHeader}>Audit Date</th>
-                    <th style={styles.tableHeader}>Account Holder</th>
-                    <th style={styles.tableHeader}>Face ID Verified</th>
+                    <th style={styles.tableHeader}>Verification Time</th>
+                    <th style={styles.tableHeader}>Rider Name</th>
+                    <th style={styles.tableHeader}>Verification Method</th>
+                    <th style={styles.tableHeader}>Verification Result</th>
                     <th style={styles.tableHeader}>Hardware Lock Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {overrides.map((o, idx) => (
-                    <tr key={idx}>
-                      <td style={styles.tableCell}>{new Date(o.created_at).toLocaleDateString()}</td>
+                  {identityPagination.rows.map(o => {
+                    const result = o.identity_display?.verification ?? 'Not Recorded';
+                    const details = getIdentityDetails(o, result);
+                    const color = result === 'Verified' ? 'var(--green)' : result === 'Failed' ? 'var(--red)' : 'var(--muted)';
+                    return <tr key={o.id}>
+                      <td style={styles.tableCell}>{formatVerificationTime(o.created_at)}</td>
                       <td style={styles.tableCell}>{o.full_name}</td>
-                      <td style={styles.tableCell}><Icon name={o.face_verified ? 'check' : 'close'} size={14} color={o.face_verified ? 'var(--green)' : 'var(--red)'} /> {o.face_verified ? 'Matched Face' : 'Verification Bypassed'}</td>
-                      <td style={styles.tableCell}>Ignition Status: {o.status}</td>
-                    </tr>
-                  ))}
+                      <td style={styles.tableCell}>{getVerificationMethod(o)}</td>
+                      <td style={styles.tableCell}>
+                        {details ? <button type="button" aria-haspopup="dialog" aria-label={result + ': view details for ' + o.full_name}
+                          onClick={() => setIdentityDetails({ title: result, text: details })}
+                          style={{ color, fontWeight: 700, background: 'none', border: 0, padding: 0, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 4 }}>
+                          {result}
+                        </button> : <span style={{ fontWeight: 700, color }}>{result}</span>}
+                      </td>
+                      <td style={styles.tableCell}><span style={{ fontWeight: 700, color: o.identity_display?.lockAction === 'Unlocked' ? 'var(--green)' : o.identity_display?.lockAction === 'Locked' ? 'var(--red)' : 'var(--muted)' }}>{o.identity_display?.lockAction ?? 'Pending'}</span></td>
+                    </tr>;
+                  })}
+                  {filteredIdentityRecords.length === 0 && (
+                    <tr><td colSpan={5} style={{ ...styles.tableCell, textAlign: 'center', color: 'var(--muted)' }}>
+                      {overrides.length === 0 ? 'No identity verification records available.' : 'No records match the selected filters.'}
+                    </td></tr>
+                  )}
                 </tbody>
               </table>
+              <TablePagination pagination={identityPagination} label="Identity verification" styles={styles} />
             </div>
           </div>
         )}
 
         {/* Tab 8: Alerts & Incidents */}
         {activeTab === 'alerts' && (
-          <div>
-            <div style={styles.card}>
-              <table style={styles.table}>
-                <thead>
-                  <tr>
-                    <th style={styles.tableHeader}>Timestamp</th>
-                    <th style={styles.tableHeader}>Rider details</th>
-                    <th style={styles.tableHeader}>Trigger Reason</th>
-                    <th style={styles.tableHeader}>Level</th>
-                    <th style={styles.tableHeader}>Management Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {overrides
-                    .filter(o => parseFloat(o.brac) >= 0.05)
-                    .map((o, idx) => (
-                      <tr key={idx}>
-                        <td style={styles.tableCell}>{new Date(o.created_at).toLocaleString()}</td>
-                        <td style={styles.tableCell}>{o.full_name} ({o.email})</td>
-                        <td style={styles.tableCell}>Alcohol limit exceeded ({o.brac} BAC)</td>
-                        <td style={styles.tableCell}><span style={{ color: 'var(--red)', fontWeight: 700 }}><Icon name="warning" size={14} color="var(--red)" /> High Severity</span></td>
-                        <td style={styles.tableCell}>
-                          <button
-                            onClick={() => {
-                              triggerAuditLog(`Resolved safety incident for ${o.email}`, 'Alerts', o.email);
-                              showCustomAlert('Incident Resolved', `Alert cleared for rider ${o.full_name}. Action saved to database.`);
-                            }}
-                            style={styles.actionBtn}
-                          >
-                            Resolve Alert
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <AlertsPage store={alertStore} threshold={alcoholThreshold} styles={styles} />
         )}
 
 
@@ -2436,34 +2525,7 @@ export default function AdminApp() {
         )}
 
         {/* Tab 11: Audit Logs */}
-        {activeTab === 'audit-logs' && (
-          <div>
-            <div style={styles.card}>
-              <table style={styles.table}>
-                <thead>
-                  <tr>
-                    <th style={styles.tableHeader}>Timestamp</th>
-                    <th style={styles.tableHeader}>Administrator</th>
-                    <th style={styles.tableHeader}>Action</th>
-                    <th style={styles.tableHeader}>Module</th>
-                    <th style={styles.tableHeader}>Target Record</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditLogs.map((l, idx) => (
-                    <tr key={idx}>
-                      <td style={styles.tableCell}>{new Date(l.created_at).toLocaleString()}</td>
-                      <td style={styles.tableCell}>{l.admin_name}</td>
-                      <td style={styles.tableCell}><strong>{l.action}</strong></td>
-                      <td style={styles.tableCell}>{l.module}</td>
-                      <td style={styles.tableCell}><code>{l.target_record}</code></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {activeTab === 'audit-logs' && <AuditLogsPage logs={auditLogs} styles={styles} />}
         {/* Tab 14: Settings */}
         {activeTab === 'settings' && (
           <div>
@@ -2992,6 +3054,17 @@ export default function AdminApp() {
         )}
       </main>
 
+      {activeTab === 'identity' && identityDetails && (
+        <div style={{ ...styles.modalBackdrop, zIndex: 100001 }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="identity-details-title" style={styles.modalContent}
+            onKeyDown={e => { if (e.key === 'Escape') setIdentityDetails(null); }}>
+            <h3 id="identity-details-title">{identityDetails.title}</h3>
+            <p style={{ margin: '14px 0', fontSize: 14, whiteSpace: 'pre-wrap' }}>{identityDetails.text}</p>
+            <button autoFocus onClick={() => setIdentityDetails(null)} style={styles.primaryButton}>OK</button>
+          </div>
+        </div>
+      )}
+
       {/* POPUP CONTAINER MODAL - ALERT */}
       {alertTitle && (
         <div style={{ ...styles.modalBackdrop, zIndex: 100001 }}>
@@ -3095,7 +3168,7 @@ export default function AdminApp() {
                   )}
                 </div>
               )}
-              
+
               {addUserErrors.general && (
                 <div style={{ color: 'var(--red)', fontSize: '13px', marginBottom: '12px', fontWeight: 600 }}>
                   {addUserErrors.general}

@@ -1,3 +1,5 @@
+import type { IdentityMetadata } from './identity-status';
+
 export interface Motorcycle {
   id: number;
   plate_number: string;
@@ -33,7 +35,8 @@ export interface Device {
   is_locked?: boolean;
   model?: string;
 }
-export interface SafetyLog {
+export interface SafetyLog extends IdentityMetadata {
+  identity_display?: { verification: import('./identity-status').IdentityVerification; lockAction: import('./identity-status').IdentityLockAction };
   id: number;
   created_at: string;
   full_name: string;
@@ -45,6 +48,9 @@ export interface SafetyLog {
   alcohol_detected?: boolean;
   face_verified?: boolean;
   helmet_verified?: boolean;
+  failure_reason?: string;
+  reason?: string;
+  current_stage?: string;
 }
 export interface AuditLog {
   id: number;
