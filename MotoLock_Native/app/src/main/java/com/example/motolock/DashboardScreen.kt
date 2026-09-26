@@ -179,6 +179,7 @@ fun DashboardScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Scaffold(
+        modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         bottomBar = {
             NavigationBar(
