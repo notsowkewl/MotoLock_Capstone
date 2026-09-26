@@ -61,10 +61,11 @@ internal fun rememberFreshMotorStatus(service: com.example.motolock.data.Bluetoo
 
 @Composable
 fun DashboardScreen(
-    onSettingsClick: () -> Unit,
     onStartUnlock: () -> Unit,
     onStartSetup: (String) -> Unit,
-    onHistoryClick: () -> Unit
+    onNavigateToContacts: () -> Unit,
+    onNavigateToMotorcycle: () -> Unit,
+    onLogout: () -> Unit
 ) {
     val context = LocalContext.current
     val motoRed = Color(0xFFED1C24)
@@ -210,7 +211,6 @@ fun DashboardScreen(
                     selected = selectedTab == 1,
                     onClick = {
                         selectedTab = 1
-                        onHistoryClick()
                     },
                     icon = {
                         Icon(
@@ -232,7 +232,6 @@ fun DashboardScreen(
                     selected = selectedTab == 2,
                     onClick = {
                         selectedTab = 2
-                        onSettingsClick()
                     },
                     icon = {
                         Icon(
@@ -253,14 +252,16 @@ fun DashboardScreen(
             }
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(bgBrush)
-                .padding(innerPadding)
-                .padding(horizontal = 24.dp, vertical = 22.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            when (selectedTab) {
+                0 -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(bgBrush)
+                            .padding(horizontal = 24.dp, vertical = 22.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
             // Topbar
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -440,6 +441,17 @@ fun DashboardScreen(
                         }
                     }
                     Spacer(modifier = Modifier.height(32.dp))
+                }
+                1 -> {
+                    RideHistoryScreen(onBack = { selectedTab = 0 })
+                }
+                2 -> {
+                    SettingsScreen(
+                        onNavigateToContacts = onNavigateToContacts,
+                        onNavigateToMotorcycle = onNavigateToMotorcycle,
+                        onLogout = onLogout,
+                        onBack = { selectedTab = 0 }
+                    )
                 }
             }
         }

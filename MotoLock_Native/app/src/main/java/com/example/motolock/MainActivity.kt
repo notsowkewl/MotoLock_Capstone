@@ -162,7 +162,6 @@ fun MotoLockApp() {
 
         composable("dashboard") {
             DashboardScreen(
-                onSettingsClick = { navController.navigate("settings") },
                 onStartUnlock = { navController.navigate("unlock_flow") },
                 onStartSetup = { dest -> 
                     if (dest == "pairing_needed") {
@@ -171,7 +170,9 @@ fun MotoLockApp() {
                         navController.navigate("setup_router") { popUpTo(0) }
                     }
                 },
-                onHistoryClick = { navController.navigate("ride_history") }
+                onNavigateToContacts = { navController.navigate("contacts") },
+                onNavigateToMotorcycle = { navController.navigate("motorcycle_config") },
+                onLogout = { navController.navigate("login") { popUpTo(0) } }
             )
         }
         
@@ -191,25 +192,12 @@ fun MotoLockApp() {
             )
         }
 
-        composable("ride_history") {
-            RideHistoryScreen(onBack = { navController.popBackStack() })
-        }
-
         composable("camera") {
             CameraScreen(
                 onBack = { navController.popBackStack() },
                 onRegistrationSuccess = {
                     navController.navigate("setup_router") { popUpTo(0) }
                 }
-            )
-        }
-
-        composable("settings") {
-            SettingsScreen(
-                onNavigateToContacts = { navController.navigate("contacts") },
-                onNavigateToMotorcycle = { navController.navigate("motorcycle_config") },
-                onLogout = { navController.navigate("login") { popUpTo(0) } },
-                onBack = { navController.popBackStack() }
             )
         }
 
