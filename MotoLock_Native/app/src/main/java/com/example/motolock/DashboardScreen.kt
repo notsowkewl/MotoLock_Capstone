@@ -61,11 +61,10 @@ internal fun rememberFreshMotorStatus(service: com.example.motolock.data.Bluetoo
 
 @Composable
 fun DashboardScreen(
+    onSettingsClick: () -> Unit,
     onStartUnlock: () -> Unit,
     onStartSetup: (String) -> Unit,
-    onNavigateToContacts: () -> Unit,
-    onNavigateToMotorcycle: () -> Unit,
-    onLogout: () -> Unit
+    onHistoryClick: () -> Unit
 ) {
     val context = LocalContext.current
     val motoRed = Color(0xFFED1C24)
@@ -176,93 +175,13 @@ fun DashboardScreen(
     }
 
     // Bottom nav selected index (0=Home, 1=History, 2=Settings)
-    var selectedTab by remember { mutableIntStateOf(0) }
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = Color.Transparent,
-        bottomBar = {
-            NavigationBar(
-                containerColor = Color.White,
-                tonalElevation = 0.dp,
-                modifier = Modifier
-                    .border(1.dp, lineCol)
-                    .height(64.dp)
-            ) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Home,
-                            contentDescription = "Home",
-                            modifier = Modifier.size(22.dp)
-                        )
-                    },
-                    label = { Text("Home", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = motoRed,
-                        selectedTextColor = motoRed,
-                        indicatorColor = Color(0xFFFFEDEE),
-                        unselectedIconColor = textGray,
-                        unselectedTextColor = textGray
-                    )
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = {
-                        selectedTab = 1
-                    },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = "Ride History",
-                            modifier = Modifier.size(22.dp)
-                        )
-                    },
-                    label = { Text("History", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = motoRed,
-                        selectedTextColor = motoRed,
-                        indicatorColor = Color(0xFFFFEDEE),
-                        unselectedIconColor = textGray,
-                        unselectedTextColor = textGray
-                    )
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = {
-                        selectedTab = 2
-                    },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Profile",
-                            modifier = Modifier.size(22.dp)
-                        )
-                    },
-                    label = { Text("Profile", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = motoRed,
-                        selectedTextColor = motoRed,
-                        indicatorColor = Color(0xFFFFEDEE),
-                        unselectedIconColor = textGray,
-                        unselectedTextColor = textGray
-                    )
-                )
-            }
-        }
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            when (selectedTab) {
-                0 -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(bgBrush)
-                            .padding(horizontal = 24.dp, vertical = 22.dp)
-                            .verticalScroll(rememberScrollState())
-                    ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(bgBrush)
+            .padding(horizontal = 24.dp, vertical = 22.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
             // Topbar
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -443,20 +362,7 @@ fun DashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(32.dp))
                 }
-                1 -> {
-                    RideHistoryScreen(onBack = { selectedTab = 0 })
-                }
-                2 -> {
-                    SettingsScreen(
-                        onNavigateToContacts = onNavigateToContacts,
-                        onNavigateToMotorcycle = onNavigateToMotorcycle,
-                        onLogout = onLogout,
-                        onBack = { selectedTab = 0 }
-                    )
-                }
             }
-        }
-    }
 
     // Setup Incomplete Modal
     if (showSetupModal && !isLoading) {

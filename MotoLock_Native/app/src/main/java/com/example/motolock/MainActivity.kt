@@ -81,6 +81,9 @@ class MainActivity : ComponentActivity() {
 fun MotoLockApp() {
     val navController = rememberNavController()
     var startDest by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    
+    val navBackStackEntry by androidx.navigation.compose.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         SupabaseClientManager.client.auth.awaitInitialization()
@@ -101,108 +104,177 @@ fun MotoLockApp() {
         return
     }
 
-    NavHost(navController = navController, startDestination = startDest!!) {
+    val showBottomBar = currentRoute in listOf("dashboard", "ride_history", "settings")
 
-        composable("pin_unlock") {
-            PinUnlockScreen(
-                onUnlockSuccess = {
-                    navController.navigate("dashboard") { popUpTo("pin_unlock") { inclusive = true } }
-                },
-                onLogout = {
-                    navController.navigate("login") { popUpTo(0) }
+    androidx.compose.material3.Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        bottomBar = {
+            if (showBottomBar) {
+                androidx.compose.material3.NavigationBar(
+                    containerColor = androidx.compose.ui.graphics.Color.White,
+                    tonalElevation = 0.dp,
+                    modifier = Modifier
+                        .androidx.compose.foundation.border(1.dp, androidx.compose.ui.graphics.Color(0xFFE8EBF0))
+                        .androidx.compose.foundation.layout.height(64.dp)
+                ) {
+                    val motoRed = androidx.compose.ui.graphics.Color(0xFFED1C24)
+                    val textGray = androidx.compose.ui.graphics.Color(0xFF737987)
+                    
+                    androidx.compose.material3.NavigationBarItem(
+                        selected = currentRoute == "dashboard",
+                        onClick = { navController.navigate("dashboard") { launchSingleTop = true; restoreState = true } },
+                        icon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.Home, "Home", modifier = Modifier.androidx.compose.foundation.layout.size(22.dp)) },
+                        label = { androidx.compose.material3.Text("Home", fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) },
+                        colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                            selectedIconColor = motoRed, selectedTextColor = motoRed,
+                            indicatorColor = androidx.compose.ui.graphics.Color(0xFFFFEDEE),
+                            unselectedIconColor = textGray, unselectedTextColor = textGray
+                        )
+                    )
+                    androidx.compose.material3.NavigationBarItem(
+                        selected = currentRoute == "ride_history",
+                        onClick = { navController.navigate("ride_history") { launchSingleTop = true; restoreState = true } },
+                        icon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.History, "Ride History", modifier = Modifier.androidx.compose.foundation.layout.size(22.dp)) },
+                        label = { androidx.compose.material3.Text("History", fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) },
+                        colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                            selectedIconColor = motoRed, selectedTextColor = motoRed,
+                            indicatorColor = androidx.compose.ui.graphics.Color(0xFFFFEDEE),
+                            unselectedIconColor = textGray, unselectedTextColor = textGray
+                        )
+                    )
+                    androidx.compose.material3.NavigationBarItem(
+                        selected = currentRoute == "settings",
+                        onClick = { navController.navigate("settings") { launchSingleTop = true; restoreState = true } },
+                        icon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.Person, "Profile", modifier = Modifier.androidx.compose.foundation.layout.size(22.dp)) },
+                        label = { androidx.compose.material3.Text("Profile", fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) },
+                        colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                            selectedIconColor = motoRed, selectedTextColor = motoRed,
+                            indicatorColor = androidx.compose.ui.graphics.Color(0xFFFFEDEE),
+                            unselectedIconColor = textGray, unselectedTextColor = textGray
+                        )
+                    )
                 }
-            )
+            }
         }
+    ) { innerPadding ->
+        NavHost(
+            navController = navController, 
+            startDestination = startDest!!,
+            modifier = Modifier.padding(innerPadding)
+        ) {
+            composable("pin_unlock") {
+                PinUnlockScreen(
+                    onUnlockSuccess = {
+                        navController.navigate("dashboard") { popUpTo("pin_unlock") { inclusive = true } }
+                    },
+                    onLogout = {
+                        navController.navigate("login") { popUpTo(0) }
+                    }
+                )
+            }
 
-        composable("login") {
-            LoginScreen(
-                onLoginSuccess = {
-                    navController.navigate("dashboard") { popUpTo("login") { inclusive = true } }
-                },
-                onSignUpClick = { navController.navigate("create_account") },
-                onForgotClick = { navController.navigate("forgot_password") }
-            )
-        }
+            composable("login") {
+                LoginScreen(
+                    onLoginSuccess = {
+                        navController.navigate("dashboard") { popUpTo("login") { inclusive = true } }
+                    },
+                    onSignUpClick = { navController.navigate("create_account") },
+                    onForgotClick = { navController.navigate("forgot_password") }
+                )
+            }
 
-        composable("setup_router") {
-            SetupRouterScreen(navController = navController)
-        }
+            composable("setup_router") {
+                SetupRouterScreen(navController = navController)
+            }
 
-        composable("forgot_password") {
-            ForgotPasswordScreen(onBack = { navController.popBackStack() })
-        }
+            composable("forgot_password") {
+                ForgotPasswordScreen(onBack = { navController.popBackStack() })
+            }
 
-        composable("create_account") {
-            CreateAccountScreen(
-                onBack = { navController.popBackStack() },
-                onNext = { navController.navigate("setup_router") { popUpTo(0) } }
-            )
-        }
+            composable("create_account") {
+                CreateAccountScreen(
+                    onBack = { navController.popBackStack() },
+                    onNext = { navController.navigate("setup_router") { popUpTo(0) } }
+                )
+            }
 
-        composable("motorcycle_config") {
-            MotorcycleConfigScreen(
-                onNext = { navController.navigate("setup_router") { popUpTo(0) } },
-                onBack = { navController.popBackStack() }
-            )
-        }
+            composable("motorcycle_config") {
+                MotorcycleConfigScreen(
+                    onNext = { navController.navigate("setup_router") { popUpTo(0) } },
+                    onBack = { navController.popBackStack() }
+                )
+            }
 
-        composable("esp32_pairing") {
-            ESP32PairingScreen(
-                onComplete = { navController.navigate("setup_router") { popUpTo(0) } },
-                onBack = { navController.popBackStack() }
-            )
-        }
+            composable("esp32_pairing") {
+                ESP32PairingScreen(
+                    onComplete = { navController.navigate("setup_router") { popUpTo(0) } },
+                    onBack = { navController.popBackStack() }
+                )
+            }
 
-        composable("pin_setup") {
-            PinSetupScreen(
-                onBack = { navController.popBackStack() },
-                onComplete = { navController.navigate("setup_router") { popUpTo(0) } }
-            )
-        }
+            composable("pin_setup") {
+                PinSetupScreen(
+                    onBack = { navController.popBackStack() },
+                    onComplete = { navController.navigate("setup_router") { popUpTo(0) } }
+                )
+            }
 
-        composable("dashboard") {
-            DashboardScreen(
-                onStartUnlock = { navController.navigate("unlock_flow") },
-                onStartSetup = { dest -> 
-                    if (dest == "pairing_needed") {
-                        navController.navigate("unlock_pairing")
-                    } else {
+            composable("dashboard") {
+                DashboardScreen(
+                    onSettingsClick = { navController.navigate("settings") },
+                    onStartUnlock = { navController.navigate("unlock_flow") },
+                    onStartSetup = { dest -> 
+                        if (dest == "pairing_needed") {
+                            navController.navigate("unlock_pairing")
+                        } else {
+                            navController.navigate("setup_router") { popUpTo(0) }
+                        }
+                    },
+                    onHistoryClick = { navController.navigate("ride_history") }
+                )
+            }
+            
+            composable("ride_history") {
+                RideHistoryScreen(onBack = { navController.navigate("dashboard") { popUpTo("dashboard") { inclusive = true } } })
+            }
+            
+            composable("settings") {
+                SettingsScreen(
+                    onNavigateToContacts = { navController.navigate("contacts") },
+                    onNavigateToMotorcycle = { navController.navigate("motorcycle_config") },
+                    onLogout = { navController.navigate("login") { popUpTo(0) } },
+                    onBack = { navController.navigate("dashboard") { popUpTo("dashboard") { inclusive = true } } }
+                )
+            }
+            
+            composable("unlock_pairing") {
+                ESP32PairingScreen(
+                    onComplete = { navController.navigate("unlock_flow") { popUpTo("unlock_pairing") { inclusive = true } } },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            
+            composable("unlock_flow") {
+                UnlockScreen(
+                    onComplete = { navController.navigate("dashboard") { popUpTo("dashboard") { inclusive = true } } },
+                    onBack = { navController.popBackStack() },
+                    onPairDevice = { navController.navigate("unlock_pairing") }
+                )
+            }
+
+            composable("camera") {
+                CameraScreen(
+                    onBack = { navController.popBackStack() },
+                    onRegistrationSuccess = {
                         navController.navigate("setup_router") { popUpTo(0) }
                     }
-                },
-                onNavigateToContacts = { navController.navigate("contacts") },
-                onNavigateToMotorcycle = { navController.navigate("motorcycle_config") },
-                onLogout = { navController.navigate("login") { popUpTo(0) } }
-            )
-        }
-        
-        
-        composable("unlock_pairing") {
-            ESP32PairingScreen(
-                onComplete = { navController.navigate("unlock_flow") { popUpTo("unlock_pairing") { inclusive = true } } },
-                onBack = { navController.popBackStack() }
-            )
-        }
-        
-        composable("unlock_flow") {
-            UnlockScreen(
-                onComplete = { navController.navigate("dashboard") { popUpTo("dashboard") { inclusive = true } } },
-                onBack = { navController.popBackStack() },
-                onPairDevice = { navController.navigate("unlock_pairing") }
-            )
-        }
+                )
+            }
 
-        composable("camera") {
-            CameraScreen(
-                onBack = { navController.popBackStack() },
-                onRegistrationSuccess = {
-                    navController.navigate("setup_router") { popUpTo(0) }
-                }
-            )
-        }
-
-        composable("contacts") {
-            EmergencyContactsScreen(onBack = { navController.navigate("setup_router") { popUpTo(0) } })
+            composable("contacts") {
+                EmergencyContactsScreen(onBack = { navController.navigate("setup_router") { popUpTo(0) } })
+            }
         }
     }
 }
