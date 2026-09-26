@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.motolock.ui.theme.MotoLockTheme
 import com.example.motolock.network.SupabaseClientManager
 import io.github.jan.supabase.gotrue.auth
