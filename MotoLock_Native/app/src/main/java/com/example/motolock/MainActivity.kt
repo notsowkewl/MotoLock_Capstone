@@ -80,9 +80,28 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MotoLockApp() {
     val navController = rememberNavController()
-    val startDest = if (SupabaseClientManager.client.auth.currentSessionOrNull() != null) "pin_unlock" else "login"
+    var startDest by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
 
-    NavHost(navController = navController, startDestination = startDest) {
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        SupabaseClientManager.client.auth.awaitInitialization()
+        startDest = if (SupabaseClientManager.client.auth.currentSessionOrNull() != null) {
+            "pin_unlock"
+        } else {
+            "login"
+        }
+    }
+
+    if (startDest == null) {
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = androidx.compose.ui.Alignment.Center
+        ) {
+            androidx.compose.material3.CircularProgressIndicator(color = androidx.compose.ui.graphics.Color(0xFFED1C24))
+        }
+        return
+    }
+
+    NavHost(navController = navController, startDestination = startDest!!) {
 
         composable("pin_unlock") {
             PinUnlockScreen(
