@@ -39,6 +39,9 @@ import com.example.motolock.network.SupabaseClientManager
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.builtin.Email
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import io.github.jan.supabase.gotrue.providers.Google
+import io.github.jan.supabase.gotrue.SessionStatus
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotClick: () -> Unit) {
@@ -51,6 +54,12 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
 
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val loginSuccess by rememberUpdatedState(onLoginSuccess)
+    LaunchedEffect(Unit) {
+        SupabaseClientManager.client.auth.sessionStatus.collect { status ->
+            if (status is SessionStatus.Authenticated) loginSuccess()
+        }
+    }
 
     val motoRed = Color(0xFFED1C24)
     val motoBlack = Color(0xFF101217)
@@ -223,7 +232,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
                                 this.email = email
                                 this.password = password
                             }
-                            onLoginSuccess()
+                            // Session observation above handles navigation for both login methods.
                         } catch (e: Exception) {
                             if (e.message?.contains("credentials") == true || e.message?.contains("invalid") == true) {
                                 emailError = "Invalid email or password"
@@ -274,8 +283,20 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
             
             // Google Button
             Button(
+                enabled = !isLoading,
                 onClick = {
-                    Toast.makeText(context, "Google Sign-In coming soon", Toast.LENGTH_SHORT).show()
+                    isLoading = true
+                    coroutineScope.launch {
+                        try {
+                            SupabaseClientManager.client.auth.signInWith(Google)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Could not start Google sign-in. Please try again.", Toast.LENGTH_LONG).show()
+                        } finally {
+                            isLoading = false
+                        }
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()

@@ -18,7 +18,11 @@ object SupabaseClientManager {
                 coerceInputValues = true
             })
             install(Postgrest)
-            install(Auth)
+            install(Auth) {
+                scheme = "com.example.motolock"
+                host = "auth-callback"
+                flowType = io.github.jan.supabase.gotrue.FlowType.PKCE
+            }
         }
     }
 }
