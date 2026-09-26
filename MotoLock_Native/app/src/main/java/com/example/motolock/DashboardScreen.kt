@@ -363,6 +363,7 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(32.dp))
                 }
             }
+        }
 
     // Setup Incomplete Modal
     if (showSetupModal && !isLoading) {
