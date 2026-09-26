@@ -16,8 +16,15 @@ interface Tables {
 }
 interface Session { access_token: string }
 interface SupabaseClient {
+  from(table: 'audit_logs'): {
+    select(columns: string): Query<Record<string, unknown>>;
+    insert(value: Record<string, unknown>): Query<Record<string, unknown>> & {
+      select(columns: string): Query<Record<string, unknown>>;
+    };
+  };
   from<K extends keyof Tables>(table: K): { select(columns: string): Query<Tables[K]> };
   auth: {
+    getUser(): Promise<{ data: { user: { id: string; email?: string } | null }; error: ServiceError | null }>;
     signInWithPassword(credentials: { email: string; password: string }): Promise<{
       data: { user: { email?: string } | null; session: Session | null };
       error: ServiceError | null;
