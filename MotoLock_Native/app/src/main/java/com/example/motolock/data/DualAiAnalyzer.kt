@@ -54,7 +54,7 @@ class DualAiAnalyzer(
     private val REQUIRED_STABLE_MS = 1500L
 
     private fun reportFallback(success: Boolean, message: String) {
-        val fbState = VerificationState(false, false, false, false, false, false, false, false, success, message)
+        val fbState = VerificationState(faceDetected = false, faceRecognized = false, helmetDetected = false, helmetSensorActive = false, visorBlockingFace = false, finalAuthenticationState = success, message = message)
         report(fbState)
     }
 
@@ -255,5 +255,5 @@ class DualAiAnalyzer(
     }
 
     fun stop() { stopped = true }
-    override fun close() { stop(); detector.close() }
+    override fun close() { stop(); detector.close(); telemetryManager.close() }
 }

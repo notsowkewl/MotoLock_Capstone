@@ -62,21 +62,47 @@ import java.util.concurrent.Executors
 private enum class UnlockStep {
     CONNECTING,
     FACE_HELMET_CHECK,
+    ALCOHOL_CHECK,
     SUCCESS
 }
 
 @Composable
 fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () -> Unit = {}) {
+    val service = SessionState.activeBluetoothService
+    val disconnected = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
+    val connected by (service?.connectionState ?: disconnected).collectAsState()
+
+    // The camera screen does not exist until there is a live motor connection.
+    if (service == null || !connected) {
+        LaunchedEffect(Unit) { SessionState.isMotorUnlocked = false }
+        ESP32PairingScreen(onComplete = {}, onBack = onBack)
+    } else {
+        key(service) {
+            ConnectedUnlockScreen(service, onComplete, onBack, onPairDevice)
+        }
+    }
+}
+
+@Composable
+private fun ConnectedUnlockScreen(
+    sessionService: BluetoothService,
+    onComplete: () -> Unit,
+    onBack: () -> Unit,
+    onPairDevice: () -> Unit
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
+    val motorStatus by rememberFreshMotorStatus(sessionService)
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_GRANTED
         )
     }
-    // old launcher removed
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted -> hasCameraPermission = granted }
 
     val motoRed = Color(0xFFED1C24)
     val motoBlack = Color(0xFF101217)
@@ -90,15 +116,16 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
     var currentStep by remember { mutableStateOf(UnlockStep.CONNECTING) }
     var isConnectionFailed by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf("Loading saved Face ID...") }
-    var bluetoothService by remember { mutableStateOf<BluetoothService?>(null) }
     
     // AI State
     var faceNetInterpreter by remember { mutableStateOf<Interpreter?>(null) }
     var helmetInterpreter by remember { mutableStateOf<Interpreter?>(null) }
     var registeredEmbedding by remember { mutableStateOf<FloatArray?>(null) }
 
+    val helmetIdentity = remember { com.example.motolock.data.HelmetIdentity.load(context) }
     var aiReady by remember { mutableStateOf(false) }
     val cameraWorker = remember { Executors.newSingleThreadExecutor() }
+    var cameraPreview by remember { mutableStateOf<Preview?>(null) }
     var cameraAnalysis by remember { mutableStateOf<ImageAnalysis?>(null) }
     var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var activeAnalyzer by remember { mutableStateOf<DualAiAnalyzer?>(null) }
@@ -130,7 +157,7 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
                 registeredEmbedding = FaceData.decode(faceDesc)
             } else error("Sign in to load your Face ID")
             aiReady = true
-            statusMessage = "Position your face in the camera."
+            if (currentStep == UnlockStep.FACE_HELMET_CHECK) statusMessage = "Position your face in the camera."
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
@@ -138,52 +165,74 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
         }
     }
 
-    // Handle Multiple Permissions (Camera + Bluetooth)
-    val permissionsToRequest = mutableListOf(Manifest.permission.CAMERA)
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-        permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT)
-        permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN)
-    } else {
-        permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
-    }
-
-    val permissionsLauncher = rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
-    ) { perms -> 
-        hasCameraPermission = perms[Manifest.permission.CAMERA] ?: false
-        // Assuming BT permissions if camera is granted for simplicity, but real app checks each
-    }
-
-    // Connect to actual Bluetooth Hardware
-    LaunchedEffect(hasCameraPermission, currentStep) {
-        if (!hasCameraPermission) {
-            permissionsLauncher.launch(permissionsToRequest.toTypedArray())
-            return@LaunchedEffect
-        }
-
-        if (currentStep != UnlockStep.CONNECTING) return@LaunchedEffect
-
-        isConnectionFailed = false
-        statusMessage = "Connecting to MotoLock..."
-
-        val sharedPrefs = context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE)
-        val macAddress = sharedPrefs.getString("esp32_mac", null)
-        
-        if (macAddress != null) {
-            val btService = BluetoothService(context)
-            val success = btService.connectToDevice(macAddress)
-            if (success) {
-                SessionState.activeBluetoothService = btService
-                bluetoothService = btService
-                currentStep = UnlockStep.FACE_HELMET_CHECK
-                statusMessage = "Connected. Position your face in the camera."
-            } else {
-                isConnectionFailed = true
-                statusMessage = "Failed to connect. Is the helmet powered on?"
-            }
-        } else {
+    LaunchedEffect(Unit) {
+        try {
+            val prefs = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
+            val mac = prefs.getString("esp32_mac", null) ?: error("Pair your motorcycle first.")
+            val encrypted = prefs.getString("esp32_secret_enc", null) ?: error("Pair your motorcycle first.")
+            val secret = com.example.motolock.data.KeystoreHelper.decryptSecret(encrypted) ?: error("Pairing credentials are unavailable.")
+            val svc = sessionService
+            check(svc.isConnected) { "Bluetooth disconnected." }
+            check(svc.authenticateSession(secret)) { "Motor authentication failed." }
+            val identity = helmetIdentity ?: error("Pair your helmet first.")
+            check(identity.matches(svc.readHelmetIdentity())) { "Connected helmet differs from your paired helmet." }
+            check(!disposed.get() && svc.isConnected && SessionState.activeBluetoothService === svc) { "Bluetooth disconnected." }
+            currentStep = UnlockStep.FACE_HELMET_CHECK
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             isConnectionFailed = true
-            statusMessage = "No helmet paired. Please pair your MotoLock device."
+            statusMessage = e.message ?: "Connection failed. Pair your device and retry."
+        }
+    }
+
+    LaunchedEffect(SessionState.activeBluetoothService) {
+        SessionState.activeBluetoothService?.connectionState?.collect { connected ->
+            if (!connected && currentStep != UnlockStep.CONNECTING) {
+                activeAnalyzer?.stop()
+                cameraAnalysis?.clearAnalyzer()
+                SessionState.isMotorUnlocked = false
+                statusMessage = "Bluetooth disconnected. Reconnect and verify again."
+                isConnectionFailed = true
+                currentStep = UnlockStep.CONNECTING
+            }
+        }
+    }
+
+    // Keep the displayed result tied to the motor after the camera has stopped.
+    LaunchedEffect(currentStep) {
+        if (currentStep != UnlockStep.SUCCESS) return@LaunchedEffect
+        val service = SessionState.activeBluetoothService ?: return@LaunchedEffect
+        val statusMonitor = launch {
+            service.readDataStream().collect { line ->
+                if (line.startsWith("STATUS:")) {
+                    val locked = runCatching {
+                        val json = kotlinx.serialization.json.Json.parseToJsonElement(line.substringAfter(':'))
+                            as kotlinx.serialization.json.JsonObject
+                        (json["locked"] as? JsonPrimitive)?.content == "true"
+                    }.getOrDefault(false)
+                    if (locked) {
+                        SessionState.isMotorUnlocked = false
+                        statusMessage = "Motorcycle locked. Return and verify again."
+                        isConnectionFailed = true
+                        currentStep = UnlockStep.CONNECTING
+                    }
+                }
+            }
+        }
+        try {
+            while (service.isConnected) delay(250)
+            statusMessage = "Bluetooth disconnected. Return and verify again."
+            isConnectionFailed = true
+            currentStep = UnlockStep.CONNECTING
+        } finally {
+            statusMonitor.cancel()
+        }
+    }
+
+    // Request camera permission if not granted
+    LaunchedEffect(hasCameraPermission, currentStep) {
+        if (!hasCameraPermission && currentStep == UnlockStep.FACE_HELMET_CHECK) {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
     
@@ -192,8 +241,8 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
             disposed.set(true)
             cameraAnalysis?.clearAnalyzer()
             cameraAnalysis?.let { cameraProvider?.unbind(it) }
+            cameraPreview?.let { cameraProvider?.unbind(it) }
             activeAnalyzer?.stop()
-            bluetoothService?.disconnect()
             cameraWorker.execute {
                 activeAnalyzer?.close()
                 faceNetInterpreter?.close()
@@ -245,7 +294,14 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
             StepIndicator(step = 3, current = currentStep.ordinal + 1, label = "Alcohol", icon = Icons.Default.LocalDrink)
         }
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            "Motor: Connected | Helmet: " + (motorStatus?.helmetLabel() ?: "Waiting for status"),
+            color = textGray,
+            fontSize = 12.sp,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(18.dp))
         
         Box(
             modifier = Modifier
@@ -263,10 +319,13 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
                         val previewView = PreviewView(ctx)
                         val executor = ContextCompat.getMainExecutor(ctx)
                         cameraProviderFuture.addListener({
-                            if (disposed.get()) return@addListener
+                            if (disposed.get() || !sessionService.isConnected ||
+                                SessionState.activeBluetoothService !== sessionService ||
+                                currentStep != UnlockStep.FACE_HELMET_CHECK) return@addListener
                             val provider = cameraProviderFuture.get()
                             cameraProvider = provider
                             val preview = Preview.Builder().build().also {
+                                cameraPreview = it
                                 it.setSurfaceProvider(previewView.surfaceProvider)
                             }
                             
@@ -277,47 +336,39 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
                                 .build()
                                 .also {
                                     cameraAnalysis = it
-                                    val telemetryManager = com.example.motolock.data.RealHelmetTelemetryManager(context)
-                                    val sharedPrefs = context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE)
-                                    val pairedDeviceId = sharedPrefs.getString("esp32_mac", null)
-                                    val pairedVisualId = sharedPrefs.getString("esp32_visual_id", "MOTO-3F1A9") // Default for testing
-                                    val pubKeyString = sharedPrefs.getString("esp32_public_key", null)
-                                    val publicKeyBytes = pubKeyString?.chunked(2)?.map { it.toInt(16).toByte() }?.toByteArray()
-
                                     val analyzer = DualAiAnalyzer(
-                                        faceNetInterpreter, 
-                                        helmetInterpreter, 
-                                        registeredEmbedding,
-                                        telemetryManager = telemetryManager,
-                                        pairedHelmetDeviceId = pairedDeviceId,
-                                        pairedHelmetVisualId = pairedVisualId,
-                                        helmetPublicKey = publicKeyBytes ?: ByteArray(0), // Dummy array if null for now
+                                        faceNetInterpreter = faceNetInterpreter,
+                                        helmetInterpreter = helmetInterpreter,
+                                        registeredEmbedding = registeredEmbedding,
+                                        telemetryManager = com.example.motolock.data.RealHelmetTelemetryManager(context),
+                                        // Pin all verification to the physically provisioned helmet.
+                                        pairedHelmetDeviceId = helmetIdentity?.deviceId,
+                                        pairedHelmetVisualId = helmetIdentity?.visualId,
+                                        helmetPublicKey = helmetIdentity?.publicKey,
                                         logoIdentityDetector = com.example.motolock.data.IntegratedLogoDetector()
                                     ) { success, msg ->
+                                        if (disposed.get() || !sessionService.isConnected ||
+                                            SessionState.activeBluetoothService !== sessionService ||
+                                            currentStep != UnlockStep.FACE_HELMET_CHECK) return@DualAiAnalyzer
                                         isFaceAndHelmetDetected = success
                                         if (success) {
-                                            // Bridge ML to Bluetooth
+                                            currentStep = UnlockStep.ALCOHOL_CHECK
+                                            statusMessage = "Authorizing motorcycle..."
                                             coroutineScope.launch {
-                                                val sharedPrefs = context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE)
-                                                val encSecret = sharedPrefs.getString("esp32_secret_enc", null)
-                                                if (encSecret != null) {
-                                                    try {
-                                                        val secret = com.example.motolock.data.KeystoreHelper.decryptSecret(encSecret)
-                                                        val btService = SessionState.activeBluetoothService
-                                                        if (btService != null) {
-                                                            val unlocked = btService.sendUnlockCommand(secret)
-                                                            if (unlocked) {
-                                                                statusMessage = "Motorcycle Unlocked!"
-                                                                currentStep = UnlockStep.SUCCESS
-                                                            } else {
-                                                                statusMessage = "Bluetooth Auth Failed."
-                                                            }
-                                                        } else {
-                                                            statusMessage = "Bluetooth Disconnected."
-                                                        }
-                                                    } catch (e: SecurityException) {
-                                                        statusMessage = "Decryption failed. Please re-pair the device."
-                                                    }
+                                                try {
+                                                    val prefs = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
+                                                    val encrypted = prefs.getString("esp32_secret_enc", null) ?: error("Pair your motorcycle first.")
+                                                    val secret = com.example.motolock.data.KeystoreHelper.decryptSecret(encrypted) ?: error("Pairing credentials unavailable.")
+                                                    val service = sessionService
+                                                    check(!disposed.get() && service.isConnected && SessionState.activeBluetoothService === service) { "Bluetooth disconnected." }
+                                                    check(service.sendUnlockCommand(secret)) { "Motorcycle refused unlock." }
+                                                    check(!disposed.get() && service.isConnected && SessionState.activeBluetoothService === service) { "Bluetooth disconnected." }
+                                                    currentStep = UnlockStep.SUCCESS
+                                                    SessionState.isMotorUnlocked = true
+                                                    statusMessage = "Motorcycle unlocked."
+                                                } catch (e: Exception) {
+                                                    if (e is kotlinx.coroutines.CancellationException) throw e
+                                                    statusMessage = e.message ?: "Unlock failed. Return and retry."
                                                 }
                                             }
                                         } else {
@@ -340,89 +391,23 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
                     modifier = Modifier.fillMaxSize()
                 )
             } else if (currentStep == UnlockStep.CONNECTING) {
-                val sharedPrefsCheck = context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE)
-                val hasPairedDevice = sharedPrefsCheck.getString("esp32_mac", null) != null
-                androidx.compose.foundation.layout.Column(
-                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-                    modifier = androidx.compose.ui.Modifier.padding(24.dp)
-                ) {
-                    if (!hasPairedDevice) {
-                        // No device paired at all
-                        androidx.compose.material3.Icon(
-                            androidx.compose.material.icons.Icons.Default.BluetoothSearching,
-                            contentDescription = null,
-                            tint = androidx.compose.ui.graphics.Color(0xFFED1C24),
-                            modifier = androidx.compose.ui.Modifier.size(56.dp)
-                        )
+                androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                    if (isConnectionFailed) {
+                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.BluetoothSearching, contentDescription = null, tint = androidx.compose.ui.graphics.Color.Gray, modifier = androidx.compose.ui.Modifier.size(48.dp))
                         androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(16.dp))
-                        androidx.compose.material3.Text(
-                            "No Device Paired",
-                            color = androidx.compose.ui.graphics.Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                        )
-                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
-                        androidx.compose.material3.Text(
-                            "You need to pair your MotoLock device first before unlocking.",
-                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
-                            fontSize = 13.sp,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(24.dp))
-                        androidx.compose.material3.Button(
-                            onClick = { onPairDevice() },
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFED1C24)),
-                            modifier = androidx.compose.ui.Modifier.fillMaxWidth(0.8f)
-                        ) {
-                            androidx.compose.material3.Text("Pair Device Now", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                        }
-                    } else if (isConnectionFailed) {
-                        // Paired but can't reach it
-                        androidx.compose.material3.Icon(
-                            androidx.compose.material.icons.Icons.Default.BluetoothSearching,
-                            contentDescription = null,
-                            tint = androidx.compose.ui.graphics.Color.Gray,
-                            modifier = androidx.compose.ui.Modifier.size(56.dp)
-                        )
-                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(16.dp))
-                        androidx.compose.material3.Text(
-                            "Cannot Reach ESP32",
-                            color = androidx.compose.ui.graphics.Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                        )
-                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
-                        androidx.compose.material3.Text(
-                            "Make sure the helmet device is powered on and within Bluetooth range.",
-                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
-                            fontSize = 13.sp,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(24.dp))
-                        androidx.compose.material3.Button(
-                            onClick = {
-                                isConnectionFailed = false
-                                currentStep = UnlockStep.CONNECTING
-                            },
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFED1C24)),
-                            modifier = androidx.compose.ui.Modifier.fillMaxWidth(0.8f)
-                        ) {
-                            androidx.compose.material3.Text("Retry", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                        }
-                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(12.dp))
-                        androidx.compose.material3.TextButton(onClick = { onPairDevice() }) {
-                            androidx.compose.material3.Text("Re-pair Device", color = androidx.compose.ui.graphics.Color(0xFFED1C24))
-                        }
+                        androidx.compose.material3.Text("Tap here to see devices", color = androidx.compose.ui.graphics.Color(0xFFED1C24), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, modifier = androidx.compose.ui.Modifier.clickable { onPairDevice() })
                     } else {
-                        // Actively connecting
                         androidx.compose.material3.CircularProgressIndicator(color = androidx.compose.ui.graphics.Color(0xFFED1C24))
-                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(16.dp))
-                        androidx.compose.material3.Text(
-                            "Connecting to MotoLock...",
-                            color = androidx.compose.ui.graphics.Color.White,
-                            fontSize = 14.sp
-                        )
                     }
+                }
+            } else if (currentStep == UnlockStep.ALCOHOL_CHECK) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.LocalDrink, contentDescription = null, tint = Color.White, modifier = Modifier.size(64.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Authorizing motorcycle...", color = Color.White, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    CircularProgressIndicator(color = motoRed, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+
                 }
             } else if (currentStep == UnlockStep.SUCCESS) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {

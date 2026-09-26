@@ -422,15 +422,16 @@ fun CameraScreen(
                                             }
 
                                             CameraMode.UNLOCK -> {
+                                                val identity = com.example.motolock.data.HelmetIdentity.load(context)
                                                 val telemetryManager = com.example.motolock.data.RealHelmetTelemetryManager(context)
                                                 val analyzer = DualAiAnalyzer(
                                                     faceNetInterp, 
                                                     helmetInterp, 
                                                     registeredEmb,
                                                     telemetryManager = telemetryManager,
-                                                    pairedHelmetDeviceId = null,
-                                                    pairedHelmetVisualId = null,
-                                                    helmetPublicKey = null,
+                                                    pairedHelmetDeviceId = identity?.deviceId,
+                                                    pairedHelmetVisualId = identity?.visualId,
+                                                    helmetPublicKey = identity?.publicKey,
                                                     logoIdentityDetector = com.example.motolock.data.IntegratedLogoDetector()
                                                 ) { ok, msg ->
                                                     // Re-evaluate continuously; a camera pass never sends hardware commands.

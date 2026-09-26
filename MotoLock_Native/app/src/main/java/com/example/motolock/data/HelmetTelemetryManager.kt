@@ -17,18 +17,22 @@ data class HelmetTelemetry(
     val receivedAt: Long,
     val isConnected: Boolean,
     val nonce: ByteArray?,
-    val signature: ByteArray?
+    val signature: ByteArray?,
+    val signedPayload: ByteArray? = null,
+    val flags: Int = 0,
+    val visualId: String? = null
 )
 
 interface HelmetTelemetryManager {
     fun getTelemetry(): HelmetTelemetry
     fun initiateChallenge(nonce: ByteArray)
+    fun close() {}
 }
 
 object HelmetCrypto {
     /**
      * Verifies the ECDSA (SHA256withECDSA) signature of the telemetry payload.
-     * Payload structure: Nonce (32 bytes) || Sequence (8 bytes) || SensorActive (1 byte)
+     * V2 payload layout is shared with MotoLockProtocol.h. No unsigned fallback.
      */
     fun verifySignature(telemetry: HelmetTelemetry, expectedNonce: ByteArray, publicKeyBytes: ByteArray): Boolean {
         if (telemetry.nonce == null || telemetry.signature == null || !telemetry.nonce.contentEquals(expectedNonce)) {
@@ -43,18 +47,12 @@ object HelmetCrypto {
             val sig = Signature.getInstance("SHA256withECDSA")
             sig.initVerify(publicKey)
             
-            sig.update(telemetry.nonce)
-            
-            val seqBytes = ByteArray(8)
-            var seq = telemetry.sequence
-            for (i in 7 downTo 0) {
-                seqBytes[i] = (seq and 0xFF).toByte()
-                seq = seq shr 8
-            }
-            sig.update(seqBytes)
-            
-            val sensorByte: Byte = if (telemetry.sensorActive) 1 else 0
-            sig.update(sensorByte)
+            val payload = telemetry.signedPayload ?: return false
+            val decoded = HelmetProtocol.parseTelemetry("TELEMETRY:${HelmetProtocol.hex(payload)},${HelmetProtocol.hex(telemetry.signature)}")
+            if (decoded.deviceId != telemetry.deviceId || decoded.visualId != telemetry.visualId ||
+                decoded.sequence != telemetry.sequence || decoded.flags != telemetry.flags ||
+                decoded.sensorActive != telemetry.sensorActive || !decoded.nonce!!.contentEquals(expectedNonce)) return false
+            sig.update(payload)
             
             sig.verify(telemetry.signature)
         } catch (e: Exception) {
@@ -63,64 +61,27 @@ object HelmetCrypto {
     }
 }
 
-class RealHelmetTelemetryManager(private val context: Context) : HelmetTelemetryManager {
-    
-    private var currentTelemetry = HelmetTelemetry(
-        deviceId = null,
-        sensorActive = false,
-        timestamp = System.currentTimeMillis(),
-        sequence = 0L,
-        receivedAt = System.currentTimeMillis(),
-        isConnected = false,
-        nonce = null,
-        signature = null
-    )
-    
-    private var isListening = false
-    
-    private fun startListening() {
-        if (isListening) return
-        val btService = com.example.motolock.SessionState.activeBluetoothService ?: return
-        isListening = true
-        
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            btService.readDataStream().collect { line ->
+class RealHelmetTelemetryManager(context: Context) : HelmetTelemetryManager {
+    private val service = com.example.motolock.SessionState.activeBluetoothService
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    @Volatile private var current = HelmetTelemetry(null, false, 0, 0, 0, false, null, null)
+    init {
+        scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+            service?.readDataStream()?.collect { line ->
                 if (line.startsWith("TELEMETRY:")) {
-                    try {
-                        // Format: TELEMETRY:<deviceId>,<sensorActive(1/0)>,<sequence>,<nonceHex>,<signatureHex>
-                        val parts = line.substringAfter("TELEMETRY:").split(",")
-                        if (parts.size >= 5) {
-                            currentTelemetry = HelmetTelemetry(
-                                deviceId = parts[0],
-                                sensorActive = parts[1] == "1",
-                                timestamp = System.currentTimeMillis(),
-                                sequence = parts[2].toLong(),
-                                receivedAt = System.currentTimeMillis(),
-                                isConnected = true,
-                                nonce = parts[3].chunked(2).map { it.toInt(16).toByte() }.toByteArray(),
-                                signature = parts[4].chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-                            )
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
+                    runCatching { HelmetProtocol.parseTelemetry(line) }.onSuccess { next ->
+                        val old = current
+                        // Repeated or older packets must not refresh their receive time.
+                        if (old.nonce == null || !old.nonce.contentEquals(next.nonce) || next.sequence > old.sequence) current = next
                     }
                 }
             }
         }
     }
-
-    override fun getTelemetry(): HelmetTelemetry {
-        if (!isListening && com.example.motolock.SessionState.activeBluetoothService != null) {
-            startListening()
-        }
-        return currentTelemetry
-    }
-
+    override fun getTelemetry(): HelmetTelemetry = current.copy(isConnected = service?.isConnected == true)
     override fun initiateChallenge(nonce: ByteArray) {
-        val btService = com.example.motolock.SessionState.activeBluetoothService ?: return
-        val nonceHex = nonce.joinToString("") { "%02x".format(it) }
-        btService.writeCommand("CHALLENGE:$nonceHex\n")
+        require(nonce.size == 32)
+        runCatching { service?.writeCommand("CHALLENGE:" + HelmetProtocol.hex(nonce) + "\n") }
     }
+    override fun close() { scope.coroutineContext[kotlinx.coroutines.Job]?.cancel() }
 }
-
-

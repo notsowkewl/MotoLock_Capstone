@@ -41,9 +41,23 @@ import kotlinx.serialization.json.jsonPrimitive
 
 object SessionState { 
     var isFirstDashboardLoad = true 
-    var isMotorUnlocked = false
-    var activeBluetoothService: com.example.motolock.data.BluetoothService? = null
+    var isMotorUnlocked by mutableStateOf(false)
+    var activeBluetoothService by mutableStateOf<com.example.motolock.data.BluetoothService?>(null)
 }
+
+// Expiration is display-only and never changes hardware authorization.
+@Composable
+internal fun rememberFreshMotorStatus(service: com.example.motolock.data.BluetoothService?): State<com.example.motolock.data.MotorStatus?> =
+    produceState<com.example.motolock.data.MotorStatus?>(null, service) {
+        value = null
+        while (true) {
+            val report = service?.motorStatus?.value
+            value = report?.takeIf {
+                service?.isConnected == true && android.os.SystemClock.elapsedRealtime() - it.receivedAt in 0L..3500L
+            }
+            kotlinx.coroutines.delay(250)
+        }
+    }
 
 @Composable
 fun DashboardScreen(
@@ -67,8 +81,12 @@ fun DashboardScreen(
     var isLoading         by remember { mutableStateOf(true) }
     var showSetupModal    by remember { mutableStateOf(false) }
     var motorcycleInfo    by remember { mutableStateOf<String?>(null) }
-    var deviceConnected   by remember { mutableStateOf(false) }
-    var deviceName        by remember { mutableStateOf<String?>(null) }
+    val disconnected = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
+    val activeService = SessionState.activeBluetoothService
+    val deviceConnected by (activeService?.connectionState ?: disconnected).collectAsState()
+    val motorStatus by rememberFreshMotorStatus(activeService)
+    val noStatus = remember { kotlinx.coroutines.flow.MutableStateFlow<com.example.motolock.data.MotorStatus?>(null) }
+    val latestMotorStatus by (activeService?.motorStatus ?: noStatus).collectAsState()
 
     var hasFaceId           by remember { mutableStateOf(false) }
     var hasEmergencyContact by remember { mutableStateOf(false) }
@@ -77,6 +95,10 @@ fun DashboardScreen(
     var hasConnectedDevice  by remember { mutableStateOf(false) }
 
     val isSetupComplete = hasFaceId && hasEmergencyContact && hasMotorcycle && hasPin && hasConnectedDevice
+
+    LaunchedEffect(deviceConnected, latestMotorStatus) {
+        if (!deviceConnected || latestMotorStatus?.locked == true) SessionState.isMotorUnlocked = false
+    }
 
     LaunchedEffect(Unit) {
         try {
@@ -135,14 +157,10 @@ fun DashboardScreen(
                     .decodeList<JsonObject>().firstOrNull()
 
                 if (device != null) {
-                    deviceConnected = true
+                    // A database record means enrolled, not currently connected.
                     hasConnectedDevice = true
-                    val mac = device["mac_address"]?.jsonPrimitive?.content ?: ""
-                    deviceName = "MotoLock_${mac.takeLast(5).replace(":", "")}"
                 } else {
-                    deviceConnected = false
                     hasConnectedDevice = false
-                    deviceName = null
                 }
             }
         } catch (e: Exception) {
@@ -382,8 +400,9 @@ fun DashboardScreen(
                     icon = Icons.Default.Bluetooth,
                     iconTint = if (deviceConnected) motoGreen else motoRed,
                     iconBg = if (deviceConnected) Color(0xFFE6F4EE) else Color(0xFFFFEDEE),
-                    label = "MotoLock Device",
-                    value = if (deviceConnected) "Connected to $deviceName" else "Not Connected"
+                    label = "MotoLock Hardware",
+                    value = "Motor: ${if (deviceConnected) "Connected" else "Disconnected"}\n" +
+                        "Helmet: ${if (deviceConnected) motorStatus?.helmetLabel() ?: "Waiting for status" else "Unknown - motor disconnected"}"
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))

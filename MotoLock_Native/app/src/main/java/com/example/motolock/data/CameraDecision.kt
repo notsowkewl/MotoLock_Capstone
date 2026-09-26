@@ -6,47 +6,62 @@ data class VerificationState(
     val helmetDetected: Boolean,
     val helmetSensorActive: Boolean,
     val visorBlockingFace: Boolean,
-    val isSignatureValid: Boolean,
-    val isLogoIdentityMatched: Boolean,
-    val isSequenceValid: Boolean,
     val finalAuthenticationState: Boolean,
     val message: String
 )
 
 object CameraDecision {
     fun evaluate(
-        faceCount: Int, 
-        faceMatches: Boolean, 
-        helmetOnHead: Boolean, 
+        faceCount: Int,
+        faceMatches: Boolean,
+        helmetOnHead: Boolean,
         telemetry: HelmetTelemetry,
         pairedHelmetDeviceId: String?,
         pairedHelmetVisualId: String?,
         expectedNonce: ByteArray?,
         helmetPublicKey: ByteArray?,
-        visuallyExtractedLogoId: String?,
+        extractedLogoId: String?,
         isSequenceValid: Boolean,
+        spatiallyAssociatedHelmetWithoutFace: Boolean = false
+    ): VerificationState {
+        val cameraState = evaluateCamera(
+            faceCount, faceMatches, helmetOnHead, telemetry.sensorActive,
+            spatiallyAssociatedHelmetWithoutFace
+        )
+        if (!cameraState.finalAuthenticationState) return cameraState
+
+        val ageMs = System.currentTimeMillis() - telemetry.receivedAt
+        val failure = when {
+            pairedHelmetDeviceId.isNullOrBlank() || pairedHelmetVisualId.isNullOrBlank() ||
+                helmetPublicKey.isNullOrEmptyBytes() -> "Pair your helmet before unlocking."
+            !telemetry.isConnected -> "Connect your paired helmet."
+            telemetry.deviceId != pairedHelmetDeviceId -> "Connected helmet does not match your paired helmet."
+            ageMs !in 0L..1000L -> "Waiting for fresh helmet telemetry."
+            expectedNonce == null || expectedNonce.size != 32 || !isSequenceValid -> "Waiting for helmet challenge verification."
+            !HelmetCrypto.verifySignature(telemetry, expectedNonce, helmetPublicKey!!) -> "Helmet signature verification failed."
+            telemetry.visualId != pairedHelmetVisualId -> "Helmet visual identity does not match pairing."
+            telemetry.flags and 0x0e != 0x0e || telemetry.flags and 0x10 != 0 -> "Helmet sensor warming up or alcohol check not clear."
+            extractedLogoId != pairedHelmetVisualId -> "Show the paired helmet logo to the camera."
+            else -> null
+        }
+        return if (failure == null) cameraState else cameraState.copy(
+            finalAuthenticationState = false, message = failure
+        )
+    }
+
+    private fun ByteArray?.isNullOrEmptyBytes() = this == null || isEmpty()
+    private fun evaluateCamera(
+        faceCount: Int, 
+        faceMatches: Boolean, 
+        helmetOnHead: Boolean, 
+        irSensorActive: Boolean,
         spatiallyAssociatedHelmetWithoutFace: Boolean = false
     ): VerificationState {
         val faceDetected = faceCount == 1
         val multipleFaces = faceCount > 1
         
+        // CASE 3: Visor DOWN - Strong evidence required. Not just "no face + helmet anywhere".
         val visorBlockingFace = !faceDetected && spatiallyAssociatedHelmetWithoutFace
-        
-        // Timing constraints
-        val isFresh = (System.currentTimeMillis() - telemetry.receivedAt) < 3000
-        val isCorrectDevice = pairedHelmetDeviceId != null && telemetry.deviceId == pairedHelmetDeviceId
-        
-        // Visual Logo Check (Ensure the extracted visual ID explicitly matches the registered visual ID)
-        val isLogoIdentityMatched = pairedHelmetVisualId != null && visuallyExtractedLogoId == pairedHelmetVisualId
-        
-        // Crypto binding
-        val isSignatureValid = expectedNonce != null && helmetPublicKey != null && 
-                               HelmetCrypto.verifySignature(telemetry, expectedNonce, helmetPublicKey)
-        
-        val irSensorActive = telemetry.isConnected && telemetry.sensorActive && isFresh && isCorrectDevice && isSignatureValid && isSequenceValid
-        
-        // ALL conditions must be met for final auth candidate
-        val isCandidate = faceDetected && faceMatches && helmetOnHead && irSensorActive && isLogoIdentityMatched
 
         val state = VerificationState(
             faceDetected = faceDetected,
@@ -54,28 +69,34 @@ object CameraDecision {
             helmetDetected = helmetOnHead || spatiallyAssociatedHelmetWithoutFace,
             helmetSensorActive = irSensorActive,
             visorBlockingFace = visorBlockingFace,
-            isSignatureValid = isSignatureValid,
-            isLogoIdentityMatched = isLogoIdentityMatched,
-            isSequenceValid = isSequenceValid,
-            finalAuthenticationState = isCandidate,
+            finalAuthenticationState = false,
             message = ""
         )
 
         return when {
             multipleFaces -> state.copy(message = "Multiple faces detected. Only one rider allowed.")
+            
+            // CASE 2: Different/unregistered rider (Priority over helmet)
             faceDetected && !faceMatches -> state.copy(message = "Face ID not recognized.")
+            
+            // CASE 3: Visor DOWN (Spatially associated helmet covering the last known face region)
             visorBlockingFace -> state.copy(message = "Lift your visor.")
+            
+            // No face, no helmet
             !faceDetected && !spatiallyAssociatedHelmetWithoutFace -> state.copy(message = "No face detected. Keep your face visible.")
+            
+            // CASE 1: Registered rider, no helmet
             faceDetected && faceMatches && !helmetOnHead -> state.copy(message = "Put your helmet on.")
             
-            faceDetected && faceMatches && helmetOnHead && (!telemetry.isConnected || !isFresh || expectedNonce == null) -> state.copy(message = "Connecting to helmet sensor...")
-            faceDetected && faceMatches && helmetOnHead && telemetry.isConnected && isFresh && !isCorrectDevice -> state.copy(message = "Unknown helmet device detected via BLE.")
-            faceDetected && faceMatches && helmetOnHead && telemetry.isConnected && isFresh && isCorrectDevice && !isLogoIdentityMatched -> state.copy(message = "MotoLock logo identification failed.")
-            faceDetected && faceMatches && helmetOnHead && telemetry.isConnected && isFresh && isCorrectDevice && isLogoIdentityMatched && !isSequenceValid -> state.copy(message = "Stale or replayed telemetry sequence.")
-            faceDetected && faceMatches && helmetOnHead && telemetry.isConnected && isFresh && isCorrectDevice && isLogoIdentityMatched && isSequenceValid && !isSignatureValid -> state.copy(message = "Helmet signature validation failed.")
-            faceDetected && faceMatches && helmetOnHead && telemetry.isConnected && isFresh && isCorrectDevice && isLogoIdentityMatched && isSequenceValid && isSignatureValid && !irSensorActive -> state.copy(message = "Alcohol detected or sensor failed.")
+            // CASE 5: Camera says helmet, IR sensor = 0
+            faceDetected && faceMatches && helmetOnHead && !irSensorActive -> state.copy(message = "Fasten helmet strap (IR sensor not detected).")
             
-            isCandidate -> state.copy(message = "Face and helmet verified. Proceeding...")
+            // CASE 4 & 6: Registered rider + helmet + face verified + IR sensor = 1
+            faceDetected && faceMatches && helmetOnHead && irSensorActive -> state.copy(
+                finalAuthenticationState = true,
+                message = "Face and helmet verified. Proceeding..."
+            )
+            
             else -> state.copy(message = "Verifying...")
         }
     }
