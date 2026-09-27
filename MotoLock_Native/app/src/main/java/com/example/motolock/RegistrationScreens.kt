@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,14 +44,22 @@ import java.util.UUID
 fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit) {
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-        var password by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var termsAccepted by remember { mutableStateOf(false) }
+    var privacyAccepted by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var showTerms by remember { mutableStateOf(false) }
+    var showPrivacy by remember { mutableStateOf(false) }
+    
+    var fullNameError by remember { mutableStateOf<String?>(null) }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var confirmPasswordError by remember { mutableStateOf<String?>(null) }
+    var termsError by remember { mutableStateOf<String?>(null) }
+    var authError by remember { mutableStateOf<String?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
 
     val motoRed = Color(0xFFED1C24)
     val motoBlack = Color(0xFF101217)
@@ -58,70 +67,97 @@ fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit) {
     val inputBg = Color.White.copy(alpha = 0.92f)
     val textGray = Color(0xFF737987)
 
-    val bgBrush = Brush.linearGradient(
-        colors = listOf(Color(0xFFFFFFFF), Color(0xFFFBFCFF))
-    )
-
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(bgBrush)
-            .padding(horizontal = 24.dp, vertical = 22.dp)
-            .verticalScroll(rememberScrollState())
+        modifier = Modifier.fillMaxSize().background(Color(0xFFF7F8FA)).padding(horizontal = 28.dp).verticalScroll(rememberScrollState())
     ) {
-        // Topbar removed as requested
+        Spacer(modifier = Modifier.height(48.dp))
 
-        Spacer(modifier = Modifier.height(22.dp))
+        Box(
+            modifier = Modifier.size(44.dp).background(Color.White.copy(alpha = 0.88f), RoundedCornerShape(14.dp)).border(1.dp, lineCol, RoundedCornerShape(14.dp)).clickable { onBack() },
+            contentAlignment = Alignment.Center
+        ) { Icon(Icons.Default.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp), tint = motoBlack) }
 
-        // Screen Title
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            Text("Create Rider Account", fontSize = 22.sp, fontWeight = FontWeight.Black, color = motoBlack, letterSpacing = (-0.04).sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Create your account first, then complete Face ID, PIN, contacts, motorcycle, and device setup.",
-                fontSize = 13.sp, color = textGray, lineHeight = 18.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-        }
+        Spacer(modifier = Modifier.height(32.dp))
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Text("Create Account", fontSize = 28.sp, fontWeight = FontWeight.Black, color = motoBlack, letterSpacing = (-0.5).sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Join MotoLock to secure your ride and ensure safety.", fontSize = 13.sp, color = textGray, lineHeight = 20.sp)
 
-        // Form Fields
-        CustomTextField("Full Name", "Enter full name", fullName) { fullName = it }
-        Spacer(modifier = Modifier.height(13.dp))
-        CustomTextField("Email", "Enter email", email, KeyboardType.Email) { email = it }
-        Spacer(modifier = Modifier.height(13.dp))
-        CustomTextField("Password", "Enter password", password, KeyboardType.Password, true) { password = it }
-        Spacer(modifier = Modifier.height(13.dp))
-        CustomTextField("Confirm Password", "Confirm password", confirmPassword, KeyboardType.Password, true) { confirmPassword = it }
+        Spacer(modifier = Modifier.height(36.dp))
+
+        CustomTextField(
+            label = "Full Name", 
+            placeholder = "Enter your full name", 
+            value = fullName, 
+            error = fullNameError,
+            onValueChange = { fullName = it; fullNameError = null }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        CustomTextField(
+            label = "Email Address", 
+            placeholder = "name@example.com", 
+            value = email, 
+            keyboardType = KeyboardType.Email,
+            error = emailError,
+            onValueChange = { email = it; emailError = null }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        CustomTextField(
+            label = "Password", 
+            placeholder = "Create a strong password", 
+            value = password, 
+            isPassword = true,
+            error = passwordError,
+            onValueChange = { password = it; passwordError = null }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        CustomTextField(
+            label = "Confirm Password", 
+            placeholder = "Repeat your password", 
+            value = confirmPassword, 
+            isPassword = true,
+            error = confirmPasswordError,
+            onValueChange = { confirmPassword = it; confirmPasswordError = null }
+        )
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Checkbox row
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
                 checked = termsAccepted,
-                onCheckedChange = { termsAccepted = it },
+                onCheckedChange = { termsAccepted = it; termsError = null },
                 colors = CheckboxDefaults.colors(checkedColor = motoRed)
             )
             Text("I agree to the ", fontSize = 11.sp, color = textGray)
-            Text("Terms & Privacy", fontSize = 11.sp, color = motoRed, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { showTerms = true })
+            Text("Terms and Conditions", fontSize = 11.sp, color = motoRed, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { showTerms = true })
         }
-        
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = privacyAccepted,
+                onCheckedChange = { privacyAccepted = it; termsError = null },
+                colors = CheckboxDefaults.colors(checkedColor = motoRed)
+            )
+            Text("I consent to the ", fontSize = 11.sp, color = textGray)
+            Text("Privacy Policy", fontSize = 11.sp, color = motoRed, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { showPrivacy = true })
+        }
+        if (termsError != null) {
+            Text(termsError!!, color = motoRed, fontSize = 11.sp, modifier = Modifier.padding(start = 12.dp))
+        }
+
         if (showTerms) {
             androidx.compose.ui.window.Dialog(onDismissRequest = { showTerms = false }) {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = Color.White,
-                    modifier = Modifier.fillMaxWidth().padding(16.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("Terms & Privacy", fontSize = 20.sp, fontWeight = FontWeight.Black, color = motoBlack)
+                Surface(shape = RoundedCornerShape(18.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Terms and Conditions", fontSize = 20.sp, fontWeight = FontWeight.Black, color = motoBlack)
+                            Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.clickable { showTerms = false }, tint = motoBlack)
+                        }
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-
+                            "Read the rules and safety agreement for using MotoLock.\n\n" +
                             "1. Rider Responsibility\nThe rider is responsible for using MotoLock properly and honestly. The system is designed to support rider safety before motorcycle use.\n\n" +
                             "2. Identity Verification\nThe rider must complete Face ID verification before unlocking your motorcycle. MotoLock may require both no-helmet and with-helmet verification to confirm the registered rider.\n\n" +
                             "3. Sobriety Test Requirement\nThe rider must complete the alcohol detection test using the helmet sensor. Motorcycle ignition will only be allowed if the rider passes the sobriety check.\n\n" +
@@ -134,15 +170,36 @@ fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit) {
                             modifier = Modifier.fillMaxHeight(0.6f).verticalScroll(rememberScrollState())
                         )
                         Spacer(modifier = Modifier.height(24.dp))
-                        Button(
-                            onClick = { 
-                                  showTerms = false 
-                                  termsAccepted = true
-                              },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = motoRed),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
+                        Button(onClick = { showTerms = false; termsAccepted = true }, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = motoRed), shape = RoundedCornerShape(12.dp)) {
+                            Text("I Accept", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (showPrivacy) {
+            androidx.compose.ui.window.Dialog(onDismissRequest = { showPrivacy = false }) {
+                Surface(shape = RoundedCornerShape(18.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Privacy Policy", fontSize = 20.sp, fontWeight = FontWeight.Black, color = motoBlack)
+                            Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.clickable { showPrivacy = false }, tint = motoBlack)
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            "Learn how MotoLock handles rider data, device information, and safety records.\n\n" +
+                            "1. Information We Collect\nMotoLock may collect rider account details such as full name, email address, phone number, motorcycle information, emergency contacts, Face ID registration data, Bluetooth device status, and ride safety logs.\n\n" +
+                            "2. How We Use Your Data\nThe collected information is used to verify rider identity, connect the MotoLock hardware, manage emergency contacts, monitor safety checks, and record ride history for security and accountability.\n\n" +
+                            "3. Face ID and Verification\nFace ID is used only for rider identity verification before unlocking your motorcycle. It helps confirm that the registered rider is the one attempting to access the motorcycle.\n\n" +
+                            "4. Emergency Contacts\nEmergency contact details are used only when safety alerts are triggered, such as alcohol detection, ignition lock events, or emergency notifications.\n\n" +
+                            "5. Ride and Safety Logs\nMotoLock stores ride history, Face ID verification results, helmet verification, BrAC readings, ignition status, and emergency alert records to support safety monitoring.\n\n" +
+                            "6. Data Protection\nMotoLock aims to protect user data and only uses collected information for system security, rider safety, and emergency response purposes.",
+                            fontSize = 11.sp, color = textGray, lineHeight = 16.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Start,
+                            modifier = Modifier.fillMaxHeight(0.6f).verticalScroll(rememberScrollState())
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(onClick = { showPrivacy = false; privacyAccepted = true }, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = motoRed), shape = RoundedCornerShape(12.dp)) {
                             Text("I Accept", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
@@ -152,21 +209,27 @@ fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit) {
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Create Account Button
+        if (authError != null) {
+            Text(authError!!, color = motoRed, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+        }
+
         Button(
             onClick = {
-                if (fullName.isBlank() || email.isBlank() || password.isBlank()) {
-                    Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
-                    return@Button
+                var hasError = false
+                if (fullName.isBlank()) { fullNameError = "Please fill in this field"; hasError = true }
+                if (email.isBlank()) { emailError = "Please fill in this field"; hasError = true }
+                if (password.isBlank()) { passwordError = "Please fill in this field"; hasError = true }
+                if (confirmPassword.isBlank()) { confirmPasswordError = "Please fill in this field"; hasError = true }
+                if (password != confirmPassword && password.isNotBlank() && confirmPassword.isNotBlank()) {
+                    confirmPasswordError = "Passwords do not match"
+                    hasError = true
                 }
-                if (password != confirmPassword) {
-                    Toast.makeText(context, "Passwords do not match", Toast.LENGTH_SHORT).show()
-                    return@Button
+                if (!termsAccepted || !privacyAccepted) {
+                    termsError = "Please accept the Terms and Privacy Policy"
+                    hasError = true
                 }
-                if (!termsAccepted) {
-                    Toast.makeText(context, "Please accept terms", Toast.LENGTH_SHORT).show()
-                    return@Button
-                }
+
+                if (hasError) return@Button
 
                 isLoading = true
                 coroutineScope.launch {
@@ -175,47 +238,30 @@ fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit) {
                             this.email = email
                             this.password = password
                         }
-                        
-                        val userId = SupabaseClientManager.client.auth.currentSessionOrNull()?.user?.id ?: UUID.randomUUID().toString()
-                        
-                        // Profile is now automatically created by the Supabase backend trigger on_auth_user_created.
-                        // No client-side insertion needed.
-                        
                         onNext()
                     } catch (e: Exception) {
                         val errorMsg = e.message?.lowercase() ?: ""
                         if (errorMsg.contains("already registered") || errorMsg.contains("user already exists")) {
-                            Toast.makeText(context, "This email is already registered.", Toast.LENGTH_LONG).show()
+                            authError = "This email is already registered."
                         } else {
-                            Toast.makeText(context, "Registration Failed. Please try again later.", Toast.LENGTH_LONG).show()
+                            authError = "Registration Failed. Please try again later."
                         }
                     } finally {
                         isLoading = false
                     }
                 }
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(51.dp)
-                .shadow(28.dp, RoundedCornerShape(15.dp), spotColor = motoRed.copy(alpha = 0.22f)),
+            modifier = Modifier.fillMaxWidth().height(51.dp).shadow(28.dp, RoundedCornerShape(15.dp), spotColor = motoRed.copy(alpha = 0.22f)),
             colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
             contentPadding = PaddingValues(0.dp),
             shape = RoundedCornerShape(15.dp)
         ) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(listOf(Color(0xFFFF3038), motoRed)),
-                        RoundedCornerShape(15.dp)
-                    ),
+                modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFFFF3038), motoRed)), RoundedCornerShape(15.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                } else {
-                    Text("Create Account", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
-                }
+                if (isLoading) { CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp)) } 
+                else { Text("Create Account", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White) }
             }
         }
         
@@ -225,22 +271,24 @@ fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit) {
             Text("Already have an account? ", fontSize = 12.sp, color = textGray)
             Text("Login", fontSize = 12.sp, color = motoRed, fontWeight = FontWeight.Black, modifier = Modifier.clickable { onBack() })
         }
+        Spacer(modifier = Modifier.height(40.dp))
     }
-}
-
-@Composable
+}@Composable
 fun CustomTextField(
     label: String, 
     placeholder: String, 
     value: String, 
     keyboardType: KeyboardType = KeyboardType.Text,
     isPassword: Boolean = false,
+    error: String? = null,
     onValueChange: (String) -> Unit
 ) {
     val motoBlack = Color(0xFF101217)
     val lineCol = Color(0xFFE8EBF0)
     val inputBg = Color.White.copy(alpha = 0.92f)
+    val motoRed = Color(0xFFED1C24)
     var passwordVisible by remember { mutableStateOf(false) }
+    val borderColor = if (error != null) motoRed else lineCol
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(label, fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF2A2F38))
@@ -256,27 +304,30 @@ fun CustomTextField(
                 .fillMaxWidth()
                 .height(47.dp)
                 .background(inputBg, RoundedCornerShape(14.dp))
-                .border(1.dp, lineCol, RoundedCornerShape(14.dp)),
+                .border(1.dp, borderColor, RoundedCornerShape(14.dp)),
             decorationBox = { innerTextField ->
                 Row(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(modifier = Modifier.weight(1f)) {
+                        if (value.isEmpty()) Text(placeholder, color = Color(0xFF737987).copy(alpha = 0.5f), fontSize = 13.sp)
                         innerTextField()
                     }
                     if (isPassword) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
                             contentDescription = "Toggle Password Visibility",
-                            tint = Color(0xFFED1C24),
-                            modifier = Modifier.size(24.dp).clickable { passwordVisible = !passwordVisible }.padding(start = 4.dp)
+                            tint = Color(0xFF737987),
+                            modifier = Modifier.size(20.dp).clickable { passwordVisible = !passwordVisible }.padding(start = 4.dp)
                         )
                     }
                 }
             }
         )
+        if (error != null) {
+            Text(error, color = motoRed, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, start = 4.dp))
+        }
     }
 }
-
 

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bluetooth
@@ -119,7 +120,7 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
         val motorcycle = SupabaseClientManager.client.postgrest["motorcycles"]
             .select { filter { eq("user_id", finalUserId) } }.decodeList<JsonObject>().firstOrNull()
         val motorcycleId = motorcycle?.get("id")?.jsonPrimitive?.content
-            ?: throw Exception("No motorcycle found for user_id=$finalUserId")
+            
 
         try {
             val deviceData = Device(
@@ -423,32 +424,7 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(30.dp))
 
-        // Scan Button (Manual Refresh)
-        Button(
-            enabled = connectingMacAddress == null && !isAutoConnecting && !motorConnected,
-            onClick = {
-                if (!hasPermissions) {
-                    Toast.makeText(context, "Bluetooth permissions are required", Toast.LENGTH_SHORT).show()
-                    return@Button
-                }
-                if (bluetoothAdapter?.isEnabled == false) {
-                    enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
-                    return@Button
-                }
-                bluetoothReady = true
-                startScan()
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(51.dp)
-                .shadow(10.dp, RoundedCornerShape(15.dp), spotColor = Color(0xFF0F172A).copy(alpha = 0.06f)),
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-            border = androidx.compose.foundation.BorderStroke(1.dp, lineCol),
-            shape = RoundedCornerShape(15.dp)
-        ) {
-            Text(if (isScanning) "Scanning..." else "Rescan for Devices", fontSize = 13.sp, fontWeight = FontWeight.Black, color = motoBlack)
-        }
-        Spacer(modifier = Modifier.height(20.dp))
+        
 
 
         Text(if (connectingMacAddress != null || isAutoConnecting || pairingComplete) connectionProgress else "Power on both boards. For first pairing only, hold motor BOOT for 3 seconds and release. Select MotoLock-Motor once and wait. Saved reconnects do not need BOOT.", fontSize = 12.sp, color = textGray)
@@ -485,18 +461,24 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
             }
             if (!isAutoConnecting && connectingMacAddress == null && pairingAddress != null) {
                 if (pairingComplete && motorConnected) {
-                    Button(
-                        enabled = helmetStatus == "Connected through Motor",
-                        onClick = {
+                    if (helmetStatus == "Connected through Motor") {
+                        LaunchedEffect(Unit) {
+                            kotlinx.coroutines.delay(1500)
                             val service = pairingService
                             if (service?.isConnected == true) {
                                 SessionState.activeBluetoothService?.takeIf { it !== service }?.disconnect()
                                 SessionState.activeBluetoothService = service
                                 onComplete()
                             }
-                        }, colors = ButtonDefaults.buttonColors(containerColor = motoRed),
-                        shape = RoundedCornerShape(15.dp)
-                    ) { Text("Continue") }
+                        }
+                    } else {
+                        Button(
+                            enabled = false,
+                            onClick = { }, 
+                            colors = ButtonDefaults.buttonColors(containerColor = motoRed),
+                            shape = RoundedCornerShape(15.dp)
+                        ) { Text("Waiting for Helmet...") }
+                    }
                 } else {
                     TextButton(onClick = {
                         bluetoothAdapter?.getRemoteDevice(requireNotNull(pairingAddress))?.let {
@@ -507,42 +489,48 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Text("Available Devices", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = motoBlack)
-        if (isScanning) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), color = motoRed)
-        }
-        Spacer(modifier = Modifier.height(12.dp))
+        if (!motorConnected) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Available Devices", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = motoBlack)
+                if (isScanning) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = motoRed)
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
 
-        Column(modifier = Modifier.fillMaxWidth()) {
-            discoveredDevices.forEach { device ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                        .background(Color.White.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
-                        .border(1.dp, lineCol, RoundedCornerShape(18.dp))
-                        .clickable(enabled = (connectingMacAddress == null && !isAutoConnecting && !motorConnected)) {
-                            connectAndSaveDevice(device)
-                        }
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
+            Column(modifier = Modifier.fillMaxWidth()) {
+                discoveredDevices.forEach { device ->
+                    Row(
                         modifier = Modifier
-                            .size(43.dp)
-                            .background(Color(0xFFF4F6F9), RoundedCornerShape(16.dp)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                            .background(Color.White.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
+                            .border(1.dp, lineCol, RoundedCornerShape(18.dp))
+                            .clickable(enabled = (connectingMacAddress == null && !isAutoConnecting && !motorConnected)) {
+                                connectAndSaveDevice(device)
+                            }
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Bluetooth, contentDescription = null, tint = Color(0xFF737987), modifier = Modifier.size(22.dp))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(device.name ?: "Unknown Device", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF2F3440))
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(device.address, fontSize = 11.sp, color = textGray)
-                    }
-                    if (pairingAddress == device.address || connectingMacAddress == device.address) {
-                        PairingHardwareIndicator(hardwareReady, hardwareLoading)
+                        Box(
+                            modifier = Modifier
+                                .size(43.dp)
+                                .background(Color(0xFFF1F3F6), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Bluetooth, contentDescription = null, tint = motoBlack, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(device.name ?: "Unknown Device", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF2F3440))
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(device.address, fontSize = 11.sp, color = textGray)
+                        }
+                        
+                        if (connectingMacAddress == device.address) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = motoRed)
+                        }
                     }
                 }
             }
@@ -567,3 +555,11 @@ private fun PairingHardwareIndicator(ready: Boolean, loading: Boolean) {
         )
     }
 }
+
+
+
+
+
+
+
+

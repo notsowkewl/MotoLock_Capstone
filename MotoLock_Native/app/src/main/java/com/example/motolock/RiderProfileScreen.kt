@@ -1,5 +1,6 @@
 package com.example.motolock
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,6 +27,9 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun RiderProfileScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("motolock_prefs", Context.MODE_PRIVATE) }
+    
     val motoRed = Color(0xFFED1C24)
     val motoBlack = Color(0xFF101217)
     val lineCol = Color(0xFFE8EBF0)
@@ -33,6 +38,7 @@ fun RiderProfileScreen(onBack: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var isEmailEditable by remember { mutableStateOf(false) }
 
+    var pendingEmail by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -40,10 +46,26 @@ fun RiderProfileScreen(onBack: () -> Unit) {
 
     LaunchedEffect(Unit) {
         try {
+            // Force refresh session to get latest email in case they verified it outside
+            SupabaseClientManager.client.auth.refreshCurrentSession()
             val session = SupabaseClientManager.client.auth.currentSessionOrNull()
             val userId = session?.user?.id
-            email = session?.user?.email ?: ""
+            val currentEmail = session?.user?.email ?: ""
+            email = currentEmail
+            
             if (userId != null) {
+                // Check if there's a pending email
+                val savedPending = prefs.getString("pending_email_$userId", null)
+                if (savedPending != null) {
+                    if (savedPending == currentEmail) {
+                        // Email was verified! Clear pending
+                        prefs.edit().remove("pending_email_$userId").apply()
+                        pendingEmail = null
+                    } else {
+                        pendingEmail = savedPending
+                    }
+                }
+            
                 val userProfile = SupabaseClientManager.client.postgrest["users"]
                     .select { filter { eq("id", userId) } }
                     .decodeSingleOrNull<com.example.motolock.models.User>()
@@ -73,7 +95,7 @@ fun RiderProfileScreen(onBack: () -> Unit) {
                 .clickable { onBack() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp), tint = Color(0xFF101217))
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -109,21 +131,57 @@ fun RiderProfileScreen(onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(6.dp))
             ProfileField(value = email, onValueChange = { email = it }, placeholder = "Enter email", enabled = isEmailEditable)
             
-            if (!isEmailEditable) {
+            if (pendingEmail != null && !isEmailEditable) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Pending verification for $pendingEmail. Click to resend link.", 
+                    fontSize = 12.sp, 
+                    fontWeight = FontWeight.Bold, 
+                    color = Color(0xFFF59E0B), 
+                    modifier = Modifier.clickable {
+                        scope.launch {
+                            try {
+                                SupabaseClientManager.client.auth.modifyUser {
+                                    this.email = pendingEmail!!
+                                }
+                                message = "Verification link resent to $pendingEmail."
+                            } catch (e: Exception) {
+                                message = "Error resending link."
+                            }
+                        }
+                    }
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Cancel email change", 
+                    fontSize = 12.sp, 
+                    fontWeight = FontWeight.Bold, 
+                    color = motoRed, 
+                    modifier = Modifier.clickable {
+                        val session = SupabaseClientManager.client.auth.currentSessionOrNull()
+                        val userId = session?.user?.id
+                        if (userId != null) {
+                            prefs.edit().remove("pending_email_$userId").apply()
+                        }
+                        pendingEmail = null
+                        message = "Email change cancelled."
+                    }
+                )
+            } else if (!isEmailEditable) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Change email address?", 
                     fontSize = 12.sp, 
                     fontWeight = FontWeight.Bold, 
                     color = motoRed, 
-                    modifier = Modifier.align(Alignment.End).clickable { isEmailEditable = true }
+                    modifier = Modifier.align(Alignment.End).clickable { isEmailEditable = true; email = "" }
                 )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             if (message != null) {
-                Text(message!!, color = if (message!!.contains("Success")) Color(0xFF10B981) else motoRed, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp))
+                Text(message!!, color = if (message!!.contains("Success") || message!!.contains("resent")) Color(0xFF10B981) else motoRed, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp))
             }
 
             Button(
@@ -134,24 +192,36 @@ fun RiderProfileScreen(onBack: () -> Unit) {
                             val session = SupabaseClientManager.client.auth.currentSessionOrNull()
                             val userId = session?.user?.id
                             if (userId != null) {
-                                // Update users table (public profile)
+                                val currentSessionEmail = session.user?.email
+                                
+                                // Update username
                                 SupabaseClientManager.client.postgrest["users"]
                                     .update({
                                         set("name", username)
                                     }) { filter { eq("id", userId) } }
                                 
-                                // Check if email needs update in Auth
-                                val currentSessionEmail = session.user?.email
+                                // Handle email change
                                 if (isEmailEditable && email.isNotBlank() && email != currentSessionEmail) {
                                     val currentNewEmail = email
                                     SupabaseClientManager.client.auth.modifyUser {
                                         this.email = currentNewEmail
                                     }
+                                    // Save pending state
+                                    prefs.edit().putString("pending_email_$userId", currentNewEmail).apply()
+                                    pendingEmail = currentNewEmail
+                                    
+                                    message = "Verification email sent. Please check your inbox."
+                                    
+                                    // Revert the text field to show current actual email
+                                    email = currentSessionEmail ?: ""
+                                } else {
+                                    message = "Success: Profile updated."
                                 }
-                                message = "Success: Profile updated."
+                                
+                                isEmailEditable = false
                             }
                         } catch (e: Exception) {
-                            message = "Error: ${e.message}"
+                            message = if (e.message?.contains("Error sending email change email") == true) "Error: Supabase limit reached. Cannot send email change confirmation at this time." else "Error: ${e.message}"
                         } finally {
                             isSaving = false
                         }
@@ -194,4 +264,5 @@ fun ProfileField(value: String, onValueChange: (String) -> Unit, placeholder: St
         }
     )
 }
+
 

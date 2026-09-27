@@ -31,6 +31,8 @@ data class MotorStatus(
     val helmetDataFresh: Boolean?,
     val testStatus: String?,
     val locked: Boolean?,
+    val alcoholDetected: Boolean?,
+    val irDetected: Boolean?,
     val receivedAt: Long
 ) {
     fun helmetLabel(): String = when {
@@ -47,8 +49,10 @@ data class MotorStatus(
             MotorStatus(
                 (json["helmetConnected"] as? JsonPrimitive)?.booleanOrNull,
                 (json["helmetDataFresh"] as? JsonPrimitive)?.booleanOrNull,
-                (json["testStatus"] as? JsonPrimitive)?.contentOrNull,
+                                (json["testStatus"] as? JsonPrimitive)?.contentOrNull,
                 (json["locked"] as? JsonPrimitive)?.booleanOrNull,
+                (json["alcoholDetected"] as? JsonPrimitive)?.booleanOrNull,
+                (json["irDetected"] as? JsonPrimitive)?.booleanOrNull,
                 now
             )
         }.getOrNull()
@@ -316,3 +320,4 @@ class BluetoothService(context: Context) {
         runCatching { old?.close() }
     }
 }
+

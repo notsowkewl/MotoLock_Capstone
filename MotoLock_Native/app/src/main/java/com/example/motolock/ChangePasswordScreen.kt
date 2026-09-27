@@ -15,7 +15,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -26,12 +25,12 @@ import androidx.compose.ui.unit.sp
 import com.example.motolock.network.SupabaseClientManager
 import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.jsonPrimitive
 
 @Composable
 fun ChangePasswordScreen(onBack: () -> Unit) {
     val motoRed = Color(0xFFED1C24)
     val motoBlack = Color(0xFF101217)
-    val inputBg = Color.White
     val lineCol = Color(0xFFE8EBF0)
     
     var currentPassword by remember { mutableStateOf("") }
@@ -42,9 +41,27 @@ fun ChangePasswordScreen(onBack: () -> Unit) {
     var showNew by remember { mutableStateOf(false) }
     var showConfirm by remember { mutableStateOf(false) }
 
-    var isLoading by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(true) }
+    var isSaving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var isGoogleAccount by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        try {
+            val session = SupabaseClientManager.client.auth.currentSessionOrNull()
+            val appMetadata = session?.user?.appMetadata
+            // Check if provider is google
+            val provider = appMetadata?.get("provider")?.jsonPrimitive?.content
+            if (provider == "google") {
+                isGoogleAccount = true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            isLoading = false
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -61,7 +78,7 @@ fun ChangePasswordScreen(onBack: () -> Unit) {
                 .clickable { onBack() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp), tint = Color(0xFF101217))
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -83,62 +100,75 @@ fun ChangePasswordScreen(onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Inputs
-        Text("Current Password", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = motoBlack)
-        Spacer(modifier = Modifier.height(6.dp))
-        PasswordField(value = currentPassword, onValueChange = { currentPassword = it }, placeholder = "Enter current password", show = showCurrent, onToggle = { showCurrent = !showCurrent })
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Forgot current password?", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = motoRed, modifier = Modifier.align(Alignment.End).clickable {})
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = motoRed)
+            }
+        } else if (isGoogleAccount) {
+            Box(modifier = Modifier.fillMaxWidth().background(Color(0xFFF3F4F6), RoundedCornerShape(12.dp)).padding(20.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "You are currently signed in using your Google Account. Password changes should be managed directly through Google Security Settings.",
+                    fontSize = 13.sp,
+                    color = Color(0xFF737987),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    lineHeight = 20.sp
+                )
+            }
+        } else {
+            // Inputs
+            Text("Current Password", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = motoBlack)
+            Spacer(modifier = Modifier.height(6.dp))
+            PasswordField(value = currentPassword, onValueChange = { currentPassword = it }, placeholder = "Enter current password", show = showCurrent, onToggle = { showCurrent = !showCurrent })
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Forgot current password?", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = motoRed, modifier = Modifier.align(Alignment.End).clickable {})
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Text("New Password", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = motoBlack)
-        Spacer(modifier = Modifier.height(6.dp))
-        PasswordField(value = newPassword, onValueChange = { newPassword = it }, placeholder = "Enter new password", show = showNew, onToggle = { showNew = !showNew })
+            Text("New Password", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = motoBlack)
+            Spacer(modifier = Modifier.height(6.dp))
+            PasswordField(value = newPassword, onValueChange = { newPassword = it }, placeholder = "Enter new password", show = showNew, onToggle = { showNew = !showNew })
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Confirm New Password", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = motoBlack)
-        Spacer(modifier = Modifier.height(6.dp))
-        PasswordField(value = confirmPassword, onValueChange = { confirmPassword = it }, placeholder = "Confirm new password", show = showConfirm, onToggle = { showConfirm = !showConfirm })
+            Text("Confirm New Password", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = motoBlack)
+            Spacer(modifier = Modifier.height(6.dp))
+            PasswordField(value = confirmPassword, onValueChange = { confirmPassword = it }, placeholder = "Confirm new password", show = showConfirm, onToggle = { showConfirm = !showConfirm })
 
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-        if (message != null) {
-            Text(message!!, color = if (message!!.contains("Success")) Color(0xFF10B981) else motoRed, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp))
-        }
+            if (message != null) {
+                Text(message!!, color = if (message!!.contains("Success")) Color(0xFF10B981) else motoRed, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp))
+            }
 
-        Button(
-            onClick = {
-                if (newPassword != confirmPassword) {
-                    message = "New passwords do not match."
-                    return@Button
-                }
-                isLoading = true
-                scope.launch {
-                    try {
-                        // Note: Supabase updateUser requires the user to be logged in. 
-                        // To verify current password, they technically need to re-authenticate or we just try updating.
-                        // For simplicity, we just update it.
-                        SupabaseClientManager.client.auth.modifyUser {
-                            password = newPassword
-                        }
-                        message = "Success: Password updated."
-                        currentPassword = ""; newPassword = ""; confirmPassword = ""
-                    } catch (e: Exception) {
-                        message = "Error: ${e.message}"
-                    } finally {
-                        isLoading = false
+            Button(
+                onClick = {
+                    if (newPassword != confirmPassword) {
+                        message = "New passwords do not match."
+                        return@Button
                     }
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = motoRed),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            if (isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
-            else Text("Update Password", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    isSaving = true
+                    scope.launch {
+                        try {
+                            SupabaseClientManager.client.auth.modifyUser {
+                                password = newPassword
+                            }
+                            message = "Success: Password updated."
+                            currentPassword = ""; newPassword = ""; confirmPassword = ""
+                        } catch (e: Exception) {
+                            message = "Error: ${e.message}"
+                        } finally {
+                            isSaving = false
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = motoRed),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                if (isSaving) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                else Text("Update Password", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
         }
     }
 }
@@ -176,3 +206,4 @@ fun PasswordField(value: String, onValueChange: (String) -> Unit, placeholder: S
         }
     )
 }
+

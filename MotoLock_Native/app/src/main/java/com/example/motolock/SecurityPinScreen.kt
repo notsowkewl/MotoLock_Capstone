@@ -54,7 +54,7 @@ fun SecurityPinScreen(onBack: () -> Unit) {
                 .clickable { onBack() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp), tint = Color(0xFF101217))
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -180,3 +180,4 @@ fun PinField(value: String, onValueChange: (String) -> Unit, placeholder: String
         }
     )
 }
+

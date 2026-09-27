@@ -268,11 +268,16 @@ fun MotoLockApp() {
             
                         composable("settings") {
                 SettingsScreen(
-                    onNavigateToContacts = { navController.navigate("contacts") },
+                    onNavigateToFaceId = { navController.navigate("face_id") },
+                onNavigateToContacts = { navController.navigate("manage_contacts") },
                     onNavigateToMotorcycle = { navController.navigate("registered_motorcycles") },
                     onNavigateToProfile = { navController.navigate("rider_profile") },
                     onNavigateToChangePassword = { navController.navigate("change_password") },
                     onNavigateToPin = { navController.navigate("security_pin") },
+                                        onNavigateToPrivacy = { navController.navigate("privacy") },
+                    onNavigateToTerms = { navController.navigate("terms") },
+                    onNavigateToAbout = { navController.navigate("about") },
+                    onNavigateToPairDevice = { navController.navigate("esp32_pairing") },
                     onLogout = { navController.navigate("login") { popUpTo(0) } },
                     onBack = { navController.popBackStack() }
                 )
@@ -281,6 +286,44 @@ fun MotoLockApp() {
             composable("change_password") { ChangePasswordScreen(onBack = { navController.popBackStack() }) }
             composable("security_pin") { SecurityPinScreen(onBack = { navController.popBackStack() }) }
             
+                                    composable("privacy") { PrivacyPolicyScreen(onBack = { navController.popBackStack() }) }
+            composable("terms") { TermsConditionsScreen(onBack = { navController.popBackStack() }) }
+            composable("about") { AboutAppScreen(onBack = { navController.popBackStack() }) }
+            composable("face_id") {  
+                FaceIdManagementScreen(
+                    onBack = { navController.popBackStack() },
+                    onEnroll = { navController.navigate("camera") }
+                ) 
+            }
+                                                composable("edit_motorcycle/{motoId}") { backStackEntry ->
+                val motoId = backStackEntry.arguments?.getString("motoId")
+                MotorcycleConfigScreen(
+                    onNext = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
+                    motoId = motoId
+                )
+            }
+            composable("add_motorcycle_settings") {
+                MotorcycleConfigScreen(
+                    onNext = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("registered_motorcycles") { 
+                RegisteredMotorcyclesScreen(
+                    onBack = { navController.popBackStack() },
+                    onAddNew = { navController.navigate("add_motorcycle_settings") }, onEdit = { motoId -> navController.navigate("edit_motorcycle/$motoId") }
+                ) 
+            }
+                                    composable("add_contact_settings") {
+                EmergencyContactsScreen(onBack = { navController.popBackStack() })
+            }
+            composable("manage_contacts") { 
+                ManageContactsScreen(
+                    onBack = { navController.popBackStack() },
+                    onAddNew = { navController.navigate("add_contact_settings") }
+                ) 
+            }
             composable("unlock_pairing") {
                 ESP32PairingScreen(
                     onComplete = { navController.navigate("unlock_flow") { popUpTo("unlock_pairing") { inclusive = true } } },
@@ -311,6 +354,18 @@ fun MotoLockApp() {
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

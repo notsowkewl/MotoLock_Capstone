@@ -1,6 +1,11 @@
 package com.example.motolock
 
 import android.content.Context
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import com.example.motolock.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,6 +43,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import android.telephony.SmsManager
 
 object SessionState { 
     var isFirstDashboardLoad = true 
@@ -67,6 +73,16 @@ fun DashboardScreen(
     onHistoryClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { /* Optionally handle if they deny */ }
+    )
+
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            permissionLauncher.launch(Manifest.permission.SEND_SMS)
+        }
+    }
     val motoRed = Color(0xFFED1C24)
     val motoBlack = Color(0xFF101217)
     val motoGreen = Color(0xFF1FA35B)
@@ -96,8 +112,42 @@ fun DashboardScreen(
 
     val isSetupComplete = hasFaceId && hasEmergencyContact && hasMotorcycle && hasPin && hasConnectedDevice
 
+        val lastSmsSent = remember { mutableStateOf(0L) }
+
     LaunchedEffect(deviceConnected, latestMotorStatus) {
         if (!deviceConnected || latestMotorStatus?.locked == true) SessionState.isMotorUnlocked = false
+        
+        val status = latestMotorStatus ?: return@LaunchedEffect
+        val isDrunkMidRide = status.alcoholDetected == true
+        val isTampered = status.helmetConnected == false && SessionState.isMotorUnlocked
+        
+        if (isDrunkMidRide || isTampered) {
+            val now = System.currentTimeMillis()
+            if (now - lastSmsSent.value > 3 * 60 * 1000) {
+                lastSmsSent.value = now
+                try {
+                    val authUser = SupabaseClientManager.client.auth.currentSessionOrNull()?.user
+                    if (authUser != null) {
+                        val contacts = SupabaseClientManager.client.postgrest["emergency_contacts"]
+                            .select { filter { eq("user_id", authUser.id) } }
+                            .decodeList<EmergencyContact>()
+                            
+                        val msg = if (isDrunkMidRide) {
+                            "MotoLock EMERGENCY ALERT: Rider is operating the motorcycle while intoxicated. Please contact them immediately."
+                        } else {
+                            "MotoLock TAMPER ALERT: Rider's Smart Helmet disconnected mid-ride. Possible system tampering."
+                        }
+
+                        val smsManager = context.getSystemService(SmsManager::class.java)
+                        contacts.forEach { contact ->
+                            smsManager.sendTextMessage(contact.phone, null, msg, null, null)
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -317,14 +367,16 @@ fun DashboardScreen(
                     value = motorcycleInfo ?: "No Motorcycle Added"
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                InfoCard(
-                    icon = Icons.Default.Bluetooth,
-                    iconTint = if (deviceConnected) motoGreen else motoRed,
-                    iconBg = if (deviceConnected) Color(0xFFE6F4EE) else Color(0xFFFFEDEE),
-                    label = "MotoLock Hardware",
-                    value = "Motor: ${if (deviceConnected) "Connected" else "Disconnected"}\n" +
-                        "Helmet: ${if (deviceConnected) motorStatus?.helmetLabel() ?: "Waiting for status" else "Unknown - motor disconnected"}"
-                )
+                if (hasConnectedDevice) {
+                    InfoCard(
+                        icon = Icons.Default.Bluetooth,
+                        iconTint = if (deviceConnected) motoGreen else motoRed,
+                        iconBg = if (deviceConnected) Color(0xFFE6F4EE) else Color(0xFFFFEDEE),
+                        label = "MotoLock Hardware",
+                        value = "Motor: ${if (deviceConnected) "Connected" else "Disconnected"}\n" +
+                            "Helmet: ${if (deviceConnected) motorStatus?.helmetLabel() ?: "Waiting for status" else "Unknown - motor disconnected"}"
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(32.dp))
 
@@ -526,3 +578,7 @@ private fun InfoCard(
         }
     }
 }
+
+
+
+
