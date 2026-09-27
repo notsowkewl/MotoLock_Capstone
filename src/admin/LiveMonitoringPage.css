@@ -1,0 +1,28 @@
+.monitoring-page { min-width: 0; }
+.monitoring-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.monitoring-context { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.monitoring-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.monitoring-summary { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 18px; color: var(--muted); font-size: 13px; }
+.monitoring-summary strong { color: var(--text); font-size: 16px; margin-right: 4px; }
+.monitoring-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; }
+.monitoring-filters label { display: grid; gap: 7px; font-size: 12px; font-weight: 600; flex: 0 1 180px; min-width: 0; }
+.monitoring-filters label:first-child { flex: 1 1 240px; max-width: 420px; }
+.monitoring-filters :is(input, select) { width: 100%; min-width: 0; box-sizing: border-box; }
+.monitoring-note { margin: 12px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.monitoring-table-scroll { overflow-x: auto; }
+.monitoring-table-scroll table { min-width: 760px; }
+.monitoring-table-scroll td { overflow-wrap: anywhere; }
+.monitoring-rider { display: grid; gap: 4px; overflow-wrap: anywhere; }
+.monitoring-rider strong { font-weight: 600; }
+.monitoring-rider span { font-size: 11px; color: var(--muted); }
+.monitoring-status { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 6px; background: var(--bg); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.monitoring-status svg { flex-shrink: 0; }
+.monitoring-status-locked { color: var(--red); background: color-mix(in srgb, var(--red) 7%, var(--card)); }
+.monitoring-empty { padding: 20px 0; text-align: center; color: var(--muted); }
+.monitoring-dialog { position: fixed; inset: 0; margin: auto; width: min(480px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); overflow-y: auto; box-sizing: border-box; padding: 28px; border: 1px solid var(--border); border-radius: 20px; background: var(--card); color: var(--text); font-family: inherit; box-shadow: 0 20px 40px #0003; }
+.monitoring-dialog::backdrop { background: #0007; }
+.monitoring-dialog h3 { margin: 0 0 20px; }
+.monitoring-dialog dt { margin-top: 16px; font-size: 12px; color: var(--muted); }
+.monitoring-dialog dd { margin: 5px 0 0; overflow-wrap: anywhere; font-size: 14px; }
+.monitoring-dialog-footer { display: flex; justify-content: flex-end; margin-top: 24px; }
+.monitoring-page :is(button, input, select):focus-visible, .monitoring-dialog button:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }

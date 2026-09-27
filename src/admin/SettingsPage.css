@@ -1,10 +1,12 @@
 .settings-page { container-type: inline-size; min-width: 0; }
-.settings-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; align-items: start; }
-.settings-column { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
-.settings-card { min-width: 0; padding: 22px !important; }
+.settings-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; align-items: stretch; }
+.settings-card { display: flex; flex-direction: column; min-width: 0; padding: 22px !important; box-sizing: border-box; }
 .settings-card > div:first-child { padding-bottom: 14px; margin-bottom: 16px; font-size: 15px; line-height: 1.4; }
 .settings-card > div:first-child svg { flex-shrink: 0; }
-.settings-card > div:last-child { gap: 16px !important; margin-top: 0 !important; }
+.settings-card > div:last-child { flex: 1; min-width: 0; gap: 16px !important; margin-top: 0 !important; }
+.settings-card > div:last-child > * { flex-shrink: 0; }
+.settings-card .settings-save { margin-top: auto; }
+.settings-card { overflow-wrap: anywhere; }
 .settings-card input { max-width: 100%; box-sizing: border-box; }
 .settings-card [style*="justify-content: space-between"] { gap: 12px; }
 .settings-card [style*="justify-content: space-between"] > div:first-child { min-width: 0; }
@@ -17,5 +19,5 @@
 .settings-save button { min-height: 38px; padding: 9px 16px; border: 1px solid var(--red); border-radius: 8px; background: var(--red); color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .settings-save button:disabled { border-color: var(--border); background: color-mix(in srgb, var(--muted) 8%, transparent); color: var(--muted); cursor: default; }
 .settings-page :is(button, input):focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
-@container (min-width: 680px) { .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .settings-column:last-child { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
-@container (min-width: 1080px) { .settings-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .settings-column:last-child { grid-column: auto; display: flex; } }
+@container (min-width: 680px) { .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (min-width: 1080px) { .settings-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

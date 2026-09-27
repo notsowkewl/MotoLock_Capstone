@@ -1,6 +1,9 @@
 import { reportOptions } from './report-options';
 import { createReportSnapshot, reportIgnitionState, reportRideStatus, rideReportTypes, userReportTypes } from './report-snapshot';
 import ReportPreview from './ReportPreview';
+import DashboardPanels from './DashboardPanels';
+import DashboardSearch from './DashboardSearch';
+import { createBackup } from './backup-export';
 import './ReportsPage.css';
 import type { ReportSnapshot } from './report-snapshot';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -8,6 +11,7 @@ import type { Rider, Device, SafetyLog, AuditLog, DashboardData, ReportRow, ApiR
 import './browser-libraries';
 import AlertsPage from './AlertsPage';
 import DevicesPage from './DevicesPage';
+import LiveMonitoringPage from './LiveMonitoringPage';
 import RidersPage from './RidersPage';
 import SettingsSave from './SettingsSave';
 import './SettingsPage.css';
@@ -102,13 +106,13 @@ const displayContactName = (contact: { id?: string | number; name?: string }) =>
   return sampleContactNames[String(contact.id)] || 'Emergency Contact';
 };
 
-const fetchAllSupabaseRows = async (table: string, orderBy = 'id'): Promise<SupabaseRecord[]> => {
+const fetchAllSupabaseRows = async (table: string, orderBy = 'id', columns = '*'): Promise<SupabaseRecord[]> => {
   if (!supabaseClient) throw new Error('Supabase client is not available.');
   const rows: SupabaseRecord[] = [];
   for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
     const { data, error } = await supabaseClient
       .from(table)
-      .select('*')
+      .select(columns)
       .order(orderBy, { ascending: true })
       .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
     if (error) throw new Error(error.message);
@@ -395,6 +399,14 @@ export default function AdminApp() {
 
   // Global Data Cache
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [dashboardUpdatedAt, setDashboardUpdatedAt] = useState<string | null>(null);
+  const [exportingBackup, setExportingBackup] = useState(false);
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(() => {
+    try {
+      const saved = localStorage.getItem('ml_last_backup_generated');
+      return saved && Number.isFinite(Date.parse(saved)) ? saved : null;
+    } catch { return null; }
+  });
   const [riders, setRiders] = useState<Rider[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [overrides, setOverrides] = useState<SafetyLog[]>([]);
@@ -687,13 +699,10 @@ export default function AdminApp() {
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
       };
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setHours(0, 0, 0, 0);
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
       const sobrietyByDay = new Map<string, { date: string; passed: number; failed: number }>();
       for (const ride of rides) {
         const rideDate = new Date(ride.start_time || '');
-        if (!ride.start_time || Number.isNaN(rideDate.getTime()) || rideDate < thirtyDaysAgo) continue;
+        if (!ride.start_time || Number.isNaN(rideDate.getTime())) continue;
         const date = dayKey(rideDate);
         const summary = sobrietyByDay.get(date) || { date, passed: 0, failed: 0 };
         if (['completed', 'passed'].includes(String(ride.status).toLowerCase())) summary.passed += 1;
@@ -732,6 +741,7 @@ export default function AdminApp() {
         sobrietySummary: Array.from(sobrietyByDay.values()),
         recentAlerts,
       });
+      setDashboardUpdatedAt(new Date().toISOString());
     } catch (error) { console.error(error); }
   }, []);
 
@@ -1342,26 +1352,23 @@ export default function AdminApp() {
 
   // Export JSON Backup
   const exportBackup = async () => {
-    triggerAuditLog('Downloaded system database backup', 'Backup & Restore', 'Full JSON schema');
+    if (exportingBackup) return;
+    setExportingBackup(true);
     try {
-      const { data: users } = await supabaseClient.from('users').select('id, name, email, role, status, created_at, updated_at');
-      const { data: rides } = await supabaseClient.from('ride_history').select('*');
-      let { data: contacts } = await supabaseClient.from('emergency_contacts').select('*');
-
-      if (contacts) {
-        contacts = contacts.map((c) => {
-          if (c.phone_number) c.phone_number = c.phone_number.substring(0, 3) + '****' + c.phone_number.substring(c.phone_number.length - 4);
-          return c;
-        });
-      }
-      const backup = { users, rides, emergency_contacts: contacts, exported_at: new Date().toISOString() };
+      const { backup, filename } = await createBackup((table, columns) => fetchAllSupabaseRows(table, 'id', columns));
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `MotoLock_Database_Backup.json`;
-      a.click();
-    } catch (error) { console.error(error); }
+      a.download = filename;
+      document.body.appendChild(a);
+      try { a.click(); } finally { a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+      setLastBackupAt(backup.exported_at);
+      try { localStorage.setItem('ml_last_backup_generated', backup.exported_at); } catch { /* Keep the current-session timestamp if storage is unavailable. */ }
+      triggerAuditLog('Downloaded system database backup', 'Backup & Restore', filename);
+    } catch (error) {
+      showCustomAlert('Backup Failed', errorMessage(error));
+    } finally { setExportingBackup(false); }
   };
 
   // Mask Phone number helper
@@ -1634,14 +1641,16 @@ export default function AdminApp() {
 
         {/* Tab 1: Dashboard */}
         {activeTab === 'dashboard' && (
-          <div>
-            <div style={styles.kpiGrid}>
+          <div className="dashboard-page">
+            <DashboardSearch riders={riders} devices={devices} rides={overrides} logs={auditLogs} onNavigate={setActiveTab} />
+            <div className="dashboard-kpis">
               <div style={{ ...styles.kpiCard, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
                 <div style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(237,28,36,0.08)', padding: 10, borderRadius: 12, display: 'flex' }}>
                   <Icon name="riders" size={20} color="var(--red)" />
                 </div>
                 <div style={styles.kpiVal}>{riders.filter(r => r.role === 'rider').length}</div>
                 <div style={styles.kpiLabel}>Total Riders</div>
+                <div className="dashboard-kpi-context">Registered rider accounts</div>
               </div>
 
               <div style={{ ...styles.kpiCard, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
@@ -1650,6 +1659,7 @@ export default function AdminApp() {
                 </div>
                 <div style={styles.kpiVal}>{devices.length}</div>
                 <div style={styles.kpiLabel}>Registered Devices</div>
+                <div className="dashboard-kpi-context">Devices in the system</div>
               </div>
 
               <div style={{ ...styles.kpiCard, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
@@ -1658,6 +1668,7 @@ export default function AdminApp() {
                 </div>
                 <div style={styles.kpiVal}>{overrides.length}</div>
                 <div style={styles.kpiLabel}>Override Events</div>
+                <div className="dashboard-kpi-context">Recorded events</div>
               </div>
 
               <div style={{ ...styles.kpiCard, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
@@ -1668,363 +1679,16 @@ export default function AdminApp() {
                   {overrides.filter(o => parseFloat(o.brac) >= 0.05).length}
                 </div>
                 <div style={styles.kpiLabel}>Critical Alert Incidents</div>
+                <div className="dashboard-kpi-context">Recorded critical incidents</div>
               </div>
             </div>
 
-            {/* Dashboard grid: Sobriety Test Summary & Alerts Overview */}
-            {(() => {
-              const sobrietySummary = dashboardData?.sobrietySummary || [];
-              const recentAlerts = dashboardData?.recentAlerts || [];
-
-              // Generate last 30 days of dates to ensure the graph timeline is complete, populated by database counts
-              const last30Days = Array.from({ length: 30 }).map((_, i) => {
-                const d = new Date();
-                d.setHours(0, 0, 0, 0);
-                d.setDate(d.getDate() - (29 - i));
-                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-              });
-
-              const chartData = last30Days.map(dateStr => {
-                const dbMatch = sobrietySummary.find((item) => {
-                  if (!item.date) return false;
-                  // Handle potential date timezone differences
-                  const itemDate = new Date(item.date);
-                  if (Number.isNaN(itemDate.getTime())) return false;
-                  const itemDateStr = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}-${String(itemDate.getDate()).padStart(2, '0')}`;
-                  return itemDateStr === dateStr;
-                });
-                return {
-                  date: new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                  passed: dbMatch ? parseInt(String(dbMatch.passed || 0), 10) : 0,
-                  failed: dbMatch ? parseInt(String(dbMatch.failed || 0), 10) : 0
-                };
-              });
-
-              const totalPassed = sobrietySummary.reduce((sum: number, item) => sum + parseInt(String(item.passed || 0), 10), 0);
-              const totalFailed = sobrietySummary.reduce((sum: number, item) => sum + parseInt(String(item.failed || 0), 10), 0);
-              const totalTests = totalPassed + totalFailed;
-              const passedPercentage = totalTests > 0 ? ((totalPassed / totalTests) * 100).toFixed(1) : '0.0';
-              const failedPercentage = totalTests > 0 ? ((totalFailed / totalTests) * 100).toFixed(1) : '0.0';
-
-              const peakDailyTests = Math.max(0, ...chartData.map(d => Math.max(d.passed, d.failed)));
-              const rawMax = Math.max(peakDailyTests, 1);
-              const magnitude = 10 ** Math.floor(Math.log10(rawMax));
-              const normalizedMax = rawMax / magnitude;
-              const maxVal = (normalizedMax <= 1 ? 1 : normalizedMax <= 2 ? 2 : normalizedMax <= 5 ? 5 : 10) * magnitude;
-              const width = 450;
-              const height = 500;
-              const paddingLeft = 40;
-              const paddingRight = 20;
-              const paddingTop = 20;
-              const paddingBottom = 30;
-
-              const getSvgCoords = (index: number, val: number) => {
-                const x = paddingLeft + (index / (chartData.length - 1)) * (width - paddingLeft - paddingRight);
-                const y = height - paddingBottom - (val / maxVal) * (height - paddingTop - paddingBottom);
-                return { x, y };
-              };
-
-              let passedPath = '';
-              let failedPath = '';
-              let passedAreaPath = '';
-              let failedAreaPath = '';
-
-              chartData.forEach((pt, idx) => {
-                const coordPassed = getSvgCoords(idx, pt.passed);
-                const coordFailed = getSvgCoords(idx, pt.failed);
-
-                if (idx === 0) {
-                  passedPath = `M ${coordPassed.x} ${coordPassed.y}`;
-                  failedPath = `M ${coordFailed.x} ${coordFailed.y}`;
-                  passedAreaPath = `M ${coordPassed.x} ${height - paddingBottom} L ${coordPassed.x} ${coordPassed.y}`;
-                  failedAreaPath = `M ${coordFailed.x} ${height - paddingBottom} L ${coordFailed.x} ${coordFailed.y}`;
-                } else {
-                  passedPath += ` L ${coordPassed.x} ${coordPassed.y}`;
-                  failedPath += ` L ${coordFailed.x} ${coordFailed.y}`;
-                  passedAreaPath += ` L ${coordPassed.x} ${coordPassed.y}`;
-                  failedAreaPath += ` L ${coordFailed.x} ${coordFailed.y}`;
-                }
-
-                if (idx === chartData.length - 1) {
-                  passedAreaPath += ` L ${coordPassed.x} ${height - paddingBottom} Z`;
-                  failedAreaPath += ` L ${coordFailed.x} ${height - paddingBottom} Z`;
-                }
-              });
-
-              return (
-                <div style={styles.gridTwoColumns}>
-                  {/* Left Column */}
-                  <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                    {/* Sobriety Test Summary Card */}
-                    <div style={{ ...styles.card, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                        <span style={{ fontSize: 16, fontWeight: 700 }}>Sobriety Test Summary</span>
-                        <CustomSelect
-                          options={[{ value: 'month', label: 'This Month' }]}
-                          value="month"
-                          onChange={() => { }}
-                          style={{ width: 'auto', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', minWidth: '110px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', flex: 1, marginTop: 12 }}>
-                        {/* Left: SVG Line Graph */}
-                        <div style={{ flex: 1, minWidth: 280 }}>
-                          <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 12 }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', display: 'inline-block' }}></span> Passed
-                            </span>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--red)', display: 'inline-block' }}></span> Failed
-                            </span>
-                          </div>
-
-                          <svg width="100%" height="450" viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
-                            <defs>
-                              <linearGradient id="passedGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="var(--green)" stopOpacity="0.2" />
-                                <stop offset="100%" stopColor="var(--green)" stopOpacity="0.0" />
-                              </linearGradient>
-                              <linearGradient id="failedGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="var(--red)" stopOpacity="0.15" />
-                                <stop offset="100%" stopColor="var(--red)" stopOpacity="0.0" />
-                              </linearGradient>
-                            </defs>
-
-                            {/* Grid Lines */}
-                            {[0, 0.2, 0.4, 0.6, 0.8, 1].map((ratio, index) => {
-                              const y = paddingTop + ratio * (height - paddingTop - paddingBottom);
-                              const labelVal = Math.round(maxVal * (1 - ratio));
-                              return (
-                                <g key={index}>
-                                  <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="var(--border)" strokeDasharray="3 3" />
-                                  <text x={paddingLeft - 10} y={y + 4} textAnchor="end" fill="var(--muted)" style={{ fontSize: 10 }}>
-                                    {labelVal}
-                                  </text>
-                                </g>
-                              );
-                            })}
-
-                            {/* Line Areas */}
-                            {chartData.length > 0 && (
-                              <>
-                                <path d={passedAreaPath} fill="url(#passedGrad)" />
-                                <path d={failedAreaPath} fill="url(#failedGrad)" />
-
-                                {/* Lines */}
-                                <path d={passedPath} fill="none" stroke="var(--green)" strokeWidth="3" strokeLinecap="round" />
-                                <path d={failedPath} fill="none" stroke="var(--red)" strokeWidth="3" strokeLinecap="round" />
-
-                                {/* Data points dots */}
-                                {chartData.map((pt, idx) => {
-                                  const cP = getSvgCoords(idx, pt.passed);
-                                  const cF = getSvgCoords(idx, pt.failed);
-                                  return (
-                                    <g key={idx}>
-                                      <circle cx={cP.x} cy={cP.y} r="4" fill="var(--card)" stroke="var(--green)" strokeWidth="2" />
-                                      <circle cx={cF.x} cy={cF.y} r="4" fill="var(--card)" stroke="var(--red)" strokeWidth="2" />
-                                    </g>
-                                  );
-                                })}
-                              </>
-                            )}
-
-                            {/* X Axis Labels */}
-                            {chartData.length > 0 && [0, Math.floor(chartData.length / 4), Math.floor(chartData.length / 2), Math.floor(3 * chartData.length / 4), chartData.length - 1].map((idx) => {
-                              if (idx >= chartData.length) return null;
-                              const pt = chartData[idx];
-                              const x = paddingLeft + (chartData.length <= 1 ? 0 : idx / (chartData.length - 1)) * (width - paddingLeft - paddingRight);
-                              return (
-                                <text key={idx} x={x} y={height - 10} textAnchor="middle" fill="var(--muted)" style={{ fontSize: 10 }}>
-                                  {pt.date}
-                                </text>
-                              );
-                            })}
-                          </svg>
-                        </div>
-
-                        {/* Right: Summary Stats */}
-                        <div style={{ width: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', borderLeft: '1px solid var(--border)', paddingLeft: 16 }}>
-                          <div style={{ marginBottom: 12 }}>
-                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>Passed</div>
-                            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--green)' }}>
-                              {totalPassed.toLocaleString()}
-                            </div>
-                            <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(31,163,91,0.1)', color: 'var(--green)', fontWeight: 700 }}>
-                              {passedPercentage}%
-                            </span>
-                          </div>
-
-                          <div style={{ marginBottom: 12 }}>
-                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>Failed</div>
-                            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--red)' }}>
-                              {totalFailed.toLocaleString()}
-                            </div>
-                            <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(237,28,36,0.1)', color: 'var(--red)', fontWeight: 700 }}>
-                              {failedPercentage}%
-                            </span>
-                          </div>
-
-                          <div>
-                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>Total Tests</div>
-                            <div style={{ fontSize: 22, fontWeight: 900 }}>
-                              {totalTests.toLocaleString()}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Column */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    {/* Alerts Overview Card */}
-                    <div style={styles.card}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                        <span style={{ fontSize: 16, fontWeight: 700 }}>Alerts Overview</span>
-                        <button onClick={() => setActiveTab('alerts')} style={{ background: 'none', border: 'none', color: 'var(--blue)', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>
-                          View All
-                        </button>
-                      </div>
-
-                      <div style={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {!recentAlerts.length ? (
-                          <div style={styles.emptyState}>No safety alert logs found.</div>
-                        ) : (
-                          recentAlerts.slice(0, 5).map((r, idx: number) => {
-                            let alertTitle = 'Ignition Session Completed';
-                            let alertDesc = `Rider: ${r.full_name || 'Rider'} | Device: DEV-${r.motorcycle_id || 'N/A'}`;
-                            let alertIcon = 'check';
-                            let badgeColor = 'var(--green)';
-                            let badgeBg = 'rgba(31,163,91,0.1)';
-                            let badgeText = 'Low';
-
-                            if (r.alcohol_detected || r.status === 'failed_brac' || parseFloat(r.brac) >= 0.05) {
-                              alertTitle = 'High Alcohol Detected';
-                              alertDesc = `Rider: ${r.full_name || 'Rider'} | Device: DEV-${r.motorcycle_id || 'N/A'}`;
-                              alertIcon = 'warning';
-                              badgeColor = 'var(--red)';
-                              badgeBg = 'rgba(237,28,36,0.1)';
-                              badgeText = 'High';
-                            } else if (!r.face_verified || r.status === 'failed_face') {
-                              alertTitle = 'Identity Verification Failed';
-                              alertDesc = `Rider: ${r.full_name || 'Rider'} | Device: DEV-${r.motorcycle_id || 'N/A'}`;
-                              alertIcon = 'person';
-                              badgeColor = 'var(--yellow)';
-                              badgeBg = 'rgba(245,158,11,0.1)';
-                              badgeText = 'Medium';
-                            } else if (!r.helmet_verified || r.status === 'failed_helmet') {
-                              alertTitle = 'Helmet Safety Lockout';
-                              alertDesc = `Rider: ${r.full_name || 'Rider'} | Device: DEV-${r.motorcycle_id || 'N/A'}`;
-                              alertIcon = 'helmet';
-                              badgeColor = 'var(--yellow)';
-                              badgeBg = 'rgba(245,158,11,0.1)';
-                              badgeText = 'Medium';
-                            }
-
-                            return (
-                              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderBottom: '1px solid var(--border)', fontSize: '13px' }}>
-                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: badgeBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <Icon name={alertIcon} size={16} color={badgeColor} />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontWeight: 700 }}>{alertTitle}</div>
-                                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{alertDesc}</div>
-                                </div>
-                                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-                                    {new Date(r.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                  <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, color: badgeColor, background: badgeBg, fontWeight: 700, textTransform: 'uppercase' }}>
-                                    {badgeText}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Recent Activities Card */}
-                    <div style={styles.card}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                        <span style={{ fontSize: 16, fontWeight: 700 }}>Recent Activities</span>
-                        <button onClick={() => setActiveTab('audit-logs')} style={{ background: 'none', border: 'none', color: 'var(--blue)', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>
-                          View Audit Log
-                        </button>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {!auditLogs.length ? (
-                          <div style={styles.emptyState}>No recent activities found.</div>
-                        ) : (
-                          auditLogs.slice(0, 5).map((l, idx) => (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: '13px' }}>
-                              <div>
-                                <strong style={{ color: 'var(--text)' }}>{l.action}</strong>
-                                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                                  Module: <span style={{ color: 'var(--text)' }}>{l.module}</span> | Target: <span style={{ color: 'var(--text)' }}>{l.target_record || '—'}</span>
-                                </div>
-                              </div>
-                              <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>
-                                <div>{new Date(l.created_at).toLocaleDateString()}</div>
-                                <div style={{ fontSize: 10 }}>{new Date(l.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
+            <DashboardPanels data={dashboardData} logs={auditLogs} updatedAt={dashboardUpdatedAt} styles={styles} onNavigate={setActiveTab} />
           </div>
         )}
 
         {/* Tab 2: Live Monitoring */}
-        {activeTab === 'live-monitoring' && (
-          <div>
-            <div style={styles.card}>
-              {!devices.length ? (
-                <div style={styles.emptyState}>No devices registered in the system.</div>
-              ) : (
-                <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.tableHeader}>Device ID</th>
-                      <th style={styles.tableHeader}>SIM Card Slot</th>
-                      <th style={styles.tableHeader}>Relay State</th>
-                      <th style={styles.tableHeader}>Lock Status</th>
-                      <th style={styles.tableHeader}>Assigned Rider</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {devices.map((d, idx) => (
-                      <tr key={idx}>
-                        <td style={styles.tableCell}><code>DEV-{d.id}</code></td>
-                        <td style={styles.tableCell}>{d.sim_number || 'N/A'}</td>
-                        <td style={styles.tableCell}>
-                          <span style={{ color: d.relay_status ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>
-                            {d.relay_status ? 'Active' : 'Locked'}
-                          </span>
-                        </td>
-                        <td style={styles.tableCell}>
-                          <span style={{ color: d.is_locked ? 'var(--red)' : 'var(--green)', fontWeight: 700 }}>
-                            <><Icon name={d.is_locked ? 'lock' : 'unlock'} size={14} color={d.is_locked ? 'var(--red)' : 'var(--green)'} /> {d.is_locked ? 'Locked' : 'Unlocked'}</>
-                          </span>
-                        </td>
-                        <td style={styles.tableCell}>User ID: {d.user_id}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        )}
-
+        {activeTab === 'live-monitoring' && <LiveMonitoringPage devices={devices} styles={styles} onRefresh={fetchDevices} lockIcon={locked => <Icon name={locked ? 'lock' : 'unlock'} size={14} color="currentColor" />} />}
 
         {/* Tab 4: Riders */}
         {activeTab === 'riders' && <RidersPage riders={riders} styles={styles} maskPhone={maskPhone} onAdd={showAddUserModal} onEdit={handleManageRider} onDelete={rider => handleDeleteUser(rider.id, rider.email, rider.full_name)} />}
@@ -2218,484 +1882,459 @@ export default function AdminApp() {
         {activeTab === 'settings' && (
           <div className="settings-page">
             <div className="settings-grid">
-
-              {/* Column 1 */}
-              <div className="settings-column">
-
-                {/* 1. Organization Information */}
-                <div className="settings-card" style={styles.card}>
-                  <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
-                    <Icon name="org" size={18} color="var(--red)" />
-                    <span>Organization Information</span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: 12 }}>
-                    <div>
-                      <label style={styles.label}>Organization Name</label>
-                      <input type="text" value={orgName} onChange={e => setOrgName(e.target.value)} style={styles.input} />
-                    </div>
-                    <div>
-                      <label style={styles.label}>Organization Tagline</label>
-                      <input type="text" value={orgTagline} onChange={e => setOrgTagline(e.target.value)} style={styles.input} />
-                    </div>
-                    <div>
-                      <label style={styles.label}>Address</label>
-                      <input type="text" value={orgAddress} onChange={e => setOrgAddress(e.target.value)} style={styles.input} />
-                    </div>
-                    <div>
-                      <div style={{ flex: 1 }}>
-                        <label style={styles.label}>Language</label>
-                        <CustomSelect
-                          options={[
-                            { value: 'English', label: 'English' },
-                            { value: 'Tagalog', label: 'Filipino' }
-                          ]}
-                          value={orgLanguage}
-                          onChange={val => setOrgLanguage(val)}
-                        />
-                      </div>
-                    </div>
-                    <SettingsSave dirty={settingsDirty({ org_name: orgName, org_tagline: orgTagline, org_address: orgAddress, org_language: orgLanguage })} onSave={async () => {
-                      try {
-                        await Promise.all([
-                          saveSettingToDB('org_name', orgName),
-                          saveSettingToDB('org_tagline', orgTagline),
-                          saveSettingToDB('org_address', orgAddress),
-                          saveSettingToDB('org_language', orgLanguage)
-                        ]);
-                        showCustomAlert('Success', 'Organization settings saved to database.');
-                      } catch {
-                        showCustomAlert('Error', 'Failed to save organization settings.');
-                      }
-                    }} />
-                  </div>
+              <div className="settings-card" style={styles.card}>
+                <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
+                  <Icon name="org" size={18} color="var(--red)" />
+                  <span>Organization Information</span>
                 </div>
-
-                {/* 2. System Preferences */}
-                <div className="settings-card" style={styles.card}>
-                  <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
-                    <Icon name="preferences" size={18} color="var(--red)" />
-                    <span>System Preferences</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: 12 }}>
+                  <div>
+                    <label style={styles.label}>Organization Name</label>
+                    <input type="text" value={orgName} onChange={e => setOrgName(e.target.value)} style={styles.input} />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Maintenance Mode</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Temporarily disable rider access while maintenance is in progress.</div>
-                      </div>
-                      <button type="button" role="switch" aria-checked={maintenanceMode} aria-label="Maintenance Mode" onClick={() => maintenanceMode ? setMaintenanceMode(false) : showCustomConfirm('Enable Maintenance Mode?', 'Riders will be unable to use the system while maintenance mode is active.', () => setMaintenanceMode(true))} style={{ width: 44, height: 24, borderRadius: 12, background: maintenanceMode ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
-                        <span style={{ position: 'absolute', top: 2, left: maintenanceMode ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Allow New Registrations</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Allow new rider and device registrations</div>
-                      </div>
-                      <button type="button" role="switch" aria-checked={allowRegistrations} aria-label="Allow New Registrations" onClick={() => setAllowRegistrations(!allowRegistrations)} style={{ width: 44, height: 24, borderRadius: 12, background: allowRegistrations ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
-                        <span style={{ position: 'absolute', top: 2, left: allowRegistrations ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Automatic Log Cleanup</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Automatically remove logs older than the configured retention period.</div>
-                      </div>
-                      <button type="button" role="switch" aria-checked={autoLogCleanup} aria-label="Automatic Log Cleanup" onClick={() => setAutoLogCleanup(!autoLogCleanup)} style={{ width: 44, height: 24, borderRadius: 12, background: autoLogCleanup ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
-                        <span style={{ position: 'absolute', top: 2, left: autoLogCleanup ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </button>
-                    </div>
-
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 700 }}>Session Timeout</div>
-                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Auto logout after inactivity (minutes)</div>
-                        </div>
-                        <div style={{ width: 120 }}>
-                          <CustomSelect
-                            options={[
-                              { value: '15', label: '15 Min' },
-                              { value: '30', label: '30 Min' },
-                              { value: '60', label: '60 Min' }
-                            ]}
-                            value={sessionTimeout}
-                            onChange={val => setSessionTimeout(val)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <SettingsSave dirty={settingsDirty({ maintenance_mode: String(maintenanceMode), allow_registrations: String(allowRegistrations), auto_log_cleanup: String(autoLogCleanup), session_timeout: sessionTimeout })} onSave={async () => {
-                      try {
-                        await Promise.all([
-                          saveSettingToDB('maintenance_mode', String(maintenanceMode)),
-                          saveSettingToDB('allow_registrations', String(allowRegistrations)),
-                          saveSettingToDB('auto_log_cleanup', String(autoLogCleanup)),
-                          saveSettingToDB('session_timeout', sessionTimeout)
-                        ]);
-                        showCustomAlert('Success', 'System preferences saved to database.');
-                      } catch {
-                        showCustomAlert('Error', 'Failed to save preferences.');
-                      }
-                    }} />
+                  <div>
+                    <label style={styles.label}>Organization Tagline</label>
+                    <input type="text" value={orgTagline} onChange={e => setOrgTagline(e.target.value)} style={styles.input} />
                   </div>
-                </div>
-
-                {/* 3. Alert Thresholds */}
-                <div className="settings-card" style={styles.card}>
-                  <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
-                    <Icon name="bell" size={18} color="var(--red)" />
-                    <span>Alert Thresholds</span>
+                  <div>
+                    <label style={styles.label}>Address</label>
+                    <input type="text" value={orgAddress} onChange={e => setOrgAddress(e.target.value)} style={styles.input} />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Failed Sobriety Test Alert</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Trigger alert after failed test</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <input type="number" value={failedSobrietyAlert} onChange={e => setFailedSobrietyAlert(e.target.value)} style={{ ...styles.input, width: 60, textAlign: 'center', padding: '6px' }} />
-                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>time(s)</span>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Override Event Alert</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Trigger alert after override</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <input type="number" value={overrideEventAlert} onChange={e => setOverrideEventAlert(e.target.value)} style={{ ...styles.input, width: 60, textAlign: 'center', padding: '6px' }} />
-                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>time(s)</span>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Critical Alert Escalation</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Escalate critical alerts after (minutes)</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <input type="number" value={criticalAlertEscalation} onChange={e => setCriticalAlertEscalation(e.target.value)} style={{ ...styles.input, width: 60, textAlign: 'center', padding: '6px' }} />
-                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>minutes</span>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>BAC Threshold (%)</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>System sobriety cutoff value</div>
-                      </div>
-                      <input type="number" step="0.01" value={alcoholThreshold} onChange={e => setAlcoholThreshold(e.target.value)} style={{ ...styles.input, width: 80, textAlign: 'center' }} />
-                    </div>
-
-                    <SettingsSave dirty={settingsDirty({ failed_sobriety_alert: failedSobrietyAlert, override_event_alert: overrideEventAlert, critical_alert_escalation: criticalAlertEscalation, alcohol_threshold: alcoholThreshold })} onSave={async () => {
-                      try {
-                        await Promise.all([
-                          saveSettingToDB('failed_sobriety_alert', failedSobrietyAlert),
-                          saveSettingToDB('override_event_alert', overrideEventAlert),
-                          saveSettingToDB('critical_alert_escalation', criticalAlertEscalation),
-                          saveSettingToDB('alcohol_threshold', alcoholThreshold)
-                        ]);
-                        showCustomAlert('Success', 'Alert thresholds saved to database.');
-                      } catch {
-                        showCustomAlert('Error', 'Failed to save thresholds.');
-                      }
-                    }} />
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Column 2 */}
-              <div className="settings-column">
-
-                {/* 4. Regional & Time Settings */}
-                <div className="settings-card" style={styles.card}>
-                  <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
-                    <Icon name="clock" size={18} color="var(--red)" />
-                    <span>Regional & Time Settings</span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
-                    <div>
-                      <label style={styles.label}>Date Format</label>
+                  <div>
+                    <div style={{ flex: 1 }}>
+                      <label style={styles.label}>Language</label>
                       <CustomSelect
                         options={[
-                          { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY' },
-                          { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY' },
-                          { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD' }
+                          { value: 'English', label: 'English' },
+                          { value: 'Tagalog', label: 'Filipino' }
                         ]}
-                        value={dateFormat}
-                        onChange={val => setDateFormat(val)}
+                        value={orgLanguage}
+                        onChange={val => setOrgLanguage(val)}
                       />
                     </div>
-                    <div>
-                      <label style={styles.label}>Time Format</label>
-                      <CustomSelect
-                        options={[
-                          { value: '12-Hour (AM/PM)', label: '12-Hour (AM/PM)' },
-                          { value: '24-Hour', label: '24-Hour' }
-                        ]}
-                        value={timeFormat}
-                        onChange={val => setTimeFormat(val)}
-                      />
-                    </div>
-                    <div>
-                      <label style={styles.label}>Timezone</label>
-                      <CustomSelect
-                        options={[
-                          { value: 'Asia/Manila', label: '(GMT+08:00) Asia/Manila' },
-                          { value: 'UTC', label: 'Coordinated Universal Time' }
-                        ]}
-                        value={orgTimezone}
-                        onChange={val => setOrgTimezone(val)}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Auto Sync</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Automatically sync date and time with server</div>
-                      </div>
-                      <button type="button" role="switch" aria-checked={autoSyncTime} aria-label="Auto Sync" onClick={() => setAutoSyncTime(!autoSyncTime)} style={{ width: 44, height: 24, borderRadius: 12, background: autoSyncTime ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
-                        <span style={{ position: 'absolute', top: 2, left: autoSyncTime ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </button>
-                    </div>
-                    <SettingsSave dirty={settingsDirty({ org_timezone: orgTimezone, date_format: dateFormat, time_format: timeFormat, auto_sync_time: String(autoSyncTime) })} onSave={async () => {
-                      try {
-                        await Promise.all([
-                          saveSettingToDB('org_timezone', orgTimezone),
-                          saveSettingToDB('date_format', dateFormat),
-                          saveSettingToDB('time_format', timeFormat),
-                          saveSettingToDB('auto_sync_time', String(autoSyncTime))
-                        ]);
-                        showCustomAlert('Success', 'Date & time settings saved to database.');
-                      } catch {
-                        showCustomAlert('Error', 'Failed to save date/time settings.');
-                      }
-                    }} />
                   </div>
+                  <SettingsSave dirty={settingsDirty({ org_name: orgName, org_tagline: orgTagline, org_address: orgAddress, org_language: orgLanguage })} onSave={async () => {
+                    try {
+                      await Promise.all([
+                        saveSettingToDB('org_name', orgName),
+                        saveSettingToDB('org_tagline', orgTagline),
+                        saveSettingToDB('org_address', orgAddress),
+                        saveSettingToDB('org_language', orgLanguage)
+                      ]);
+                      showCustomAlert('Success', 'Organization settings saved to database.');
+                    } catch {
+                      showCustomAlert('Error', 'Failed to save organization settings.');
+                    }
+                  }} />
                 </div>
-
-                {/* 5. Security Settings */}
-                <div className="settings-card" style={styles.card}>
-                  <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
-                    <Icon name="shield" size={18} color="var(--red)" />
-                    <span>Security Settings</span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Require Strong Passwords</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Enforce stronger password requirements for admin accounts.</div>
-                      </div>
-                      <button type="button" role="switch" aria-checked={passwordPolicy} aria-label="Require Strong Passwords" onClick={() => setPasswordPolicy(!passwordPolicy)} style={{ width: 44, height: 24, borderRadius: 12, background: passwordPolicy ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
-                        <span style={{ position: 'absolute', top: 2, left: passwordPolicy ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Two-Factor Authentication</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Require 2FA for admin accounts.</div>
-                      </div>
-                      <button type="button" role="switch" aria-checked={twoFactorAuth} aria-label="Two-Factor Authentication" onClick={() => setTwoFactorAuth(!twoFactorAuth)} style={{ width: 44, height: 24, borderRadius: 12, background: twoFactorAuth ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
-                        <span style={{ position: 'absolute', top: 2, left: twoFactorAuth ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Login Attempt Limit</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Maximum failed login attempts</div>
-                      </div>
-                      <div style={{ width: 132 }}>
-                        <CustomSelect
-                          options={[
-                            { value: '3', label: '3 attempts' },
-                            { value: '5', label: '5 attempts' },
-                            { value: '10', label: '10 attempts' }
-                          ]}
-                          value={loginAttemptLimit}
-                          onChange={val => setLoginAttemptLimit(val)}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Account Lockout Duration</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Lock account after failed attempts (minutes)</div>
-                      </div>
-                      <div style={{ width: 132 }}>
-                        <CustomSelect
-                          options={[
-                            { value: '5', label: '5 minutes' },
-                            { value: '15', label: '15 minutes' },
-                            { value: '30', label: '30 minutes' }
-                          ]}
-                          value={lockoutDuration}
-                          onChange={val => setLockoutDuration(val)}
-                        />
-                      </div>
-                    </div>
-
-                    <SettingsSave dirty={settingsDirty({ password_policy: String(passwordPolicy), two_factor_auth: String(twoFactorAuth), login_attempt_limit: loginAttemptLimit, lockout_duration: lockoutDuration, lockout_limit: lockoutLimit })} onSave={async () => {
-                      try {
-                        await Promise.all([
-                          saveSettingToDB('password_policy', String(passwordPolicy)),
-                          saveSettingToDB('two_factor_auth', String(twoFactorAuth)),
-                          saveSettingToDB('login_attempt_limit', loginAttemptLimit),
-                          saveSettingToDB('lockout_duration', lockoutDuration),
-                          saveSettingToDB('lockout_limit', lockoutLimit)
-                        ]);
-                        showCustomAlert('Success', 'Security settings saved to database.');
-                      } catch {
-                        showCustomAlert('Error', 'Failed to save security settings.');
-                      }
-                    }} />
-                  </div>
-                </div>
-
-                {/* 6. Bluetooth Settings */}
-                <div className="settings-card" style={styles.card}>
-                  <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
-                    <Icon name="bluetooth" size={18} color="var(--red)" />
-                    <span>Helmet Connection</span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Bluetooth Scan Interval</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>How often to scan for helmet (seconds)</div>
-                      </div>
-                      <div style={{ width: 132 }}>
-                        <CustomSelect
-                          options={[
-                            { value: '5', label: '5 seconds' },
-                            { value: '10', label: '10 seconds' },
-                            { value: '30', label: '30 seconds' }
-                          ]}
-                          value={scanInterval}
-                          onChange={val => setScanInterval(val)}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Connection Timeout</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Bluetooth connection timeout (seconds)</div>
-                      </div>
-                      <div style={{ width: 132 }}>
-                        <CustomSelect
-                          options={[
-                            { value: '15', label: '15 seconds' },
-                            { value: '30', label: '30 seconds' },
-                            { value: '60', label: '60 seconds' }
-                          ]}
-                          value={bluetoothTimeout}
-                          onChange={val => setBluetoothTimeout(val)}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Auto Reconnect</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Automatically reconnect lost connections</div>
-                      </div>
-                      <button type="button" role="switch" aria-checked={autoReconnect} aria-label="Auto Reconnect" onClick={() => setAutoReconnect(!autoReconnect)} style={{ width: 44, height: 24, borderRadius: 12, background: autoReconnect ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
-                        <span style={{ position: 'absolute', top: 2, left: autoReconnect ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </button>
-                    </div>
-
-                    <SettingsSave dirty={settingsDirty({ scan_interval: scanInterval, bluetooth_timeout: bluetoothTimeout, auto_reconnect: String(autoReconnect) })} onSave={async () => {
-                      try {
-                        await Promise.all([
-                          saveSettingToDB('scan_interval', scanInterval),
-                          saveSettingToDB('bluetooth_timeout', bluetoothTimeout),
-                          saveSettingToDB('auto_reconnect', String(autoReconnect))
-                        ]);
-                        showCustomAlert('Success', 'Bluetooth settings saved to database.');
-                      } catch {
-                        showCustomAlert('Error', 'Failed to save bluetooth settings.');
-                      }
-                    }} />
-                  </div>
-                </div>
-
               </div>
 
-              {/* Column 3 */}
-              <div className="settings-column">
-
-                {/* 7. System Information */}
-                <div className="settings-card" style={styles.card}>
-                  <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
-                    <Icon name="info" size={18} color="var(--red)" />
-                    <span>System Information</span>
-                  </div>
-                  <p className="settings-readonly">Read-only system information</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontSize: 13, marginTop: 12 }}>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>System Name</div>
-                      <div style={{ color: 'var(--muted)', marginTop: 2 }}>{orgName}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>Version</div>
-                      <div style={{ color: 'var(--muted)', marginTop: 2 }}>1.0.0</div>
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>Environment</div>
-                      <div style={{ color: 'var(--muted)', marginTop: 2 }}>Production</div>
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>Database Status</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--green)', fontWeight: 700, marginTop: 2 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)' }} /> Connected
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>Last Updated</div>
-                      <div style={{ color: 'var(--muted)', marginTop: 2 }}>{new Date().toLocaleString()}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>System Uptime</div>
-                      <div style={{ color: 'var(--muted)', marginTop: 2 }}>5 days, 14 hours, 32 minutes</div>
-                    </div>
-                  </div>
+              <div className="settings-card" style={styles.card}>
+                <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
+                  <Icon name="clock" size={18} color="var(--red)" />
+                  <span>Regional & Time Settings</span>
                 </div>
-
-                {/* 8. System Tools */}
-                <div className="settings-card" style={styles.card}>
-                  <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
-                    <Icon name="lightning" size={18} color="var(--red)" />
-                    <span>System Tools</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+                  <div>
+                    <label style={styles.label}>Date Format</label>
+                    <CustomSelect
+                      options={[
+                        { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY' },
+                        { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY' },
+                        { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD' }
+                      ]}
+                      value={dateFormat}
+                      onChange={val => setDateFormat(val)}
+                    />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-                    <button onClick={() => showCustomConfirm('Clear System Cache?', 'This will clear cached system data. Your saved settings and records will not be affected.', () => showCustomAlert('Clear Cache', 'System cache and temporary safety logs have been cleared.'))} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
-                      <span style={{ fontWeight: 650 }}>Clear Cache</span>
-                      <span>&gt;</span>
-                    </button>
-                    <button onClick={() => setActiveTab('audit-logs')} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
-                      <span style={{ fontWeight: 650 }}>View System Logs</span>
-                      <span>&gt;</span>
-                    </button>
-                    <button onClick={() => showCustomAlert('Email Test', 'A test email notification has been dispatched to the administrator inbox.')} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
-                      <span style={{ fontWeight: 650 }}>Test Email Configuration</span>
-                      <span>&gt;</span>
-                    </button>
-                    <button onClick={() => showCustomAlert('Updates', 'You are currently running the latest stable release (v1.0.0).')} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
-                      <span style={{ fontWeight: 650 }}>Check for Updates</span>
-                      <span>&gt;</span>
+                  <div>
+                    <label style={styles.label}>Time Format</label>
+                    <CustomSelect
+                      options={[
+                        { value: '12-Hour (AM/PM)', label: '12-Hour (AM/PM)' },
+                        { value: '24-Hour', label: '24-Hour' }
+                      ]}
+                      value={timeFormat}
+                      onChange={val => setTimeFormat(val)}
+                    />
+                  </div>
+                  <div>
+                    <label style={styles.label}>Timezone</label>
+                    <CustomSelect
+                      options={[
+                        { value: 'Asia/Manila', label: '(GMT+08:00) Asia/Manila' },
+                        { value: 'UTC', label: 'Coordinated Universal Time' }
+                      ]}
+                      value={orgTimezone}
+                      onChange={val => setOrgTimezone(val)}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Auto Sync</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Automatically sync date and time with server</div>
+                    </div>
+                    <button type="button" role="switch" aria-checked={autoSyncTime} aria-label="Auto Sync" onClick={() => setAutoSyncTime(!autoSyncTime)} style={{ width: 44, height: 24, borderRadius: 12, background: autoSyncTime ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <span style={{ position: 'absolute', top: 2, left: autoSyncTime ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
                     </button>
                   </div>
+                  <SettingsSave dirty={settingsDirty({ org_timezone: orgTimezone, date_format: dateFormat, time_format: timeFormat, auto_sync_time: String(autoSyncTime) })} onSave={async () => {
+                    try {
+                      await Promise.all([
+                        saveSettingToDB('org_timezone', orgTimezone),
+                        saveSettingToDB('date_format', dateFormat),
+                        saveSettingToDB('time_format', timeFormat),
+                        saveSettingToDB('auto_sync_time', String(autoSyncTime))
+                      ]);
+                      showCustomAlert('Success', 'Date & time settings saved to database.');
+                    } catch {
+                      showCustomAlert('Error', 'Failed to save date/time settings.');
+                    }
+                  }} />
                 </div>
-
               </div>
 
+              <div className="settings-card" style={styles.card}>
+                <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
+                  <Icon name="info" size={18} color="var(--red)" />
+                  <span>System Information</span>
+                </div>
+                <p className="settings-readonly">Read-only system information</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontSize: 13, marginTop: 12 }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>System Name</div>
+                    <div style={{ color: 'var(--muted)', marginTop: 2 }}>{orgName}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>Version</div>
+                    <div style={{ color: 'var(--muted)', marginTop: 2 }}>1.0.0</div>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>Environment</div>
+                    <div style={{ color: 'var(--muted)', marginTop: 2 }}>Production</div>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>Database Status</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--green)', fontWeight: 700, marginTop: 2 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)' }} /> Connected
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>Last Updated</div>
+                    <div style={{ color: 'var(--muted)', marginTop: 2 }}>{new Date().toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>System Uptime</div>
+                    <div style={{ color: 'var(--muted)', marginTop: 2 }}>5 days, 14 hours, 32 minutes</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="settings-card" style={styles.card}>
+                <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
+                  <Icon name="preferences" size={18} color="var(--red)" />
+                  <span>System Preferences</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Maintenance Mode</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Temporarily disable rider access while maintenance is in progress.</div>
+                    </div>
+                    <button type="button" role="switch" aria-checked={maintenanceMode} aria-label="Maintenance Mode" onClick={() => maintenanceMode ? setMaintenanceMode(false) : showCustomConfirm('Enable Maintenance Mode?', 'Riders will be unable to use the system while maintenance mode is active.', () => setMaintenanceMode(true))} style={{ width: 44, height: 24, borderRadius: 12, background: maintenanceMode ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <span style={{ position: 'absolute', top: 2, left: maintenanceMode ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Allow New Registrations</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Allow new rider and device registrations</div>
+                    </div>
+                    <button type="button" role="switch" aria-checked={allowRegistrations} aria-label="Allow New Registrations" onClick={() => setAllowRegistrations(!allowRegistrations)} style={{ width: 44, height: 24, borderRadius: 12, background: allowRegistrations ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <span style={{ position: 'absolute', top: 2, left: allowRegistrations ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Automatic Log Cleanup</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Automatically remove logs older than the configured retention period.</div>
+                    </div>
+                    <button type="button" role="switch" aria-checked={autoLogCleanup} aria-label="Automatic Log Cleanup" onClick={() => setAutoLogCleanup(!autoLogCleanup)} style={{ width: 44, height: 24, borderRadius: 12, background: autoLogCleanup ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <span style={{ position: 'absolute', top: 2, left: autoLogCleanup ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                    </button>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>Session Timeout</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Auto logout after inactivity (minutes)</div>
+                      </div>
+                      <div style={{ width: 120 }}>
+                        <CustomSelect
+                          options={[
+                            { value: '15', label: '15 Min' },
+                            { value: '30', label: '30 Min' },
+                            { value: '60', label: '60 Min' }
+                          ]}
+                          value={sessionTimeout}
+                          onChange={val => setSessionTimeout(val)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <SettingsSave dirty={settingsDirty({ maintenance_mode: String(maintenanceMode), allow_registrations: String(allowRegistrations), auto_log_cleanup: String(autoLogCleanup), session_timeout: sessionTimeout })} onSave={async () => {
+                    try {
+                      await Promise.all([
+                        saveSettingToDB('maintenance_mode', String(maintenanceMode)),
+                        saveSettingToDB('allow_registrations', String(allowRegistrations)),
+                        saveSettingToDB('auto_log_cleanup', String(autoLogCleanup)),
+                        saveSettingToDB('session_timeout', sessionTimeout)
+                      ]);
+                      showCustomAlert('Success', 'System preferences saved to database.');
+                    } catch {
+                      showCustomAlert('Error', 'Failed to save preferences.');
+                    }
+                  }} />
+                </div>
+              </div>
+
+              <div className="settings-card" style={styles.card}>
+                <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
+                  <Icon name="shield" size={18} color="var(--red)" />
+                  <span>Security Settings</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Require Strong Passwords</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Enforce stronger password requirements for admin accounts.</div>
+                    </div>
+                    <button type="button" role="switch" aria-checked={passwordPolicy} aria-label="Require Strong Passwords" onClick={() => setPasswordPolicy(!passwordPolicy)} style={{ width: 44, height: 24, borderRadius: 12, background: passwordPolicy ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <span style={{ position: 'absolute', top: 2, left: passwordPolicy ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Two-Factor Authentication</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Require 2FA for admin accounts.</div>
+                    </div>
+                    <button type="button" role="switch" aria-checked={twoFactorAuth} aria-label="Two-Factor Authentication" onClick={() => setTwoFactorAuth(!twoFactorAuth)} style={{ width: 44, height: 24, borderRadius: 12, background: twoFactorAuth ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <span style={{ position: 'absolute', top: 2, left: twoFactorAuth ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Login Attempt Limit</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Maximum failed login attempts</div>
+                    </div>
+                    <div style={{ width: 132 }}>
+                      <CustomSelect
+                        options={[
+                          { value: '3', label: '3 attempts' },
+                          { value: '5', label: '5 attempts' },
+                          { value: '10', label: '10 attempts' }
+                        ]}
+                        value={loginAttemptLimit}
+                        onChange={val => setLoginAttemptLimit(val)}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Account Lockout Duration</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Lock account after failed attempts (minutes)</div>
+                    </div>
+                    <div style={{ width: 132 }}>
+                      <CustomSelect
+                        options={[
+                          { value: '5', label: '5 minutes' },
+                          { value: '15', label: '15 minutes' },
+                          { value: '30', label: '30 minutes' }
+                        ]}
+                        value={lockoutDuration}
+                        onChange={val => setLockoutDuration(val)}
+                      />
+                    </div>
+                  </div>
+
+                  <SettingsSave dirty={settingsDirty({ password_policy: String(passwordPolicy), two_factor_auth: String(twoFactorAuth), login_attempt_limit: loginAttemptLimit, lockout_duration: lockoutDuration, lockout_limit: lockoutLimit })} onSave={async () => {
+                    try {
+                      await Promise.all([
+                        saveSettingToDB('password_policy', String(passwordPolicy)),
+                        saveSettingToDB('two_factor_auth', String(twoFactorAuth)),
+                        saveSettingToDB('login_attempt_limit', loginAttemptLimit),
+                        saveSettingToDB('lockout_duration', lockoutDuration),
+                        saveSettingToDB('lockout_limit', lockoutLimit)
+                      ]);
+                      showCustomAlert('Success', 'Security settings saved to database.');
+                    } catch {
+                      showCustomAlert('Error', 'Failed to save security settings.');
+                    }
+                  }} />
+                </div>
+              </div>
+
+              <div className="settings-card" style={styles.card}>
+                <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
+                  <Icon name="lightning" size={18} color="var(--red)" />
+                  <span>System Tools</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+                  <button onClick={() => showCustomConfirm('Clear System Cache?', 'This will clear cached system data. Your saved settings and records will not be affected.', () => showCustomAlert('Clear Cache', 'System cache and temporary safety logs have been cleared.'))} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
+                    <span style={{ fontWeight: 650 }}>Clear Cache</span>
+                    <span>&gt;</span>
+                  </button>
+                  <button onClick={() => setActiveTab('audit-logs')} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
+                    <span style={{ fontWeight: 650 }}>View System Logs</span>
+                    <span>&gt;</span>
+                  </button>
+                  <button onClick={() => showCustomAlert('Email Test', 'A test email notification has been dispatched to the administrator inbox.')} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
+                    <span style={{ fontWeight: 650 }}>Test Email Configuration</span>
+                    <span>&gt;</span>
+                  </button>
+                  <button onClick={() => showCustomAlert('Updates', 'You are currently running the latest stable release (v1.0.0).')} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
+                    <span style={{ fontWeight: 650 }}>Check for Updates</span>
+                    <span>&gt;</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="settings-card" style={styles.card}>
+                <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
+                  <Icon name="bell" size={18} color="var(--red)" />
+                  <span>Alert Thresholds</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Failed Sobriety Test Alert</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Trigger alert after failed test</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input type="number" value={failedSobrietyAlert} onChange={e => setFailedSobrietyAlert(e.target.value)} style={{ ...styles.input, width: 60, textAlign: 'center', padding: '6px' }} />
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>time(s)</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Override Event Alert</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Trigger alert after override</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input type="number" value={overrideEventAlert} onChange={e => setOverrideEventAlert(e.target.value)} style={{ ...styles.input, width: 60, textAlign: 'center', padding: '6px' }} />
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>time(s)</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Critical Alert Escalation</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Escalate critical alerts after (minutes)</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input type="number" value={criticalAlertEscalation} onChange={e => setCriticalAlertEscalation(e.target.value)} style={{ ...styles.input, width: 60, textAlign: 'center', padding: '6px' }} />
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>minutes</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>BAC Threshold (%)</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>System sobriety cutoff value</div>
+                    </div>
+                    <input type="number" step="0.01" value={alcoholThreshold} onChange={e => setAlcoholThreshold(e.target.value)} style={{ ...styles.input, width: 80, textAlign: 'center' }} />
+                  </div>
+
+                  <SettingsSave dirty={settingsDirty({ failed_sobriety_alert: failedSobrietyAlert, override_event_alert: overrideEventAlert, critical_alert_escalation: criticalAlertEscalation, alcohol_threshold: alcoholThreshold })} onSave={async () => {
+                    try {
+                      await Promise.all([
+                        saveSettingToDB('failed_sobriety_alert', failedSobrietyAlert),
+                        saveSettingToDB('override_event_alert', overrideEventAlert),
+                        saveSettingToDB('critical_alert_escalation', criticalAlertEscalation),
+                        saveSettingToDB('alcohol_threshold', alcoholThreshold)
+                      ]);
+                      showCustomAlert('Success', 'Alert thresholds saved to database.');
+                    } catch {
+                      showCustomAlert('Error', 'Failed to save thresholds.');
+                    }
+                  }} />
+                </div>
+              </div>
+
+              <div className="settings-card" style={styles.card}>
+                <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
+                  <Icon name="bluetooth" size={18} color="var(--red)" />
+                  <span>Helmet Connection</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Bluetooth Scan Interval</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>How often to scan for helmet (seconds)</div>
+                    </div>
+                    <div style={{ width: 132 }}>
+                      <CustomSelect
+                        options={[
+                          { value: '5', label: '5 seconds' },
+                          { value: '10', label: '10 seconds' },
+                          { value: '30', label: '30 seconds' }
+                        ]}
+                        value={scanInterval}
+                        onChange={val => setScanInterval(val)}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Connection Timeout</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Bluetooth connection timeout (seconds)</div>
+                    </div>
+                    <div style={{ width: 132 }}>
+                      <CustomSelect
+                        options={[
+                          { value: '15', label: '15 seconds' },
+                          { value: '30', label: '30 seconds' },
+                          { value: '60', label: '60 seconds' }
+                        ]}
+                        value={bluetoothTimeout}
+                        onChange={val => setBluetoothTimeout(val)}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Auto Reconnect</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Automatically reconnect lost connections</div>
+                    </div>
+                    <button type="button" role="switch" aria-checked={autoReconnect} aria-label="Auto Reconnect" onClick={() => setAutoReconnect(!autoReconnect)} style={{ width: 44, height: 24, borderRadius: 12, background: autoReconnect ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <span style={{ position: 'absolute', top: 2, left: autoReconnect ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                    </button>
+                  </div>
+
+                  <SettingsSave dirty={settingsDirty({ scan_interval: scanInterval, bluetooth_timeout: bluetoothTimeout, auto_reconnect: String(autoReconnect) })} onSave={async () => {
+                    try {
+                      await Promise.all([
+                        saveSettingToDB('scan_interval', scanInterval),
+                        saveSettingToDB('bluetooth_timeout', bluetoothTimeout),
+                        saveSettingToDB('auto_reconnect', String(autoReconnect))
+                      ]);
+                      showCustomAlert('Success', 'Bluetooth settings saved to database.');
+                    } catch {
+                      showCustomAlert('Error', 'Failed to save bluetooth settings.');
+                    }
+                  }} />
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -2708,13 +2347,18 @@ export default function AdminApp() {
             </div>
             <div style={styles.card}>
               <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>
-                Generate and download complete database tables (Users, Ride history logs, config values) as structured JSON backup files.
+                Generate a fresh JSON export of users, ride history, and emergency contacts. Each download fetches the latest available data and includes its generation date and time in the file name. Contact phone numbers remain masked.
               </p>
-              <button onClick={exportBackup} style={styles.primaryButton}>
+              <div role="status" style={{ marginBottom: 20, fontSize: 13 }}>
+                <strong>Last backup generated: </strong>
+                {lastBackupAt ? <time dateTime={lastBackupAt}>{new Date(lastBackupAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'long' })}</time> : 'No backup recorded in this browser.'}
+                <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>Recorded in this browser when the download starts. Previously downloaded files do not update automatically.</p>
+              </div>
+              <button onClick={exportBackup} disabled={exportingBackup} style={{ ...styles.primaryButton, opacity: exportingBackup ? 0.65 : 1 }}>
                 <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
                   <Icon name="backup" size={14} color="#fff" />
                 </span>
-                Download Database JSON Schema Backup
+                {exportingBackup ? 'Generating latest backup…' : 'Download Latest Backup'}
               </button>
             </div>
           </div>

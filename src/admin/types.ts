@@ -30,6 +30,7 @@ export interface Rider {
 export interface Device {
   id: string | number;
   user_id: string;
+  rider_name?: string;
   status?: string;
   sim_number?: string;
   relay_status?: boolean;
@@ -37,6 +38,9 @@ export interface Device {
   model?: string;
 }
 export interface SafetyLog extends IdentityMetadata {
+  device_id?: string | number | null;
+  severity?: string;
+  severity_level?: string;
   identity_display?: { verification: import('./identity-status').IdentityVerification; lockAction: import('./identity-status').IdentityLockAction };
   id: string | number;
   created_at: string;

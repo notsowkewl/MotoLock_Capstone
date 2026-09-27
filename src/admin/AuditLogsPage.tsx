@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { AuditLog } from './types';
 import { sortAuditLogs } from './audit-records';
@@ -13,6 +13,8 @@ export default function AuditLogsPage({ logs, styles }: { logs: AuditLog[]; styl
   const [to, setTo] = useState('');
   const [sort, setSort] = useState('newest');
   const [page, setPage] = useState(1);
+  const [record, setRecord] = useState('');
+  const recordDialog = useRef<HTMLDialogElement>(null);
   const change = (setter: (value: string) => void, value: string) => { setter(value); setPage(1); };
   const query = search.trim().toLowerCase();
   const filtered = sortAuditLogs(logs.filter(log => {
@@ -51,7 +53,13 @@ export default function AuditLogsPage({ logs, styles }: { logs: AuditLog[]; styl
           <td style={styles.tableCell} title={log.admin_name}>{performerLabel(log)}</td>
           <td style={styles.tableCell}><strong>{activityLabel(log.action)}</strong></td>
           <td style={styles.tableCell}><span style={{ display: 'inline-block', padding: '4px 9px', borderRadius: 6, background: 'var(--bg)', color: 'var(--muted)', fontSize: 12 }}>{areaLabel(log.module)}</span></td>
-          <td style={{ ...styles.tableCell, overflowWrap: 'anywhere' }}><span tabIndex={0} title={log.target_record} aria-label={log.target_record}>{relatedRecordLabel(log.target_record)}</span></td>
+          <td style={{ ...styles.tableCell, overflowWrap: 'anywhere', whiteSpace: 'normal' }}>
+            {log.target_record && log.target_record !== 'Not Recorded' ? <button type="button" title={log.target_record} aria-haspopup="dialog"
+              onClick={() => { setRecord(log.target_record!); recordDialog.current?.showModal(); }}
+              style={{ color: 'inherit', fontWeight: 700, background: 'none', border: 0, padding: 0, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 4 }}>
+              {relatedRecordLabel(log.target_record)}
+            </button> : 'Not Recorded'}
+          </td>
         </tr>)}{!filtered.length && <tr><td colSpan={5} style={{ ...styles.tableCell, textAlign: 'center', color: 'var(--muted)' }}>No audit logs match the selected filters.</td></tr>}</tbody>
       </table>
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginTop: 16 }}>
@@ -63,5 +71,10 @@ export default function AuditLogsPage({ logs, styles }: { logs: AuditLog[]; styl
         </nav>
       </div>
     </div>
+    <dialog ref={recordDialog} aria-labelledby="audit-record-title" style={{ ...styles.modalContent, position: 'fixed', inset: 0, margin: 'auto', maxWidth: 'min(480px, 90vw)', maxHeight: '90dvh', overflowY: 'auto', boxSizing: 'border-box', color: 'var(--text)', border: 0 }}>
+      <h3 id="audit-record-title">Related Record</h3>
+      <p style={{ margin: '14px 0', fontSize: 14, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', userSelect: 'text' }}>{record}</p>
+      <button type="button" autoFocus onClick={() => recordDialog.current?.close()} style={styles.primaryButton}>OK</button>
+    </dialog>
   </div>;
 }
