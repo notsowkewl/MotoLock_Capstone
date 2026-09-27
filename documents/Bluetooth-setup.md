@@ -33,15 +33,17 @@ Classic Bluetooth device and is not paired directly through this screen.
 1. Power up your helmet and motor with only your own helmet nearby. The helmet
    starts BLE immediately; MQ-3 warm-up and baseline collection still take
    approximately 75 seconds in clean air. Warm-up telemetry cannot unlock.
-2. After the motor boots, hold its onboard **BOOT / GPIO 0** button for three
-   seconds, then release. The OLED shows `PAIRING ACTIVE` for 60 seconds.
-   This is separate from the existing GPIO 32 manual override button.
-3. Open **Pair MotoLock Hardware** in the updated app and select **MotoLock-Motor**.
-   The app provisions a random phone secret. The motor stores the selected
-   helmet's address, device ID, visual ID, and public key in one NVS record.
-   The app saves the secret using its existing Android Keystore encryption and
-   saves the same helmet identity. Initial enrollment trusts the helmet selected
-   during this physical pairing window; it is not a manufacturer attestation.
+2. On an unpaired motor, the OLED shows an 8-digit one-time PIN. It expires and
+   rotates every 10 minutes, and locks after five incorrect attempts for that
+   PIN. No motor button or Android Settings pairing is required.
+3. Open **Pair MotoLock Hardware** in the updated app, select **MotoLock-Motor**,
+   then enter the PIN from the motor OLED. The motor accepts it once, only while
+   a fresh helmet packet is available. The app provisions a random phone secret;
+   the motor stores that secret with the selected helmet's address, device ID,
+   visual ID, and public key in one NVS record. The app saves the secret using
+   Android Keystore encryption and saves the same helmet identity. Enrollment
+   trusts the helmet selected while the PIN is valid; it is not manufacturer
+   attestation.
 4. Check the `MOTO-xxxxx` ID against the helmet's Serial Monitor `HELMET_ID:` line
    at 115200 baud. That line contains public information, not its private key.
    Keep the helmet's NVS across firmware uploads so its signing identity persists.
@@ -88,8 +90,9 @@ motor firmware together for heartbeat support; the helmet firmware is unchanged
 by this disconnect fix.
 
 The MQ-3 percentage is still a prototype estimate; the Bluetooth changes do not
-calibrate it. IR polarity remains `IR_ACTIVE_LOW = false`; confirm raw HIGH/LOW
-on the actual module. GPIO 3 is also UART RX, as noted in the helmet sketch.
+calibrate it. Connect the IR sensor's OUT wire to helmet ESP32 GPIO 4. The
+current IR configuration uses active-LOW detection with an internal pull-up;
+verify raw HIGH while idle and raw LOW when detected.
 SMS remains disabled. Enabling its existing blocking modem code needs a separate
 review of timing before relying on the relay timeout.
 
@@ -103,7 +106,7 @@ discarded until the next newline. Commands:
 |---|---|
 | `PING`, `HELLO`, `STATUS` | `PONG`, connection information, or `STATUS:{...}` |
 | `PING:<numeric token>` | `PONG:<same token>`; periodic app liveness check |
-| `PROVISION:<64 hex characters>` | `OK_PROVISIONED` only during first physical enrollment |
+| `PROVISION:<64 hex characters>:<8-digit PIN>` | `OK_PROVISIONED` once while the OLED PIN is valid and helmet telemetry is fresh |
 | `SESSION_REQ` then `AUTH:<HMAC>` | Authenticate a reconnect; `OK_AUTHENTICATED` |
 | `GET_HELMET_ID` | `HELMET_ID:<12 hex device ID>,MOTO-xxxxx,<SPKI public key hex>` |
 | `CHALLENGE:<64 hex characters>` | Relay the authenticated phone's nonce to the helmet |

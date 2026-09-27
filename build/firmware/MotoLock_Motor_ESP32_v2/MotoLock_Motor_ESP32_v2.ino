@@ -49,7 +49,9 @@ constexpr uint32_t HELMET_TIMEOUT_MS = 2000;
 constexpr uint32_t APP_FRAME_TIMEOUT_MS = 1000;
 constexpr uint32_t APP_HEARTBEAT_TIMEOUT_MS = 3500;
 constexpr size_t APP_FRAME_MAX = 256;
-constexpr uint8_t PAIRING_BUTTON_PIN = 0;  // Onboard BOOT; separate from override.
+constexpr uint8_t PAIRING_PIN_LENGTH = 8;
+constexpr uint32_t PAIRING_PIN_TTL_MS = 10UL * 60UL * 1000UL;
+constexpr uint8_t PAIRING_PIN_MAX_ATTEMPTS = 5;
 // Optional filter for installations with multiple helmets; this is not authentication.
 const char EXPECTED_HELMET_ADDRESS[] = "";
 constexpr uint32_t OVERRIDE_HOLD_MS = 5000;
@@ -98,13 +100,15 @@ BLERemoteCharacteristic *authCharacteristic = nullptr;
 mbedtls_pk_context helmetVerificationKey;
 Preferences pairingStore;
 String deviceSecret;
+String pairingPin;
 String appNonce;
 bool nonceForUnlock = false;
 uint32_t appNonceMs = 0;
 bool sessionAuthenticated = false;
 bool appAuthorized = false;
-bool provisioningMode = false;
-uint32_t provisioningStartedMs = 0;
+bool pairingPinValid = false;
+uint8_t pairingPinAttempts = 0;
+uint32_t pairingPinCreatedMs = 0;
 
 std::atomic<bool> appConnected{false};
 std::atomic<bool> appTransportConnected{false};
@@ -138,6 +142,25 @@ uint32_t lastPacketMs = 0;
 uint32_t overrideEndsMs = 0;
 uint32_t lastAlertMs = 0;
 uint32_t lastAppStatusMs = 0;
+
+void generatePairingPin() {
+  uint32_t randomValue = 0;
+  esp_fill_random(&randomValue, sizeof(randomValue));
+  char pin[PAIRING_PIN_LENGTH + 1];
+  snprintf(pin, sizeof(pin), "%08lu",
+           static_cast<unsigned long>(randomValue % 100000000UL));
+  pairingPin = pin;
+  pairingPinCreatedMs = millis();
+  pairingPinAttempts = 0;
+  pairingPinValid = true;
+}
+
+void refreshPairingPin() {
+  if (!deviceSecret.length() &&
+      (!pairingPinValid || millis() - pairingPinCreatedMs >= PAIRING_PIN_TTL_MS)) {
+    generatePairingPin();
+  }
+}
 
 void bluetoothAppCallback(esp_spp_cb_event_t event,
                           esp_spp_cb_param_t *param) {
@@ -254,10 +277,25 @@ void handleAppCommand(const char *message) {
     SerialBT.println("CONNECTED");
     sendAppStatus();
   } else if (command.startsWith("PROVISION:")) {
+    const int pinSeparator = command.indexOf(':', 10);
+    const String suppliedSecret = pinSeparator < 0
+        ? command.substring(10) : command.substring(10, pinSeparator);
+    const String suppliedPin = pinSeparator < 0
+        ? "" : command.substring(pinSeparator + 1);
     uint8_t secretBytes[32];
     if (deviceSecret.length()) SerialBT.println("ERR_ALREADY_PROVISIONED");
-    else if (!provisioningMode) SerialBT.println("ERR_PROVISIONING_NOT_ACTIVE");
-    else if (!mlUnhex(command.substring(10), secretBytes, sizeof(secretBytes))) SerialBT.println("ERR_INVALID_SECRET");
+    else if (!mlUnhex(suppliedSecret, secretBytes, sizeof(secretBytes))) SerialBT.println("ERR_INVALID_SECRET");
+    else if (!pairingPinValid || millis() - pairingPinCreatedMs >= PAIRING_PIN_TTL_MS) {
+      generatePairingPin();
+      SerialBT.println("ERR_PAIR_PIN_EXPIRED");
+    }
+    else if (pairingPinAttempts >= PAIRING_PIN_MAX_ATTEMPTS) SerialBT.println("ERR_PAIR_PIN_LOCKED");
+    else if (suppliedPin.length() != PAIRING_PIN_LENGTH) SerialBT.println("ERR_PAIR_PIN_REQUIRED");
+    else if (!mlEqual(suppliedPin, pairingPin)) {
+      ++pairingPinAttempts;
+      if (pairingPinAttempts >= PAIRING_PIN_MAX_ATTEMPTS) SerialBT.println("ERR_PAIR_PIN_LOCKED");
+      else SerialBT.println("ERR_PAIR_PIN_INVALID");
+    }
     else if (!helmetPacketFresh()) SerialBT.println("ERR_HELMET_NOT_READY");
     else {
       char identity[256], address[18];
@@ -265,17 +303,18 @@ void handleAppCommand(const char *message) {
       memcpy(identity, candidateIdentity, sizeof(identity));
       memcpy(address, candidateAddress, sizeof(address));
       portEXIT_CRITICAL(&packetMux);
-      const String record = command.substring(10) + "|" + identity + "|" + address;
+      const String record = suppliedSecret + "|" + identity + "|" + address;
       if (!identity[0] || pairingStore.putString("pairing", record) != record.length()) {
         SerialBT.println("ERR_STORAGE");
       } else {
-        deviceSecret = command.substring(10);
+        deviceSecret = suppliedSecret;
+        pairingPinValid = false;
+        pairingPin = "";
         portENTER_CRITICAL(&packetMux);
         memcpy(pinnedIdentity, identity, sizeof(identity));
         memcpy(pinnedAddress, address, sizeof(address));
         portEXIT_CRITICAL(&packetMux);
         sessionAuthenticated = true;
-        provisioningMode = false;
         SerialBT.println("OK_PROVISIONED");
       }
     }
@@ -311,7 +350,7 @@ void handleAppCommand(const char *message) {
       setEngineAllowed(true);
       SerialBT.println("OK_UNLOCKED");
   } else if (command == "GET_HELMET_ID") {
-    if (!sessionAuthenticated && !provisioningMode) { SerialBT.println("ERR_AUTH_REQUIRED"); return; }
+    if (!sessionAuthenticated) { SerialBT.println("ERR_AUTH_REQUIRED"); return; }
     char identity[256];
     portENTER_CRITICAL(&packetMux);
     memcpy(identity, candidateIdentity, sizeof(identity));
@@ -733,22 +772,6 @@ void helmetBluetoothTask(void *) {
   }
 }
 
-void handlePairingButton() {
-  static uint32_t pressedMs = 0;
-  static bool held = false;
-  const bool pressed = digitalRead(PAIRING_BUTTON_PIN) == LOW;
-  if (!pressed) { pressedMs = 0; held = false; }
-  else if (!pressedMs) pressedMs = millis();
-  else if (!held && millis() - pressedMs >= 3000) {
-    held = true;
-    if (!deviceSecret.length()) {
-      provisioningMode = true;
-      provisioningStartedMs = millis();
-      Serial.println("Pairing open for 60 seconds. Pair only your nearby helmet.");
-    } else Serial.println("Already provisioned. Erase motor NVS deliberately to change ownership.");
-  }
-  if (provisioningMode && millis() - provisioningStartedMs >= 60000) provisioningMode = false;
-}
 uint32_t activeHoldDurationMs = 0;
 
 void handleOverrideButton() {
@@ -774,9 +797,7 @@ void handleOverrideButton() {
     if (!longPressHandled) {
       if (holdDuration >= 3000) {
         if (deviceSecret.length() == 0) {
-          provisioningMode = true;
-          provisioningStartedMs = millis();
-          Serial.println("Pairing open for 60 seconds.");
+          Serial.println("Pairing PIN is shown on the OLED. Enter it in the app; no button is needed.");
         } else {
           Serial.println("3 SEC HOLD DETECTED: RESET OVERRIDE");
           overrideActive = false;
@@ -839,7 +860,6 @@ void setup() {
   pinMode(GREEN_LED_PIN, OUTPUT);
   pinMode(RED_LED_PIN, OUTPUT);
   pinMode(OVERRIDE_BUTTON_PIN, INPUT_PULLUP);
-  pinMode(PAIRING_BUTTON_PIN, INPUT_PULLUP);
   setEngineAllowed(false);
   if (!pairingStore.begin("motolock", false)) {
     Serial.println("Pairing storage failed.");
@@ -857,6 +877,7 @@ void setup() {
     strlcpy(pinnedIdentity, saved.substring(first + 1, second).c_str(), sizeof(pinnedIdentity));
     strlcpy(pinnedAddress, saved.substring(second + 1).c_str(), sizeof(pinnedAddress));
   }
+  refreshPairingPin();
 
   Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
   displayAvailable = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS);
@@ -883,7 +904,7 @@ void setup() {
 
 void loop() {
   feedGps();
-  handlePairingButton();
+  refreshPairingPin();
   handleOverrideButton();
   portENTER_CRITICAL(&packetMux);
   latestPacket = pendingPacket;
@@ -929,8 +950,12 @@ void loop() {
     snprintf(alcoholLine, sizeof(alcoholLine), "Alcohol: %.3f%%",
              alcoholPercent);
 
-    if (provisioningMode) {
-      showStatus("PAIRING ACTIVE", "Select MotoLock-Motor", "Keep own helmet nearby");
+    if (!deviceSecret.length()) {
+      char pinLine[24];
+      snprintf(pinLine, sizeof(pinLine), "PAIR PIN: %s", pairingPin.c_str());
+      showStatus(pinLine,
+                 pairingPinAttempts >= PAIRING_PIN_MAX_ATTEMPTS ? "PIN locked, wait rotate" : "Enter PIN in app",
+                 packetFresh ? "Helmet connected" : "Turn helmet on");
     } else if (overrideActive) {
       showStatus("OVERRIDE ACTIVE", "Engine enabled", alcoholLine);
     } else if (!packetFresh) {
@@ -953,9 +978,6 @@ void loop() {
 
   delay(10);
 }
-
-
-
 
 
 

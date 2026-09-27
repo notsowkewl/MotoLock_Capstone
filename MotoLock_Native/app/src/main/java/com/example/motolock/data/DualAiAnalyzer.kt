@@ -26,6 +26,7 @@ class DualAiAnalyzer(
     private val pairedHelmetVisualId: String?,
     private val helmetPublicKey: ByteArray?,
     private val logoIdentityDetector: LogoIdentityDetector,
+    private val onLowLightChanged: (Boolean) -> Unit = {},
     private val onResult: (Boolean, String) -> Unit
 ) : ImageAnalysis.Analyzer, AutoCloseable {
     
@@ -34,6 +35,7 @@ class DualAiAnalyzer(
         
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var stopped = false
+    @Volatile private var lowLight = false
     
     private var lastAnalyzed = 0L
 
@@ -93,6 +95,8 @@ class DualAiAnalyzer(
             return
         }
         lastAnalyzed = now
+
+        updateLowLight(proxy)
 
         var bitmap: Bitmap? = null
         try {
@@ -198,6 +202,28 @@ class DualAiAnalyzer(
         } finally {
             bitmap?.recycle()
             proxy.close()
+        }
+    }
+
+    private fun updateLowLight(proxy: ImageProxy) {
+        val plane = proxy.planes.firstOrNull() ?: return
+        val buffer = plane.buffer.duplicate()
+        val length = buffer.remaining()
+        if (length == 0) return
+        val step = max(1, length / 1200)
+        var total = 0L
+        var count = 0
+        var index = 0
+        while (index < length) {
+            total += (buffer.get(buffer.position() + index).toInt() and 0xff)
+            count++
+            index += step
+        }
+        val averageLuma = total / count
+        val nextLowLight = if (lowLight) averageLuma < 95 else averageLuma < 70
+        if (nextLowLight != lowLight) {
+            lowLight = nextLowLight
+            main.post { if (!stopped) onLowLightChanged(nextLowLight) }
         }
     }
 

@@ -1,13 +1,16 @@
 package com.example.motolock
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.Camera
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -93,7 +96,6 @@ private fun ConnectedUnlockScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
-    val motorStatus by rememberFreshMotorStatus(sessionService)
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
@@ -116,6 +118,7 @@ private fun ConnectedUnlockScreen(
     var currentStep by remember { mutableStateOf(UnlockStep.CONNECTING) }
     var isConnectionFailed by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf("Loading saved Face ID...") }
+    var lowLightDetected by remember { mutableStateOf(false) }
     
     // AI State
     var faceNetInterpreter by remember { mutableStateOf<Interpreter?>(null) }
@@ -128,6 +131,7 @@ private fun ConnectedUnlockScreen(
     var cameraPreview by remember { mutableStateOf<Preview?>(null) }
     var cameraAnalysis by remember { mutableStateOf<ImageAnalysis?>(null) }
     var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    var activeCamera by remember { mutableStateOf<Camera?>(null) }
     var activeAnalyzer by remember { mutableStateOf<DualAiAnalyzer?>(null) }
     val disposed = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
 
@@ -252,6 +256,22 @@ private fun ConnectedUnlockScreen(
         }
     }
 
+    val activityWindow = (context as? Activity)?.window
+    DisposableEffect(activityWindow, currentStep, lowLightDetected) {
+        val window = activityWindow
+        val originalBrightness = window?.attributes?.screenBrightness
+        if (window != null && currentStep == UnlockStep.FACE_HELMET_CHECK && lowLightDetected) {
+            window.attributes = window.attributes.apply {
+                screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL
+            }
+        }
+        onDispose {
+            if (window != null && originalBrightness != null) {
+                window.attributes = window.attributes.apply { screenBrightness = originalBrightness }
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -288,20 +308,22 @@ private fun ConnectedUnlockScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Progress indicators
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            StepIndicator(step = 1, current = currentStep.ordinal + 1, label = "Connect", icon = Icons.Default.BluetoothSearching)
-            StepIndicator(step = 2, current = currentStep.ordinal + 1, label = "Face/Helmet", icon = Icons.Default.CameraAlt)
-            StepIndicator(step = 3, current = currentStep.ordinal + 1, label = "Alcohol", icon = Icons.Default.LocalDrink)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            StepIndicator(step = 1, current = currentStep.ordinal, label = "Face/Helmet", icon = Icons.Default.CameraAlt)
+            StepIndicator(step = 2, current = currentStep.ordinal, label = "Alcohol", icon = Icons.Default.LocalDrink)
         }
 
         Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            "Motor: Connected | Helmet: " + (motorStatus?.helmetLabel() ?: "Waiting for status"),
-            color = textGray,
-            fontSize = 12.sp,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(18.dp))
+        if (lowLightDetected && currentStep == UnlockStep.FACE_HELMET_CHECK) {
+            Text(
+                "Low light detected. Screen brightness and camera exposure have been increased for face verification.",
+                color = textGray,
+                fontSize = 12.sp,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         
         Box(
             modifier = Modifier
@@ -345,7 +367,15 @@ private fun ConnectedUnlockScreen(
                                         pairedHelmetDeviceId = helmetIdentity?.deviceId,
                                         pairedHelmetVisualId = helmetIdentity?.visualId,
                                         helmetPublicKey = helmetIdentity?.publicKey,
-                                        logoIdentityDetector = com.example.motolock.data.IntegratedLogoDetector()
+                                        logoIdentityDetector = com.example.motolock.data.IntegratedLogoDetector(),
+                                        onLowLightChanged = { lowLight ->
+                                            lowLightDetected = lowLight
+                                            activeCamera?.let { camera ->
+                                                val range = camera.cameraInfo.exposureState.exposureCompensationRange
+                                                val target = if (lowLight) minOf(range.upper, 3) else 0.coerceIn(range.lower, range.upper)
+                                                camera.cameraControl.setExposureCompensationIndex(target)
+                                            }
+                                        }
                                     ) { success, msg ->
                                         if (disposed.get() || !sessionService.isConnected ||
                                             SessionState.activeBluetoothService !== sessionService ||
@@ -381,7 +411,7 @@ private fun ConnectedUnlockScreen(
 
                             try {
                                 provider.unbindAll()
-                                provider.bindToLifecycle(lifecycleOwner, cameraSelector, preview, imageAnalyzer)
+                                activeCamera = provider.bindToLifecycle(lifecycleOwner, cameraSelector, preview, imageAnalyzer)
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }

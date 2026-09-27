@@ -101,6 +101,10 @@ fun DashboardScreen(
     val activeService = SessionState.activeBluetoothService
     val deviceConnected by (activeService?.connectionState ?: disconnected).collectAsState()
     val motorStatus by rememberFreshMotorStatus(activeService)
+    val hasSavedHardwarePairing = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
+        .getString("esp32_secret_enc", null) != null
+    val pairedHardwareReady = deviceConnected && motorStatus?.helmetConnected == true &&
+        motorStatus?.helmetDataFresh == true && motorStatus?.testStatus != "HELMET_NOT_FOUND"
     val noStatus = remember { kotlinx.coroutines.flow.MutableStateFlow<com.example.motolock.data.MotorStatus?>(null) }
     val latestMotorStatus by (activeService?.motorStatus ?: noStatus).collectAsState()
 
@@ -367,14 +371,13 @@ fun DashboardScreen(
                     value = motorcycleInfo ?: "No Motorcycle Added"
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                if (hasConnectedDevice) {
+                if (hasConnectedDevice && hasSavedHardwarePairing && pairedHardwareReady) {
                     InfoCard(
                         icon = Icons.Default.Bluetooth,
-                        iconTint = if (deviceConnected) motoGreen else motoRed,
-                        iconBg = if (deviceConnected) Color(0xFFE6F4EE) else Color(0xFFFFEDEE),
+                        iconTint = motoGreen,
+                        iconBg = Color(0xFFE6F4EE),
                         label = "MotoLock Hardware",
-                        value = "Motor: ${if (deviceConnected) "Connected" else "Disconnected"}\n" +
-                            "Helmet: ${if (deviceConnected) motorStatus?.helmetLabel() ?: "Waiting for status" else "Unknown - motor disconnected"}"
+                        value = "Motor: Connected\nHelmet: Connected through Motor"
                     )
                 }
 
@@ -578,7 +581,5 @@ private fun InfoCard(
         }
     }
 }
-
-
 
 

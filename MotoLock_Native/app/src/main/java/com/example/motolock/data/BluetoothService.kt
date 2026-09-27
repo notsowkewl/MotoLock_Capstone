@@ -176,27 +176,41 @@ class BluetoothService(context: Context) {
         }
     }
 
-    suspend fun establishPairing(secret: String, progress: (String) -> Unit = {}) {
+    suspend fun establishPairing(
+        secret: String,
+        oneTimePin: String? = null,
+        progress: (String) -> Unit = {}
+    ) {
         require(secret.matches(Regex("[0-9a-f]{64}")))
+        require(oneTimePin == null || oneTimePin.matches(Regex("[0-9]{8}")))
         PairingRecovery().establish(
             authenticate = { check(authenticateSession(secret)) },
-            provision = { commands.withLock { request("PROVISION:$secret") { it == "OK_PROVISIONED" }; Unit } },
+            provision = {
+                val command = oneTimePin?.let { "PROVISION:$secret:$it" } ?: "PROVISION:$secret"
+                commands.withLock { request(command) { it == "OK_PROVISIONED" }; Unit }
+            },
             progress = progress
         )
     }
 
-    suspend fun sendProvisionCommand(secret: String): Pair<Boolean, String> = commands.withLock {
+    suspend fun sendProvisionCommand(secret: String, oneTimePin: String? = null): Pair<Boolean, String> = commands.withLock {
         try {
             require(secret.matches(Regex("[0-9a-f]{64}")))
-            request("PROVISION:$secret") { it == "OK_PROVISIONED" }
+            require(oneTimePin == null || oneTimePin.matches(Regex("[0-9]{8}")))
+            val command = oneTimePin?.let { "PROVISION:$secret:$it" } ?: "PROVISION:$secret"
+            request(command) { it == "OK_PROVISIONED" }
             true to "Success"
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) {
             if (e.message?.startsWith("ERR_") != true) throw e
             false to when (e.message) {
-                "ERR_PROVISIONING_NOT_ACTIVE" -> "Hold the motor BOOT button for 3 seconds, then pair within 60 seconds."
+                "ERR_PROVISIONING_NOT_ACTIVE" -> "This motor has old firmware. Upload the OLED PIN pairing firmware, then retry in the app."
                 "ERR_ALREADY_PROVISIONED" -> "This motor is already provisioned. Use its saved phone credentials."
                 "ERR_HELMET_NOT_READY" -> "Power on your helmet and wait for the motor to connect, then retry."
+                "ERR_PAIR_PIN_REQUIRED" -> "Enter the one-time PIN shown on the motor OLED."
+                "ERR_PAIR_PIN_INVALID" -> "Incorrect one-time PIN. Check the motor OLED and retry."
+                "ERR_PAIR_PIN_EXPIRED" -> "PIN expired. Enter the new PIN shown on the motor OLED."
+                "ERR_PAIR_PIN_LOCKED" -> "Too many incorrect attempts. Wait for the motor to show a new PIN."
                 else -> e.message.orEmpty()
             }
         }
@@ -320,4 +334,3 @@ class BluetoothService(context: Context) {
         runCatching { old?.close() }
     }
 }
-

@@ -89,7 +89,9 @@ object CameraDecision {
             faceDetected && faceMatches && !helmetOnHead -> state.copy(message = "Put your helmet on.")
             
             // CASE 5: Camera says helmet, IR sensor = 0
-            faceDetected && faceMatches && helmetOnHead && !irSensorActive -> state.copy(message = "Fasten helmet strap (IR sensor not detected).")
+            faceDetected && faceMatches && helmetOnHead && !irSensorActive -> state.copy(
+                message = "Camera sees a helmet, but the wear sensor is not active. Put the helmet on and position the sensor correctly."
+            )
             
             // CASE 4 & 6: Registered rider + helmet + face verified + IR sensor = 1
             faceDetected && faceMatches && helmetOnHead && irSensorActive -> state.copy(

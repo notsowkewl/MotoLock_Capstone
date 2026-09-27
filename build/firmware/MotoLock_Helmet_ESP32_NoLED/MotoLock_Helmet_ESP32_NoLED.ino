@@ -1,11 +1,9 @@
 /*
   MotoLock helmet transmitter for ESP32 Dev Module (ESP32-WROOM).
-  Existing sensor wiring: MQ-3 AO -> GPIO 34; IR DO -> GPIO 3.
+  Sensor wiring: MQ-3 AO -> GPIO 34; IR OUT -> GPIO 4.
   No helmet status LED is installed.
-
-  NOTE: GPIO 3 is serial RX, so the attached IR sensor can affect upload or
-  Serial Monitor input. GPIO signals must never exceed 3.3 V. Do not connect
-  the MQ-3 heater to an ESP32 GPIO.
+  GPIO signals must never exceed 3.3 V. Do not connect the MQ-3 heater to an
+  ESP32 GPIO.
 */
 
 #include <Arduino.h>
@@ -17,9 +15,9 @@
 #include "MotoLockProtocol.h"
 
 constexpr uint8_t MQ3_ANALOG_PIN = 34;
-constexpr uint8_t IR_DIGITAL_PIN = 3;
-// This IR module reports HIGH when its detection output is active.
-// If testing later proves the opposite, change this back to true.
+constexpr uint8_t IR_DIGITAL_PIN = 4;
+// The IR module's digital output is active LOW (common open-collector DO).
+// Pull it HIGH while idle, then interpret a LOW reading as helmet detection.
 constexpr bool IR_ACTIVE_LOW = true;
 
 constexpr uint32_t MQ3_WARMUP_MS = 60000;   // Demo setting; sensor may need longer
@@ -164,6 +162,7 @@ void updateSensors() {
   static uint8_t sampleCount = 0;
   static uint32_t baselineTotal = 0;
   static uint32_t baselineCount = 0;
+  static uint32_t baselineWindowStartedMs = 0;
   if (now - lastSampleMs < 8) return;
   lastSampleMs = now;
   const uint16_t sample = analogRead(MQ3_ANALOG_PIN);
@@ -175,13 +174,22 @@ void updateSensors() {
   }
   const uint32_t elapsed = now - sensorStartedMs;
   if (!baselineReady && elapsed >= MQ3_WARMUP_MS) {
-    if (elapsed < MQ3_WARMUP_MS + BASELINE_SAMPLE_MS) {
+    if (baselineWindowStartedMs == 0) baselineWindowStartedMs = now;
+    if (now - baselineWindowStartedMs < BASELINE_SAMPLE_MS) {
       baselineTotal += sample;
       ++baselineCount;
     } else if (baselineCount != 0) {
-      cleanAirBaseline = baselineTotal / baselineCount;
-      baselineReady = true;
-      Serial.printf("Baseline ready: %u\n", cleanAirBaseline);
+      const uint16_t candidateBaseline = baselineTotal / baselineCount;
+      if (candidateBaseline > 5 && candidateBaseline < 4090) {
+        cleanAirBaseline = candidateBaseline;
+        baselineReady = true;
+        Serial.printf("Baseline ready: %u\n", cleanAirBaseline);
+      } else {
+        baselineTotal = 0;
+        baselineCount = 0;
+        baselineWindowStartedMs = now;
+        Serial.printf("Invalid MQ-3 baseline (%u); checking sensor and retrying.\n", candidateBaseline);
+      }
     }
   }
 }
@@ -354,6 +362,3 @@ void loop() {
                 alcoholPercent, mqRaw, cleanAirBaseline,
                 static_cast<unsigned long long>(sequenceNumber));
 }
-
-
-

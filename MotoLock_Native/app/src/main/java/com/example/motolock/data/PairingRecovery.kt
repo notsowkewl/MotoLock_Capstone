@@ -11,6 +11,8 @@ internal class PairingRecovery(private val pause: suspend () -> Unit = { delay(5
         progress: (String) -> Unit = {}
     ) {
         var timeouts = 0
+        var helmetNotReady = false
+        var legacyFirmwareNeedsButton = false
         repeat(60) {
             try {
                 try {
@@ -31,13 +33,29 @@ internal class PairingRecovery(private val pause: suspend () -> Unit = { delay(5
                         // Authenticate on the next pass; never replace the saved secret.
                         if (++timeouts >= 3) throw e
                     }
-                    "ERR_HELMET_NOT_READY" -> progress("Waiting for the motor to verify your helmet…")
-                    "ERR_PROVISIONING_NOT_ACTIVE" -> progress("First pairing: hold motor BOOT for 3 seconds, then release. Keep this screen open.")
+                    "ERR_HELMET_NOT_READY" -> {
+                        helmetNotReady = true
+                        legacyFirmwareNeedsButton = false
+                        progress("Bluetooth connected. Waiting for the motor to detect your helmet…")
+                    }
+                    "ERR_PROVISIONING_NOT_ACTIVE" -> {
+                        helmetNotReady = false
+                        legacyFirmwareNeedsButton = true
+                        progress("This motor firmware still requires the BOOT button. Update it to the OLED PIN pairing firmware.")
+                    }
                     else -> throw e
                 }
             }
             pause()
         }
-        throw IOException("Pairing did not finish. Check helmet power and the motor pairing window, then retry.")
+        when {
+            legacyFirmwareNeedsButton -> throw IOException(
+                "This motor still has the old firmware that requires the BOOT button. Upload the new OLED PIN pairing firmware, then retry in the app."
+            )
+            helmetNotReady -> throw IOException(
+                "Bluetooth connected, but the motor cannot detect the helmet. Turn on the helmet, keep it near the motor, and retry."
+            )
+            else -> throw IOException("Bluetooth connected, but secure app pairing did not finish. Retry pairing and check the motor and helmet.")
+        }
     }
 }

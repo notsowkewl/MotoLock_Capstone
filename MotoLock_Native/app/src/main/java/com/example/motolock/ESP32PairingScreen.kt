@@ -20,6 +20,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -47,6 +48,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -54,6 +56,13 @@ import androidx.core.content.ContextCompat
 private fun isHelmetAvailabilityError(message: String?): Boolean =
     message == "Helmet is not ready. Check helmet power and keep it near the motor." ||
         message == "ERR_HELMET_NOT_READY"
+
+private val pairingPinErrors = setOf(
+    "ERR_PAIR_PIN_REQUIRED",
+    "ERR_PAIR_PIN_INVALID",
+    "ERR_PAIR_PIN_EXPIRED",
+    "ERR_PAIR_PIN_LOCKED"
+)
 
 @Composable
 fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
@@ -68,6 +77,8 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
     var bluetoothReady by remember { mutableStateOf(false) }
     var pairingService by remember { mutableStateOf<BluetoothService?>(null) }
     var pairingAddress by remember { mutableStateOf<String?>(null) }
+    var selectedPairingDevice by remember { mutableStateOf<BluetoothDevice?>(null) }
+    var oneTimePin by remember { mutableStateOf("") }
     var pairingComplete by remember { mutableStateOf(false) }
     var hardwareVerified by remember { mutableStateOf(false) }
     var pairingError by remember { mutableStateOf<String?>(null) }
@@ -136,7 +147,11 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
 
     }
 
-    fun connectAndSaveDevice(device: BluetoothDevice, savedTarget: Boolean = false) {
+    fun connectAndSaveDevice(
+        device: BluetoothDevice,
+        savedTarget: Boolean = false,
+        pin: String? = null
+    ) {
         if (connectingMacAddress != null || (!savedTarget && device.name != "MotoLock-Motor")) return
         connectingMacAddress = device.address
         pairingComplete = false
@@ -188,7 +203,7 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                     }
                     check(prefs.edit().putBoolean("device_registration_pending", true).commit()) { "Could not save registration state." }
                     // Preserve recovery credentials when pairing is interrupted or its reply is lost.
-                    svc.establishPairing(secret) { connectionProgress = it }
+                    svc.establishPairing(secret, pin) { connectionProgress = it }
                     connectionProgress = "Verifying helmet identity..."
                     val actual = svc.readHelmetIdentity()
                     val saved = com.example.motolock.data.HelmetIdentity.load(context)
@@ -207,6 +222,9 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                 e.printStackTrace()
                 // Keep the live motor link for STATUS updates and a setup retry.
                 pairingError = e.message ?: "Hardware setup did not finish. Retry when ready."
+                if (pairingError == "ERR_PAIR_PIN_EXPIRED" || pairingError == "ERR_PAIR_PIN_LOCKED") {
+                    oneTimePin = ""
+                }
                 if (!isHelmetAvailabilityError(pairingError)) {
                     withContext(kotlinx.coroutines.Dispatchers.Main) {
                         Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
@@ -217,7 +235,11 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
             }
             if (success && btService != null) {
                 pairingComplete = true
+                selectedPairingDevice = null
+                oneTimePin = ""
                 connectionProgress = "Hardware setup complete."
+            } else if (pairingError?.let { it in pairingPinErrors } == true) {
+                selectedPairingDevice = device
             }
         }
     }
@@ -337,6 +359,12 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) { service.disconnect(); throw e }
                 pairingError = e.message ?: "Hardware setup did not finish. Retry when ready."
+                if (pairingError?.let { it in pairingPinErrors } == true) {
+                    selectedPairingDevice = bluetoothAdapter?.getRemoteDevice(mac)
+                }
+                if (pairingError == "ERR_PAIR_PIN_EXPIRED" || pairingError == "ERR_PAIR_PIN_LOCKED") {
+                    oneTimePin = ""
+                }
             }
             if (!service.isConnected) service.disconnect()
         }
@@ -427,9 +455,11 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
         
 
 
-        Text(if (connectingMacAddress != null || isAutoConnecting || pairingComplete) connectionProgress else "Power on both boards. For first pairing only, hold motor BOOT for 3 seconds and release. Select MotoLock-Motor once and wait. Saved reconnects do not need BOOT.", fontSize = 12.sp, color = textGray)
+        if (connectingMacAddress != null || isAutoConnecting || pairingComplete) {
+            Text(connectionProgress, fontSize = 12.sp, color = textGray)
+        }
         Spacer(modifier = Modifier.height(12.dp))
-        Column(
+        if (hardwareReady && pairingComplete) Column(
             modifier = Modifier.fillMaxWidth()
                 .background(Color.White.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
                 .border(1.dp, lineCol, RoundedCornerShape(18.dp)).padding(14.dp),
@@ -444,10 +474,17 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                 }
             }
             Text("Motor: " + when {
-                motorConnected -> "Connected"
+                motorConnected -> "Bluetooth Connected"
                 connectingMacAddress != null || (isAutoConnecting && pairingService != null) -> "Connecting..."
                 else -> "Disconnected"
             }, fontSize = 13.sp, color = motoBlack)
+            if (motorConnected && !pairingComplete) {
+                Text(
+                    "Bluetooth link is connected; secure app pairing is still in progress.",
+                    fontSize = 12.sp,
+                    color = textGray
+                )
+            }
             Text("Helmet: $helmetStatus", fontSize = 13.sp, color = motoBlack)
             when {
                 helmetStatus == "Not Detected" -> Text(
@@ -456,8 +493,19 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                 motorConnected && helmetStatus == "Waiting for Status" -> Text(
                     "Waiting for the Motor to report a fresh helmet status.", fontSize = 12.sp, color = textGray)
             }
-            if (pairingError != null && !isHelmetAvailabilityError(pairingError)) {
-                Text(requireNotNull(pairingError), fontSize = 12.sp, color = motoRed)
+            val currentPairingError = pairingError
+            if (currentPairingError != null) {
+                val visibleError = when (currentPairingError) {
+                    "ERR_PAIR_PIN_REQUIRED" -> "Enter the 8-digit one-time PIN shown on the motor OLED."
+                    "ERR_PAIR_PIN_INVALID" -> "That PIN is incorrect. Check the current PIN on the motor OLED."
+                    "ERR_PAIR_PIN_EXPIRED" -> "That PIN expired. Enter the new PIN currently shown on the motor OLED."
+                    "ERR_PAIR_PIN_LOCKED" -> "Too many incorrect PIN attempts. Wait for the motor to display a new PIN."
+                    "ERR_HELMET_NOT_READY",
+                    "Helmet is not ready. Check helmet power and keep it near the motor." ->
+                        "Helmet is off or not detected. Turn it on and keep it near the motor, then retry."
+                    else -> currentPairingError
+                }
+                Text(visibleError, fontSize = 12.sp, color = motoRed)
             }
             if (!isAutoConnecting && connectingMacAddress == null && pairingAddress != null) {
                 if (pairingComplete && motorConnected) {
@@ -479,17 +527,92 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                             shape = RoundedCornerShape(15.dp)
                         ) { Text("Waiting for Helmet...") }
                     }
-                } else {
+                } else if (selectedPairingDevice == null) {
                     TextButton(onClick = {
                         bluetoothAdapter?.getRemoteDevice(requireNotNull(pairingAddress))?.let {
-                            connectAndSaveDevice(it, savedTarget = true)
+                            connectAndSaveDevice(it, savedTarget = true, pin = oneTimePin.takeIf { value -> value.isNotBlank() })
                         }
                     }) { Text("Retry hardware setup", color = motoRed) }
                 }
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        if (!motorConnected) {
+        if (pairingComplete && !hardwareReady) {
+            Text(
+                if (helmetStatus == "Not Detected") {
+                    "Paired motor is connected, but the helmet is not detected. Turn the helmet on and keep it near the motor."
+                } else {
+                    "Paired motor is connected. Waiting for a fresh helmet status."
+                },
+                fontSize = 12.sp,
+                color = if (helmetStatus == "Not Detected") motoRed else textGray
+            )
+        }
+        pairingError?.let { error ->
+            val message = when (error) {
+                "ERR_PAIR_PIN_REQUIRED" -> "Enter the 8-digit one-time PIN shown on the motor OLED."
+                "ERR_PAIR_PIN_INVALID" -> "That PIN is incorrect. Check the current PIN on the motor OLED."
+                "ERR_PAIR_PIN_EXPIRED" -> "That PIN expired. Enter the new PIN shown on the motor OLED."
+                "ERR_PAIR_PIN_LOCKED" -> "Too many incorrect attempts. Wait for the motor to show a new PIN."
+                "ERR_HELMET_NOT_READY",
+                "Helmet is not ready. Check helmet power and keep it near the motor." ->
+                    "Helmet is off or not detected. Turn it on and keep it near the motor, then retry."
+                else -> error
+            }
+            Text(message, fontSize = 12.sp, color = motoRed)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        if (selectedPairingDevice != null && !pairingComplete) {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
+                    .border(1.dp, lineCol, RoundedCornerShape(18.dp)).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    "Enter the one-time PIN from the motor OLED for ${selectedPairingDevice?.name ?: "MotoLock-Motor"}",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = motoBlack
+                )
+                OutlinedTextField(
+                    value = oneTimePin,
+                    onValueChange = { value ->
+                        if (value.length <= 8 && value.all { it.isDigit() }) {
+                            oneTimePin = value
+                            pairingError = null
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("8-digit PIN") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = motoBlack,
+                        unfocusedTextColor = motoBlack,
+                        focusedLabelColor = motoRed,
+                        unfocusedLabelColor = textGray,
+                        cursorColor = motoRed
+                    )
+                )
+                Button(
+                    onClick = {
+                        pairingError = null
+                        connectAndSaveDevice(requireNotNull(selectedPairingDevice), pin = oneTimePin)
+                    },
+                    enabled = oneTimePin.length == 8 && connectingMacAddress == null,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = motoRed)
+                ) {
+                    Text(
+                        if (connectingMacAddress != null) "Connecting..." else "Connect and Pair",
+                        color = Color.White
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+        if (!pairingComplete && selectedPairingDevice == null && !isAutoConnecting && connectingMacAddress == null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Available Devices", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = motoBlack)
                 if (isScanning) {
@@ -508,7 +631,10 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                             .background(Color.White.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
                             .border(1.dp, lineCol, RoundedCornerShape(18.dp))
                             .clickable(enabled = (connectingMacAddress == null && !isAutoConnecting && !motorConnected)) {
-                                connectAndSaveDevice(device)
+                                selectedPairingDevice = device
+                                pairingAddress = device.address
+                                oneTimePin = ""
+                                pairingError = null
                             }
                             .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -555,11 +681,3 @@ private fun PairingHardwareIndicator(ready: Boolean, loading: Boolean) {
         )
     }
 }
-
-
-
-
-
-
-
-
