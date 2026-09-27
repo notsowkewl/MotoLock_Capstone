@@ -28,6 +28,35 @@ const SUPABASE_URL = 'https://bafziqymbvhrytziteuo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZnppcXltYnZocnl0eml0ZXVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MjAzMzUsImV4cCI6MjEwMzk5NjMzNX0.F1KVSKnN_x-8O2gKlh0d8XPydlBWTcsS0GPbCS6CP_c';
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+interface SupabaseRecord extends Record<string, unknown> {
+  id?: string | number;
+  created_at?: string;
+  updated_at?: string;
+  start_time?: string;
+  user_id?: string;
+  device_id?: string | number | null;
+  motorcycle_id?: string | number | null;
+  status?: string;
+  initial_brac_level?: string | number | null;
+  face_verified?: boolean;
+  helmet_verified?: boolean;
+  name?: string;
+  full_name?: string;
+  email?: string;
+  role?: string;
+  face_descriptor?: unknown;
+  face_enrolled?: boolean;
+  phone_number?: string;
+  relationship?: string;
+  unlock_status?: string;
+  model?: string;
+  firmware_version?: string;
+  action_type?: string;
+  action_details?: unknown;
+  setting_key?: string;
+  setting_value?: string;
+}
+
 const SUPABASE_PAGE_SIZE = 1000;
 const sampleContactNames: Record<string, string> = {
   '4139d5f7-def8-5e0a-bb9c-e133268350f0': 'Maria Lourdes Basilio',
@@ -52,17 +81,17 @@ const displayContactName = (contact: { id?: string | number; name?: string }) =>
   return sampleContactNames[String(contact.id)] || 'Emergency Contact';
 };
 
-const fetchAllSupabaseRows = async (table: string, orderBy = 'id') => {
+const fetchAllSupabaseRows = async (table: string, orderBy = 'id'): Promise<SupabaseRecord[]> => {
   if (!supabaseClient) throw new Error('Supabase client is not available.');
-  const rows: any[] = [];
+  const rows: SupabaseRecord[] = [];
   for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
     const { data, error } = await supabaseClient
-      .from(table as any)
+      .from(table)
       .select('*')
       .order(orderBy, { ascending: true })
       .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
     if (error) throw new Error(error.message);
-    rows.push(...(data || []));
+    rows.push(...((data || []) as unknown as SupabaseRecord[]));
     if (!data || data.length < SUPABASE_PAGE_SIZE) return rows;
   }
 };
@@ -70,12 +99,12 @@ const fetchAllSupabaseRows = async (table: string, orderBy = 'id') => {
 const alertStore: AlertStore = {
   read: fetchAllSupabaseRows,
   getActor: async () => {
-    const { data, error } = await (supabaseClient.auth as any).getUser();
+    const { data, error } = await supabaseClient.auth.getUser();
     if (error) throw new Error(error.message);
     return data.user;
   },
   insert: async event => {
-    const { data, error } = await supabaseClient.from('audit_logs' as any).insert(event).select('*').single();
+    const { data, error } = await supabaseClient.from('audit_logs').insert(event).select('*').single();
     if (error) throw new Error(error.message);
     if (!data) throw new Error('Supabase did not confirm the resolution. Refresh alerts before retrying.');
     return data;
@@ -569,8 +598,8 @@ export default function AdminApp() {
   const triggerAuditLog = async (action: string, module: string, targetRecord: string) => {
     try {
       if (!supabaseClient) throw new Error('Supabase client is not available.');
-      const { data: authData } = await (supabaseClient.auth as any).getUser();
-      const { error } = await supabaseClient.from('audit_logs' as any).insert({
+      const { data: authData } = await supabaseClient.auth.getUser();
+      const { error } = await supabaseClient.from('audit_logs').insert({
         user_id: authData.user?.id || null,
         action_type: action,
         action_details: { module, target_record: targetRecord },
@@ -603,7 +632,7 @@ export default function AdminApp() {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
       const sobrietyByDay = new Map<string, { date: string; passed: number; failed: number }>();
       for (const ride of rides) {
-        const rideDate = new Date(ride.start_time);
+        const rideDate = new Date(ride.start_time || '');
         if (!ride.start_time || Number.isNaN(rideDate.getTime()) || rideDate < thirtyDaysAgo) continue;
         const date = dayKey(rideDate);
         const summary = sobrietyByDay.get(date) || { date, passed: 0, failed: 0 };
@@ -615,16 +644,18 @@ export default function AdminApp() {
       const devicesById = new Map(deviceRows.map((device) => [device.id, device]));
       const recentAlerts = rides
         .filter((ride) => ['failed_brac', 'failed_face', 'failed_helmet'].includes(String(ride.status).toLowerCase()))
-        .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
+        .sort((a, b) => new Date(b.start_time || '').getTime() - new Date(a.start_time || '').getTime())
         .slice(0, 10)
         .map((ride) => {
-          const user = usersById.get(ride.user_id);
+          const user = usersById.get(String(ride.user_id));
           return {
             ...ride,
-            created_at: ride.start_time,
+            id: ride.id ?? '',
+            created_at: ride.start_time || ride.created_at || '',
+            status: ride.status || 'unknown',
             full_name: user?.name || user?.full_name || user?.email || 'Unknown rider',
             email: user?.email || '',
-            motorcycle_id: devicesById.get(ride.device_id)?.motorcycle_id || '',
+            motorcycle_id: devicesById.get(String(ride.device_id))?.motorcycle_id || '',
             brac: String(ride.initial_brac_level ?? 0),
             alcohol_detected: ride.status === 'failed_brac',
             face_verified: ride.status !== 'failed_face',
@@ -637,7 +668,7 @@ export default function AdminApp() {
         activeDevices: deviceRows.filter((device) => device.status === 'online').length,
         recentOverrides: rides.filter((ride) => String(ride.status || '').includes('override')).length,
         todaysRides: rides.filter((ride) => ride.start_time && dayKey(ride.start_time) === dayKey(new Date())).length,
-        failedTests: rides.filter((ride) => ['failed_brac', 'failed_face'].includes(ride.status)).length,
+        failedTests: rides.filter((ride) => ['failed_brac', 'failed_face'].includes(String(ride.status))).length,
         sobrietySummary: Array.from(sobrietyByDay.values()),
         recentAlerts,
       });
@@ -651,27 +682,32 @@ export default function AdminApp() {
         fetchAllSupabaseRows('motorcycles'),
         fetchAllSupabaseRows('emergency_contacts'),
       ]);
-      const motorcyclesByUser = new Map<string, any[]>();
+      const motorcyclesByUser = new Map<string, SupabaseRecord[]>();
       for (const motorcycle of motorcycles) {
-        const current = motorcyclesByUser.get(motorcycle.user_id) || [];
+        const userId = motorcycle.user_id || '';
+        const current = motorcyclesByUser.get(userId) || [];
         current.push(motorcycle);
-        motorcyclesByUser.set(motorcycle.user_id, current);
+        motorcyclesByUser.set(userId, current);
       }
-      const contactsByUser = new Map<string, any[]>();
+      const contactsByUser = new Map<string, SupabaseRecord[]>();
       for (const contact of contacts) {
-        const current = contactsByUser.get(contact.user_id) || [];
+        const userId = contact.user_id || '';
+        const current = contactsByUser.get(userId) || [];
         current.push({ ...contact, name: displayContactName(contact), phone: contact.phone_number, role: contact.relationship });
-        contactsByUser.set(contact.user_id, current);
+        contactsByUser.set(userId, current);
       }
       setRiders(users.map((user) => ({
         ...user,
-        full_name: user.name || user.full_name || user.email,
+        id: String(user.id ?? ''),
+        full_name: user.name || user.full_name || user.email || 'Unknown rider',
+        email: user.email || '',
+        role: user.role || 'rider',
         face_enrolled: Boolean(user.face_descriptor || user.face_enrolled),
-        motorcycles: motorcyclesByUser.get(user.id) || [],
-        contacts: contactsByUser.get(user.id) || [],
+        motorcycles: (motorcyclesByUser.get(String(user.id)) || []) as unknown as Rider['motorcycles'],
+        contacts: (contactsByUser.get(String(user.id)) || []) as unknown as Rider['contacts'],
       })).sort((a, b) => {
-        const aUpdated = Date.parse((a as any).updated_at || a.created_at || '') || 0;
-        const bUpdated = Date.parse((b as any).updated_at || b.created_at || '') || 0;
+        const aUpdated = Date.parse(a.updated_at || a.created_at || '') || 0;
+        const bUpdated = Date.parse(b.updated_at || b.created_at || '') || 0;
         return bUpdated - aUpdated;
       }));
     } catch (error) { console.error(error); }
@@ -683,17 +719,20 @@ export default function AdminApp() {
         fetchAllSupabaseRows('ride_history'),
         fetchAllSupabaseRows('users'),
       ]);
-      const usersById = new Map(users.map((user) => [user.id, user]));
+      const usersById = new Map(users.map((user) => [String(user.id), user]));
       setOverrides(rides.map((ride) => {
-        const user = usersById.get(ride.user_id);
+        const user = usersById.get(String(ride.user_id));
         return {
           ...ride,
-          created_at: ride.start_time || ride.created_at,
+          created_at: ride.start_time || ride.created_at || '',
+          id: ride.id ?? '',
+          motorcycle_id: ride.motorcycle_id ?? undefined,
           full_name: user?.name || user?.full_name || 'Unknown rider',
           email: user?.email || '',
           brac: String(ride.initial_brac_level ?? ''),
+          status: ride.status || 'unknown',
           identity_display: getIdentityDisplay(ride),
-          alcohol_detected: ['failed_brac'].includes(ride.status),
+          alcohol_detected: ['failed_brac'].includes(String(ride.status)),
           face_verified: ride.face_verified ?? (ride.status !== 'failed_face'),
           helmet_verified: ride.helmet_verified ?? (ride.status !== 'failed_helmet'),
         };
@@ -707,8 +746,8 @@ export default function AdminApp() {
         fetchAllSupabaseRows('audit_logs'),
         fetchAllSupabaseRows('users'),
       ]);
-      const usersById = new Map(users.map((user) => [user.id, user]));
-      setAuditLogs(sortAuditLogs(logs.map(log => normalizeAuditLog(log, usersById.get(log.user_id)?.name))));
+      const usersById = new Map(users.map((user) => [String(user.id), user]));
+      setAuditLogs(sortAuditLogs(logs.map(log => normalizeAuditLog(log, usersById.get(String(log.user_id))?.name))));
     } catch (error) { console.error(error); }
   }, []);
 
@@ -716,7 +755,7 @@ export default function AdminApp() {
     try {
       const settings = await fetchAllSupabaseRows('system_settings', 'setting_key');
       if (settings.length) {
-        const s = Object.fromEntries(settings.map((row) => [row.setting_key, row.setting_value]));
+        const s = Object.fromEntries(settings.filter(row => row.setting_key).map((row) => [row.setting_key!, row.setting_value || '']));
         if (s.alcohol_threshold) setAlcoholThreshold(s.alcohol_threshold);
         if (s.lockout_limit) setLockoutLimit(s.lockout_limit);
         if (s.session_timeout) setSessionTimeout(s.session_timeout);
@@ -747,7 +786,7 @@ export default function AdminApp() {
 
   const saveSettingToDB = async (key: string, value: string) => {
     if (!supabaseClient) throw new Error('Supabase client is not available.');
-    const { error } = await supabaseClient.from('system_settings' as any).upsert(
+    const { error } = await supabaseClient.from('system_settings').upsert(
       { setting_key: key, setting_value: value },
       { onConflict: 'setting_key' },
     );
@@ -761,12 +800,14 @@ export default function AdminApp() {
         fetchAllSupabaseRows('users'),
         fetchAllSupabaseRows('motorcycles'),
       ]);
-      const usersById = new Map(users.map((user) => [user.id, user]));
-      const motorcyclesById = new Map(motorcycles.map((motorcycle) => [motorcycle.id, motorcycle]));
+      const usersById = new Map(users.map((user) => [String(user.id), user]));
+      const motorcyclesById = new Map(motorcycles.map((motorcycle) => [String(motorcycle.id), motorcycle]));
       setDevices(deviceRows.map((device) => ({
         ...device,
-        model: motorcyclesById.get(device.motorcycle_id)?.model || device.firmware_version || 'MotoLock device',
-        rider_name: usersById.get(device.user_id)?.name || 'Unassigned',
+        id: device.id ?? '',
+        user_id: device.user_id || '',
+        model: motorcyclesById.get(String(device.motorcycle_id))?.model || device.firmware_version || 'MotoLock device',
+        rider_name: usersById.get(String(device.user_id))?.name || 'Unassigned',
       })));
     } catch (error) { console.error(error); }
   }, []);
@@ -777,14 +818,17 @@ export default function AdminApp() {
         fetchAllSupabaseRows('ride_history'),
         fetchAllSupabaseRows('users'),
       ]);
-      const usersById = new Map(users.map((user) => [user.id, user]));
+      const usersById = new Map(users.map((user) => [String(user.id), user]));
       setNotifications(rides
-        .filter((ride) => ['failed_brac', 'failed_face'].includes(ride.status))
+        .filter((ride) => ['failed_brac', 'failed_face'].includes(String(ride.status)))
         .map((ride) => ({
           ...ride,
-          created_at: ride.start_time || ride.created_at,
-          full_name: usersById.get(ride.user_id)?.name || 'Unknown rider',
-          email: usersById.get(ride.user_id)?.email || '',
+          id: ride.id ?? '',
+          created_at: ride.start_time || ride.created_at || '',
+          motorcycle_id: ride.motorcycle_id ?? undefined,
+          status: ride.status || 'unknown',
+          full_name: usersById.get(String(ride.user_id))?.name || 'Unknown rider',
+          email: usersById.get(String(ride.user_id))?.email || '',
           brac: String(ride.initial_brac_level ?? 0),
           alcohol_detected: ride.status === 'failed_brac',
         })));
@@ -1019,8 +1063,8 @@ export default function AdminApp() {
         role: editRole,
         updated_at: updatedAt,
       } : r).sort((a, b) => {
-        const aUpdated = Date.parse((a as any).updated_at || a.created_at || '') || 0;
-        const bUpdated = Date.parse((b as any).updated_at || b.created_at || '') || 0;
+        const aUpdated = Date.parse(a.updated_at || a.created_at || '') || 0;
+        const bUpdated = Date.parse(b.updated_at || b.created_at || '') || 0;
         return bUpdated - aUpdated;
       });
       setRiders(updated);
@@ -3617,4 +3661,3 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginBottom: '16px'
   }
 };
-

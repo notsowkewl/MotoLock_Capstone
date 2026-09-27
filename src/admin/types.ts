@@ -28,7 +28,7 @@ export interface Rider {
   contacts?: Contact[];
 }
 export interface Device {
-  id: number;
+  id: string | number;
   user_id: string;
   status?: string;
   sim_number?: string;
@@ -38,14 +38,14 @@ export interface Device {
 }
 export interface SafetyLog extends IdentityMetadata {
   identity_display?: { verification: import('./identity-status').IdentityVerification; lockAction: import('./identity-status').IdentityLockAction };
-  id: number;
+  id: string | number;
   created_at: string;
   full_name: string;
   email: string;
   brac: string;
   status: string;
   unlock_status?: string;
-  motorcycle_id?: number;
+  motorcycle_id?: string | number;
   alcohol_detected?: boolean;
   face_verified?: boolean;
   helmet_verified?: boolean;
