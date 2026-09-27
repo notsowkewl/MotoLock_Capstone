@@ -22,6 +22,7 @@ export interface Rider {
   phone?: string;
   role: string;
   created_at?: string;
+  updated_at?: string;
   face_enrolled?: boolean;
   motorcycles?: Motorcycle[];
   contacts?: Contact[];

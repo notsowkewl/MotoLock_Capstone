@@ -5,6 +5,8 @@ interface ServiceError { message: string; context?: unknown }
 interface Result<T> { data: T | null; error: ServiceError | null }
 interface Query<T> extends PromiseLike<Result<T[]>> {
   eq(column: string, value: unknown): Query<T>;
+  order(column: string, options?: { ascending?: boolean }): Query<T>;
+  range(from: number, to: number): Query<T>;
   single(): Promise<Result<T>>;
 }
 interface Tables {
@@ -16,6 +18,10 @@ interface Tables {
 }
 interface Session { access_token: string }
 interface SupabaseClient {
+  from(table: 'system_settings'): {
+    select(columns: string): Query<{ setting_key: string; setting_value: string }>;
+    upsert(value: { setting_key: string; setting_value: string }, options?: { onConflict?: string }): PromiseLike<Result<null>>;
+  };
   from(table: 'audit_logs'): {
     select(columns: string): Query<Record<string, unknown>>;
     insert(value: Record<string, unknown>): Query<Record<string, unknown>> & {
@@ -23,6 +29,7 @@ interface SupabaseClient {
     };
   };
   from<K extends keyof Tables>(table: K): { select(columns: string): Query<Tables[K]> };
+  from(table: string): { select(columns: string): Query<Record<string, unknown>> };
   auth: {
     getUser(): Promise<{ data: { user: { id: string; email?: string } | null }; error: ServiceError | null }>;
     signInWithPassword(credentials: { email: string; password: string }): Promise<{
@@ -36,24 +43,8 @@ interface SupabaseClient {
     invoke(name: string, options: { body: Record<string, unknown>; headers: Record<string, string> }): Promise<Result<{ error?: string; user?: { id: string } }>>;
   };
 }
-interface PdfDocument {
-  text(text: string, x: number, y: number): void;
-  autoTable(options: { startY: number; head: string[][]; body: string[][] }): void;
-  save(filename: string): void;
-}
-interface Workbook { SheetNames: string[]; Sheets: Record<string, unknown> }
-
 declare global {
   interface Window {
     supabase: { createClient(url: string, key: string): SupabaseClient };
-    jspdf?: { jsPDF: new () => PdfDocument };
-    XLSX?: {
-      utils: {
-        json_to_sheet(rows: Record<string, unknown>[]): Record<string, unknown>;
-        book_new(): Workbook;
-        book_append_sheet(workbook: Workbook, sheet: Record<string, unknown>, name: string): void;
-      };
-      writeFile(workbook: Workbook, filename: string): void;
-    };
   }
 }

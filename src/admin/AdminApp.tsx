@@ -1,3 +1,6 @@
+import { reportOptions } from './report-options';
+import { createReportSnapshot, reportCellColor, rideReportTypes, userReportTypes } from './report-snapshot';
+import type { ReportSnapshot } from './report-snapshot';
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Rider, Device, SafetyLog, AuditLog, DashboardData, ReportRow, ApiResponses } from './types';
 import './browser-libraries';
@@ -447,9 +450,9 @@ export default function AdminApp() {
   };
   const [reportStart, setReportStart] = useState('');
   const [reportEnd, setReportEnd] = useState('');
-  const [reportPreview, setReportPreview] = useState<ReportRow[] | null>(null);
+  const [reportPreview, setReportPreview] = useState<ReportSnapshot | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-  const [generatedReportType, setGeneratedReportType] = useState('sobriety-test');
+  const [exportingReport, setExportingReport] = useState(false);
 
   // Apply visual theme class on change
   useEffect(() => {
@@ -690,7 +693,6 @@ export default function AdminApp() {
           email: user?.email || '',
           brac: String(ride.initial_brac_level ?? ''),
           identity_display: getIdentityDisplay(ride),
-          unlock_status: ride.status,
           alcohol_detected: ['failed_brac'].includes(ride.status),
           face_verified: ride.face_verified ?? (ride.status !== 'failed_face'),
           helmet_verified: ride.helmet_verified ?? (ride.status !== 'failed_helmet'),
@@ -1132,25 +1134,29 @@ export default function AdminApp() {
     setIsGeneratingReport(true);
     // Snapshot the current report type so the preview won't change if the dropdown changes later
     const frozenType = reportType;
-    setGeneratedReportType(frozenType);
+
     setTimeout(() => {
       let filtered: ReportRow[] = [];
-      const start = reportStart ? new Date(reportStart) : null;
-      const end = reportEnd ? new Date(reportEnd) : null;
+      const start = reportStart ? new Date(reportStart + 'T00:00:00') : null;
+      const end = reportEnd ? new Date(reportEnd + 'T23:59:59.999') : null;
 
-      const isRides = ['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(frozenType);
-
-      const isUsers = ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(frozenType);
+      const isRides = rideReportTypes.includes(frozenType);
+      const isUsers = userReportTypes.includes(frozenType);
+      const configuredThreshold = Number(alcoholThreshold);
+      const sobrietyThreshold = Number.isFinite(configuredThreshold) && configuredThreshold >= 0 ? configuredThreshold : 0.05;
 
       if (isRides) {
         filtered = overrides.filter(o => {
           const oDate = new Date(o.created_at);
           if (start && oDate < start) return false;
           if (end && oDate > end) return false;
-          if (reportStatus === 'completed' && o.status !== 'unlocked') return false;
-          if (reportStatus === 'alert' && parseFloat(o.brac) < 0.05) return false;
-          if (reportAlcohol === '1' && parseFloat(o.brac) < 0.05) return false;
-          if (reportAlcohol === '0' && parseFloat(o.brac) >= 0.05) return false;
+          // Session completion is stored in `status`; ignition access is a separate field.
+          if (reportStatus === 'completed' && String(o.status || '').trim().toLowerCase() !== 'completed') return false;
+          const reading = o.brac?.trim() ? Number(o.brac) : NaN;
+          const hasReading = Number.isFinite(reading) && reading >= 0;
+          if (reportStatus === 'alert' && (!hasReading || reading <= sobrietyThreshold)) return false;
+          if (reportAlcohol === '1' && (!hasReading || reading <= sobrietyThreshold)) return false;
+          if (reportAlcohol === '0' && (!hasReading || reading > sobrietyThreshold)) return false;
           return true;
         });
       } else if (isUsers) {
@@ -1191,38 +1197,30 @@ export default function AdminApp() {
         });
       }
 
-      setReportPreview(filtered);
+      setReportPreview(createReportSnapshot(frozenType, filtered, {
+        coverage: `${reportStart || 'Beginning'} to ${reportEnd || 'Present'}`,
+        alcoholThreshold: String(sobrietyThreshold),
+        filters: isRides
+          ? `Ride status: ${{ all: 'All Rides', completed: 'Completed Session', alert: 'Alert (Sobriety Fail)' }[reportStatus]} | Alcohol: ${{ all: 'All sessions', '1': 'Intoxicated only', '0': 'Sober only' }[reportAlcohol]}`
+          : isUsers ? `Role: ${reportRole === 'all' ? 'All Roles' : reportRole}` : 'All matching records',
+      }));
       setIsGeneratingReport(false);
     }, 600);
   };
 
-  // Export pdf / excel
+  // Export the exact generated snapshot, without querying a different dataset.
   const exportReport = async (format: 'pdf' | 'excel') => {
-    triggerAuditLog(`Generated ${format.toUpperCase()} compliance report`, 'Reports', reportType);
+    if (!reportPreview || exportingReport) return;
+    const snapshot = reportPreview;
+    setExportingReport(true);
     try {
-      const { data: rides } = await supabaseClient.from('ride_history').select('*, users(name)');
-      if (format === 'pdf') {
-        if (!window.jspdf) { alert("PDF library loading."); return; }
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        doc.text("MotoLock Compliance Report", 14, 22);
-        const tableData = (rides || []).map((r) => [
-          r.users?.name || 'Rider',
-          new Date(r.start_time || Date.now()).toLocaleString(),
-          (r.brac_level || 0) + '%',
-          (r.status || 'passed').toUpperCase()
-        ]);
-        doc.autoTable({ startY: 38, head: [['Rider', 'Date/Time', 'BrAC Level', 'Status']], body: tableData });
-        doc.save("MotoLock_Report.pdf");
-      } else {
-        if (!window.XLSX) return;
-        const ws = window.XLSX.utils.json_to_sheet((rides || []).map((r) => ({ Rider: r.users?.name, Date: r.start_time, BrAC: r.brac_level })));
-        const wb = window.XLSX.utils.book_new();
-        window.XLSX.utils.book_append_sheet(wb, ws, "Rides");
-        window.XLSX.writeFile(wb, "MotoLock_Data.xlsx");
-      }
-    } catch (e) {
-      console.error(e);
+      const { downloadReport } = await import('./report-export');
+      await downloadReport(snapshot, format);
+      triggerAuditLog(`Generated ${format.toUpperCase()} report`, 'Reports', snapshot.type);
+    } catch (error) {
+      showCustomAlert('Export Failed', errorMessage(error));
+    } finally {
+      setExportingReport(false);
     }
   };
 
@@ -2235,82 +2233,7 @@ export default function AdminApp() {
                 <div style={{ flex: 1 }}>
                   <label style={styles.label}>Report Type</label>
                   <CustomSelect
-                    options={[
-                      { value: 'cat-safety', label: 'SAFETY & SOBRIETY', disabled: true },
-                      { value: 'sobriety-test', label: 'Sobriety Test Report' },
-                      { value: 'alcohol-detection', label: 'Alcohol Detection Report' },
-                      { value: 'failed-sobriety', label: 'Failed Sobriety & Lockout Report' },
-                      { value: 'rider-safety', label: 'Rider Safety Summary' },
-                      { value: 'sobriety-trend', label: 'Sobriety Trend Report' },
-
-                      { value: 'cat-riders', label: 'RIDERS', disabled: true },
-                      { value: 'rider-master', label: 'Rider Master List' },
-                      { value: 'rider-activity', label: 'Rider Activity Report' },
-                      { value: 'rider-safety-hist', label: 'Rider Safety History' },
-                      { value: 'rider-incident-hist', label: 'Rider Incident History' },
-                      { value: 'rider-reg', label: 'Rider Registration Report' },
-
-                      { value: 'cat-motorcycles', label: 'MOTORCYCLES & DEVICES', disabled: true },
-                      { value: 'motorcycle-reg', label: 'Motorcycle Registry Report' },
-                      { value: 'device-inventory', label: 'MotoLock Device Inventory' },
-                      { value: 'helmet-unit', label: 'Helmet Unit Report' },
-                      { value: 'motorcycle-unit', label: 'Motorcycle Unit Report' },
-                      { value: 'device-pairing', label: 'Device Pairing Report' },
-                      { value: 'device-connection', label: 'Device Connection Status Report' },
-                      { value: 'device-fault', label: 'Device Fault & Failure Report' },
-
-                      { value: 'cat-identity', label: 'IDENTITY VERIFICATION', disabled: true },
-                      { value: 'identity-verif', label: 'Identity Verification Report' },
-                      { value: 'failed-verif', label: 'Failed Verification Report' },
-                      { value: 'verif-attempt', label: 'Verification Attempt History' },
-                      { value: 'liveness-verif', label: 'Liveness Verification Report' },
-
-                      { value: 'cat-alerts', label: 'ALERTS & INCIDENTS', disabled: true },
-                      { value: 'alert-summary', label: 'Alert Summary Report' },
-                      { value: 'safety-incident', label: 'Safety Incident Report' },
-                      { value: 'critical-incident', label: 'Critical Incident Report' },
-                      { value: 'resolved-incident', label: 'Resolved Incident Report' },
-                      { value: 'incident-resolution', label: 'Incident Resolution Report' },
-                      { value: 'alert-trend', label: 'Alert Trend Report' },
-
-                      { value: 'cat-location', label: 'LOCATION & GPS', disabled: true },
-                      { value: 'gps-activity', label: 'GPS Activity Report' },
-                      { value: 'incident-loc', label: 'Incident Location Report' },
-                      { value: 'lockout-loc', label: 'Lockout Location Report' },
-                      { value: 'last-known-loc', label: 'Last Known Location Report' },
-
-                      { value: 'cat-override', label: 'OVERRIDE & ACCESS', disabled: true },
-                      { value: 'manual-override', label: 'Manual Override Report' },
-                      { value: 'override-history', label: 'Override History Report' },
-                      { value: 'ignition-override', label: 'Ignition Override Report' },
-                      { value: 'failed-access', label: 'Failed Access Attempt Report' },
-
-                      { value: 'cat-admin', label: 'ADMINISTRATION', disabled: true },
-                      { value: 'admin-list', label: 'Administrator/User List' },
-                      { value: 'user-activity', label: 'User Activity Report' },
-                      { value: 'role-permission', label: 'Role & Permission Report' },
-                      { value: 'login-history', label: 'Login History Report' },
-                      { value: 'failed-login', label: 'Failed Login Report' },
-                      { value: 'account-status', label: 'Account Status Report' },
-
-                      { value: 'cat-audit', label: 'AUDIT & SYSTEM', disabled: true },
-                      { value: 'audit-trail', label: 'Audit Trail Report' },
-                      { value: 'system-activity', label: 'System Activity Report' },
-                      { value: 'config-change', label: 'Configuration Change Report' },
-                      { value: 'system-event', label: 'System Event Report' },
-                      { value: 'system-health', label: 'System Health Report' },
-
-                      { value: 'cat-backup', label: 'BACKUP & MAINTENANCE', disabled: true },
-                      { value: 'backup-history', label: 'Backup History Report' },
-                      { value: 'backup-status', label: 'Backup Status Report' },
-                      { value: 'restore-history', label: 'Restore History Report' },
-                      { value: 'maintenance-activity', label: 'Maintenance Activity Report' },
-                      { value: 'system-maintenance', label: 'System Maintenance Report' },
-
-                      { value: 'cat-comprehensive', label: 'COMPREHENSIVE', disabled: true },
-                      { value: 'comp-safety', label: 'Comprehensive MotoLock Safety Report' },
-                      { value: 'comp-system', label: 'Comprehensive MotoLock System Report' }
-                    ]}
+                    options={reportOptions}
                     value={reportType}
                     onChange={val => handleSetReportType(val)}
                   />
@@ -2419,17 +2342,17 @@ export default function AdminApp() {
                       Report Preview
                     </h3>
                     <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                      Generated {reportPreview.length} matching record(s)
+                      {reportPreview.title} · {reportPreview.rows.length} matching record(s)
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 12 }}>
-                    <button onClick={() => exportReport('pdf')} style={styles.actionBtn}>
+                    <button disabled={exportingReport} onClick={() => exportReport('pdf')} style={styles.actionBtn}>
                       <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
                         <Icon name="reports" size={14} />
                       </span>
                       Export PDF
                     </button>
-                    <button onClick={() => exportReport('excel')} style={styles.actionBtn}>
+                    <button disabled={exportingReport} onClick={() => exportReport('excel')} style={styles.actionBtn}>
                       <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
                         <Icon name="analytics" size={14} />
                       </span>
@@ -2441,81 +2364,17 @@ export default function AdminApp() {
                 <div style={{ overflowX: 'auto' }}>
                   <table style={styles.table}>
                     <thead>
-                      <tr>
-                        {['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(generatedReportType) ? (
-                          <>
-                            <th style={styles.tableHeader}>Date</th>
-                            <th style={styles.tableHeader}>Rider</th>
-                            <th style={styles.tableHeader}>BrAC Level</th>
-                            <th style={styles.tableHeader}>Sobriety Status</th>
-                            <th style={styles.tableHeader}>Ignition State</th>
-                          </>
-                        ) : ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(generatedReportType) ? (
-                          <>
-                            <th style={styles.tableHeader}>Rider Name</th>
-                            <th style={styles.tableHeader}>Email</th>
-                            <th style={styles.tableHeader}>Phone</th>
-                            <th style={styles.tableHeader}>Role</th>
-                            <th style={styles.tableHeader}>Face ID</th>
-                          </>
-                        ) : (
-                          <>
-                            <th style={styles.tableHeader}>Timestamp</th>
-                            <th style={styles.tableHeader}>Record ID</th>
-                            <th style={styles.tableHeader}>Details</th>
-                          </>
-                        )}
-                      </tr>
+                      <tr>{reportPreview.headers.map(header => <th key={header} style={styles.tableHeader}>{header}</th>)}</tr>
                     </thead>
                     <tbody>
-                      {reportPreview.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} style={{ ...styles.tableCell, textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>
-                            No matching report data found for the selected range/filters.
-                          </td>
-                        </tr>
-                      ) : (
-                        reportPreview.slice(0, 15).map((row, rIdx: number) => (
-                          <tr key={rIdx}>
-                            {['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(generatedReportType) ? (
-                              <>
-                                <td style={styles.tableCell}>{new Date(row.created_at || Date.now()).toLocaleString()}</td>
-                                <td style={styles.tableCell}>{row.full_name} ({row.email})</td>
-                                <td style={styles.tableCell}><strong>{row.brac} BAC</strong></td>
-                                <td style={styles.tableCell}>
-                                  <span style={{ color: parseFloat(row.brac || '0') >= 0.05 ? 'var(--red)' : 'var(--green)', fontWeight: 700 }}>
-                                    <><Icon name={parseFloat(row.brac || '0') >= 0.05 ? 'warning' : 'check'} size={14} color={parseFloat(row.brac || '0') >= 0.05 ? 'var(--red)' : 'var(--green)'} /> {parseFloat(row.brac || '0') >= 0.05 ? 'Intoxicated' : 'Sober'}</>
-                                  </span>
-                                </td>
-                                <td style={styles.tableCell}>Ignition: {row.status}</td>
-                              </>
-                            ) : ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(generatedReportType) ? (
-                              <>
-                                <td style={styles.tableCell}>{row.full_name}</td>
-                                <td style={styles.tableCell}>{row.email}</td>
-                                <td style={styles.tableCell}>{maskPhone(row.phone)}</td>
-                                <td style={styles.tableCell}>{row.role}</td>
-                                <td style={styles.tableCell}>{row.face_enrolled ? 'Enrolled' : 'Missing'}</td>
-                              </>
-                            ) : (
-                              <>
-                                <td style={styles.tableCell}>{new Date(row.created_at || Date.now()).toLocaleString()}</td>
-                                <td style={styles.tableCell}><code>ID-{row.id || rIdx}</code></td>
-                                <td style={styles.tableCell}>
-                                  {row.action || row.model || row.unlock_status || 'System Log Activity'}
-                                </td>
-                              </>
-                            )}
-                          </tr>
-                        ))
-                      )}
-                      {reportPreview.length > 15 && (
-                        <tr>
-                          <td colSpan={5} style={{ ...styles.tableCell, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
-                            Showing first 15 records in preview. Click Export PDF/Excel above to download all {reportPreview.length} records.
-                          </td>
-                        </tr>
-                      )}
+                      {reportPreview.rows.length === 0 ? (
+                        <tr><td colSpan={reportPreview.headers.length} style={{ ...styles.tableCell, textAlign: 'center', color: 'var(--muted)' }}>No matching report data found for the selected range/filters.</td></tr>
+                      ) : reportPreview.rows.slice(0, 15).map((row, index) => (
+                        <tr key={index}>{row.map((value, column) => <td key={column} style={{ ...styles.tableCell, ...(reportCellColor(value) ? { color: reportCellColor(value), fontWeight: 700 } : {}) }}>{value}</td>)}</tr>
+                      ))}
+                      {reportPreview.rows.length > 15 && <tr><td colSpan={reportPreview.headers.length} style={{ ...styles.tableCell, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+                        Showing first 15 records in preview. Export includes all {reportPreview.rows.length} matching records in this order.
+                      </td></tr>}
                     </tbody>
                   </table>
                 </div>
