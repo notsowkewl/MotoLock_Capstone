@@ -73,6 +73,7 @@ export interface DashboardData {
 }
 // Report categories share a preview table but expose different columns.
 export interface ReportRow {
+  is_locked?: boolean | number;
   id: string | number;
   created_at?: string;
   full_name?: string;

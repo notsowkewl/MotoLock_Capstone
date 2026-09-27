@@ -113,7 +113,8 @@ export function buildReportWorkbook(report: ReportSnapshot) {
       cell.border = { bottom: { style: 'hair', color: { argb: 'FFDCE1E8' } } };
       // Strings preserve the exact preview text, masked phones, zeros, and timezone.
       cell.numFmt = '@';
-      lines = Math.max(lines, Math.ceil(String(cell.value).length / ((sheet.getColumn(column).width || 20) - 4)));
+      const columnWidth = (sheet.getColumn(column).width || 20) - 4;
+      lines = Math.max(lines, String(cell.value).split('\n').reduce((total, line) => total + Math.max(1, Math.ceil(line.length / columnWidth)), 0));
     });
     row.height = Math.max(28, lines * 16 + 10);
   });

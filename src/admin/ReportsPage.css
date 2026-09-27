@@ -1,0 +1,44 @@
+.reports-page { color: var(--text); }
+.reports-heading { margin: 0; font-size: 17px; font-weight: 700; }
+.reports-description { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.reports-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; }
+.reports-filters label { display: flex; flex-direction: column; gap: 8px; min-width: 0; font-size: 12px; font-weight: 600; }
+.reports-filters select, .reports-filters input { min-height: 42px; width: 100%; box-sizing: border-box; }
+.reports-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.reports-sort-actions { display: flex; align-items: flex-end; gap: 10px; min-width: 0; }
+.reports-sort-actions label { flex: 1; }
+.reports-sort-actions button { min-height: 42px; flex-shrink: 0; white-space: nowrap; }
+.reports-page button { cursor: pointer; }
+.reports-page button:disabled { cursor: wait; opacity: .55; }
+.reports-page :is(button, select, input):focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
+.report-preview { margin-top: 24px; }
+.reports-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.reports-stat { border: 1px solid var(--border); background: var(--card); border-radius: 12px; padding: 18px 20px; }
+.reports-stat span { display: block; color: var(--muted); font-size: 12px; font-weight: 600; }
+.reports-stat strong { display: block; margin-top: 8px; font-size: 26px; font-variant-numeric: tabular-nums; }
+.reports-results { border: 1px solid var(--border); border-radius: 14px; background: var(--card); overflow: hidden; }
+.reports-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; padding: 24px; }
+.reports-updated { margin: 7px 0 0; color: var(--muted); font-size: 11px; }
+.reports-toolbar button { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 15px; font: inherit; font-size: 12px; font-weight: 600; }
+.reports-toolbar button:hover { background: color-mix(in srgb, var(--muted) 8%, transparent); }
+.reports-table-scroll { overflow-x: auto; }
+.reports-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+.reports-table th { padding: 13px 20px; background: color-mix(in srgb, var(--muted) 6%, transparent); border-block: 1px solid var(--border); color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
+.reports-table td { padding: 16px 20px; border-bottom: 1px solid var(--border); line-height: 1.5; vertical-align: middle; }
+.reports-table tbody tr:hover { background: color-mix(in srgb, var(--muted) 4%, transparent); }
+.reports-table td:first-child { min-width: 145px; font-size: 12px; }
+.reports-rider { display: flex; flex-direction: column; gap: 3px; min-width: 180px; }
+.reports-rider strong { font-weight: 600; }
+.reports-rider span { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.reports-bac { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.reports-bac-high { color: var(--red); }
+.reports-muted { color: var(--muted); font-size: 12px; }
+.report-badge { display: inline-flex; padding: 4px 9px; border-radius: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; background: color-mix(in srgb, var(--muted) 10%, transparent); }
+.report-badge-sober, .report-badge-passed { color: var(--green); background: color-mix(in srgb, var(--green) 9%, transparent); }
+.report-badge-not-sober, .report-badge-failed { color: var(--red); background: color-mix(in srgb, var(--red) 7%, transparent); }
+.reports-empty { padding: 45px 15px; text-align: center; }
+.reports-empty strong { font-size: 15px; }
+.reports-empty p, .reports-export-note { color: var(--muted); font-size: 12px; }
+.reports-export-note { margin: 0; padding: 16px 24px; }
+.reports-results nav { padding: 16px 24px 0; }
+@media (max-width: 600px) { .reports-toolbar { padding: 18px; } .reports-filters { grid-template-columns: 1fr; } .reports-summary { grid-template-columns: repeat(2, 1fr); } }

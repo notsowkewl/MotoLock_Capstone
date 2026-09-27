@@ -29,7 +29,7 @@ describe('all report exports use the preview snapshot', () => {
       for (const header of snapshot.headers) expect(pdf).toContain(header);
       if (rideReportTypes.includes(option.value)) {
         expect(pdf).toContain('0.049 BAC');
-        expect(pdf).toContain('0 BAC');
+        expect(pdf).toContain('0.00 BAC');
         expect(pdf).toContain('Not Tested');
       } else if (userReportTypes.includes(option.value)) {
         expect(pdf).toContain('091******67');
@@ -47,8 +47,8 @@ it('freezes formatted data, preserves order and does not invent timestamps or ze
   const snapshot = createReportSnapshot('sobriety-test', input, metadata);
   input[0].brac = '99';
   expect(snapshot.rows[0][2]).toBe('0.049 BAC');
-  expect(snapshot.rows[1][2]).toBe('0 BAC');
-  expect(snapshot.rows[2]).toEqual(['Not Recorded', 'Missing reading', 'Not Tested', 'Not Tested', 'Ignition: failed_face']);
+  expect(snapshot.rows[1][2]).toBe('0.00 BAC');
+  expect(snapshot.rows[2]).toEqual(['Not Recorded', 'Missing reading', 'Not Tested', 'Not Tested', 'Not Recorded', 'Failed']);
 });
 
 it('exports all rows beyond the 15-row preview and produces multiple PDF pages', async () => {
@@ -58,7 +58,7 @@ it('exports all rows beyond the 15-row preview and produces multiple PDF pages',
   expect(pdf.getNumberOfPages()).toBeGreaterThan(1);
   expect(pdf.output()).toContain('Rider 69');
   const workbook = buildReportWorkbook(snapshot);
-  expect(workbook.getWorksheet('Report')!.getRow(77).getCell(2).value).toBe('Rider 69 (jenna@example.com)');
+  expect(workbook.getWorksheet('Report')!.getRow(77).getCell(2).value).toBe('Rider 69\njenna@example.com');
   if (process.env.REPORT_ARTIFACT_DIR) {
     const { mkdirSync, writeFileSync } = await import('node:fs');
     mkdirSync(process.env.REPORT_ARTIFACT_DIR, { recursive: true });

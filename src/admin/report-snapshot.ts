@@ -10,12 +10,32 @@ export interface ReportSnapshot {
   coverage: string;
   filters: string;
   alcoholThreshold?: string;
+  sortOrder?: string;
+  hasFilters?: boolean;
   headers: string[];
   rows: string[][];
 }
 export const reportDate = (value?: string) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'Not Recorded';
 const phone = (value?: string) => !value ? '—' : value.length < 7 ? value : value.slice(0, 3) + '*'.repeat(value.length - 5) + value.slice(-2);
-export function createReportSnapshot(type: string, records: ReportRow[], metadata: Pick<ReportSnapshot, 'coverage' | 'filters'> & Partial<Pick<ReportSnapshot, 'alcoholThreshold'>>): ReportSnapshot {
+export function reportRideStatus(row: ReportRow): string {
+  const status = (row.status || row.unlock_status || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (['ongoing', 'in_progress', 'started', 'pending', 'testing', 'verifying'].includes(status)) return 'Ongoing';
+  if (['passed', 'completed', 'cleared'].includes(status)) return 'Passed';
+  if (['failed', 'failed_brac', 'failed_face', 'failed_helmet', 'failed_identity', 'verification_failed', 'completed_with_issues', 'restricted'].includes(status)) return 'Failed';
+  return 'Not Recorded';
+}
+
+export function reportIgnitionState(row: ReportRow): string {
+  // Access granted is not evidence that the engine was switched on.
+  if (row.is_locked === true || row.is_locked === 1) return 'Locked';
+  const state = (row.unlock_status || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (['locked', 'motor_still_locked'].includes(state)) return 'Locked';
+  if (state === 'on' || state === 'ignition_on') return 'On';
+  if (state === 'off' || state === 'ignition_off') return 'Off';
+  return 'Not Recorded';
+}
+
+export function createReportSnapshot(type: string, records: ReportRow[], metadata: Pick<ReportSnapshot, 'coverage' | 'filters'> & Partial<Pick<ReportSnapshot, 'alcoholThreshold' | 'sortOrder' | 'hasFilters'>>): ReportSnapshot {
   const rides = rideReportTypes.includes(type);
   const users = userReportTypes.includes(type);
   const sortedRecords = records.map((record, index) => ({
@@ -25,14 +45,14 @@ export function createReportSnapshot(type: string, records: ReportRow[], metadat
   })).sort((a, b) => {
     const aValid = Number.isFinite(a.timestamp);
     const bValid = Number.isFinite(b.timestamp);
-    if (aValid && bValid && a.timestamp !== b.timestamp) return b.timestamp - a.timestamp;
+    if (aValid && bValid && a.timestamp !== b.timestamp) return metadata.sortOrder === 'oldest' ? a.timestamp - b.timestamp : b.timestamp - a.timestamp;
     if (aValid !== bValid) return aValid ? -1 : 1;
     return a.index - b.index;
   }).map(item => item.record);
   return {
     type, title: reportOptions.find(option => option.value === type)?.label || 'MotoLock Report',
     generatedAt: new Date().toISOString(), ...metadata,
-    headers: rides ? ['Date', 'Rider', 'BrAC Level', 'Sobriety Status']
+    headers: rides ? ['Date & Time', 'Rider Details', 'BAC Level', 'Sobriety Status', 'Ignition State', 'Ride Status']
       : users ? ['Rider Name', 'Email', 'Phone', 'Role', 'Face ID'] : ['Timestamp', 'Record ID', 'Details'],
     rows: sortedRecords.map(row => {
       if (rides) {
@@ -40,8 +60,9 @@ export function createReportSnapshot(type: string, records: ReportRow[], metadat
         const tested = Number.isFinite(reading) && reading >= 0;
         const configuredThreshold = Number(metadata.alcoholThreshold);
         const threshold = Number.isFinite(configuredThreshold) && configuredThreshold >= 0 ? configuredThreshold : 0.05;
-        return [reportDate(row.created_at), [row.full_name, row.email ? `(${row.email})` : ''].filter(Boolean).join(' ') || 'Not Recorded',
-          tested ? `${row.brac} BAC` : 'Not Tested', tested ? reading > threshold ? 'Intoxicated' : 'Sober' : 'Not Tested'];
+        return [reportDate(row.created_at), [row.full_name || 'Not Recorded', row.email].filter(Boolean).join('\n'),
+          tested ? `${reading.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 20, useGrouping: false })} BAC` : 'Not Tested', tested ? reading > threshold ? 'Not Sober' : 'Sober' : 'Not Tested',
+          reportIgnitionState(row), reportRideStatus(row)];
       }
       if (users) return [row.full_name || 'Not Recorded', row.email || 'Not Recorded', phone(row.phone), row.role || 'Not Recorded', row.face_enrolled ? 'Enrolled' : 'Missing'];
       return [reportDate(row.created_at), `ID-${row.id}`, row.action || row.model || row.unlock_status || 'System Log Activity'];
@@ -50,6 +71,6 @@ export function createReportSnapshot(type: string, records: ReportRow[], metadat
 }
 export function reportCellColor(value: string): string | undefined {
   if (['Sober', 'Enrolled'].includes(value)) return '#16804a';
-  if (value === 'Intoxicated') return '#c91e30';
+  if (['Not Sober', 'Failed'].includes(value)) return '#c91e30';
   if (['Not Tested', 'Missing', 'Not Recorded'].includes(value)) return '#6b7280';
 }

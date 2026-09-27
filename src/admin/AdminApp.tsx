@@ -1,10 +1,16 @@
 import { reportOptions } from './report-options';
-import { createReportSnapshot, reportCellColor, rideReportTypes, userReportTypes } from './report-snapshot';
+import { createReportSnapshot, reportIgnitionState, reportRideStatus, rideReportTypes, userReportTypes } from './report-snapshot';
+import ReportPreview from './ReportPreview';
+import './ReportsPage.css';
 import type { ReportSnapshot } from './report-snapshot';
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Rider, Device, SafetyLog, AuditLog, DashboardData, ReportRow, ApiResponses } from './types';
 import './browser-libraries';
 import AlertsPage from './AlertsPage';
+import DevicesPage from './DevicesPage';
+import RidersPage from './RidersPage';
+import SettingsSave from './SettingsSave';
+import './SettingsPage.css';
 import TablePagination, { useTablePagination } from './TablePagination';
 import AuditLogsPage from './AuditLogsPage';
 import { normalizeAuditLog, sortAuditLogs } from './audit-records';
@@ -402,9 +408,6 @@ export default function AdminApp() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   // Search/Filter states
-  const [searchQuery, setSearchQuery] = useState('');
-  const [riderRoleFilter, setRiderRoleFilter] = useState('all');
-  const [riderFaceFilter, setRiderFaceFilter] = useState('all');
 
   // Custom Modal dialog states
   const [alertTitle, setAlertTitle] = useState('');
@@ -463,15 +466,6 @@ export default function AdminApp() {
     return (Number.isFinite(bTime) ? bTime : -Infinity)
       - (Number.isFinite(aTime) ? aTime : -Infinity);
   });
-  const filteredRiders = riders.filter(r => {
-    const query = searchQuery.toLowerCase();
-    const matchesQuery = r.full_name?.toLowerCase().includes(query) || r.email?.toLowerCase().includes(query);
-    const matchesRole = riderRoleFilter === 'all' || r.role === riderRoleFilter;
-    const matchesFace = riderFaceFilter === 'all' || (riderFaceFilter === 'enrolled' && r.face_enrolled) || (riderFaceFilter === 'missing' && !r.face_enrolled);
-    return matchesQuery && matchesRole && matchesFace;
-  });
-  const riderPagination = useTablePagination(filteredRiders, JSON.stringify([searchQuery, riderRoleFilter, riderFaceFilter]));
-  const devicePagination = useTablePagination(devices);
   const sobrietyPagination = useTablePagination(filteredSobrietyTests, JSON.stringify([sobrietySearch, sobrietyResultFilter, sobrietyStatusFilter, alcoholThreshold]));
   const identityPagination = useTablePagination(filteredIdentityRecords, JSON.stringify([identitySearch, identityResultFilter, identityActionFilter, alcoholThreshold]));
   const [lockoutLimit, setLockoutLimit] = useState('3');
@@ -500,10 +494,41 @@ export default function AdminApp() {
   const [bluetoothTimeout, setBluetoothTimeout] = useState(localStorage.getItem('set_bluetoothTimeout') || '30');
   const [autoReconnect, setAutoReconnect] = useState(localStorage.getItem('set_autoReconnect') !== 'false');
 
+  const [savedSettings, setSavedSettings] = useState<Record<string, string>>(() => ({
+    org_name: orgName,
+    org_tagline: orgTagline,
+    org_address: orgAddress,
+    org_timezone: orgTimezone,
+    org_language: orgLanguage,
+    maintenance_mode: String(maintenanceMode),
+    allow_registrations: String(allowRegistrations),
+    auto_log_cleanup: String(autoLogCleanup),
+    session_timeout: sessionTimeout,
+    failed_sobriety_alert: failedSobrietyAlert,
+    override_event_alert: overrideEventAlert,
+    critical_alert_escalation: criticalAlertEscalation,
+    alcohol_threshold: alcoholThreshold,
+    date_format: dateFormat,
+    time_format: timeFormat,
+    auto_sync_time: String(autoSyncTime),
+    password_policy: String(passwordPolicy),
+    two_factor_auth: String(twoFactorAuth),
+    login_attempt_limit: loginAttemptLimit,
+    lockout_duration: lockoutDuration,
+    lockout_limit: lockoutLimit,
+    scan_interval: scanInterval,
+    bluetooth_timeout: bluetoothTimeout,
+    auto_reconnect: String(autoReconnect)
+  }));
+  const settingsDirty = (values: Record<string, string>) => Object.entries(values).some(([key, value]) => savedSettings[key] !== value);
+
   // Reports Filter states
   const [reportType, setReportType] = useState('sobriety-test');
   const [reportStatus, setReportStatus] = useState('all');
   const [reportAlcohol, setReportAlcohol] = useState('all');
+  const [reportIgnition, setReportIgnition] = useState('all');
+  const [reportSort, setReportSort] = useState('newest');
+  const [reportSearch, setReportSearch] = useState('');
   const [reportRole, setReportRole] = useState('all');
 
   const RIDER_REPORT_TYPES = ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg'];
@@ -519,7 +544,6 @@ export default function AdminApp() {
   const [reportStart, setReportStart] = useState('');
   const [reportEnd, setReportEnd] = useState('');
   const [reportPreview, setReportPreview] = useState<ReportSnapshot | null>(null);
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [exportingReport, setExportingReport] = useState(false);
 
   // Apply visual theme class on change
@@ -816,6 +840,7 @@ export default function AdminApp() {
         if (s.scan_interval) setScanInterval(s.scan_interval);
         if (s.bluetooth_timeout) setBluetoothTimeout(s.bluetooth_timeout);
         if (s.auto_reconnect !== undefined) setAutoReconnect(s.auto_reconnect === 'true');
+        setSavedSettings(previous => ({ ...previous, ...Object.fromEntries(Object.entries(s).filter(([, value]) => value !== '')) }));
       }
     } catch (error) { console.error(error); }
   }, []);
@@ -827,6 +852,7 @@ export default function AdminApp() {
       { onConflict: 'setting_key' },
     );
     if (error) throw new Error(error.message);
+    setSavedSettings(previous => ({ ...previous, [key]: value }));
   };
 
   const fetchDevices = useCallback(async () => {
@@ -1010,8 +1036,8 @@ export default function AdminApp() {
   };
 
   // Delete User Trigger
-  const handleDeleteUser = (id: string, email: string) => {
-    showCustomConfirm('Confirm Account Deletion', `Are you absolutely sure you want to permanently delete user ${email}? All linked device slots and histories will be cleared.`, async () => {
+  const handleDeleteUser = (id: string, email: string, name: string) => {
+    showCustomConfirm('Delete Rider?', `Are you sure you want to delete ${name}? This action cannot be undone.`, async () => {
       try {
         const { data: sessionData } = await supabaseClient.auth.getSession();
         const session = sessionData.session;
@@ -1210,12 +1236,11 @@ export default function AdminApp() {
 
 
   // Generate report preview
-  const handleGenerateReport = () => {
-    setIsGeneratingReport(true);
-    // Snapshot the current report type so the preview won't change if the dropdown changes later
+  const updateReportPreview = useCallback(() => {
+    // Keep the preview and exports synchronized with the current filters.
     const frozenType = reportType;
 
-    setTimeout(() => {
+    {
       let filtered: ReportRow[] = [];
       const start = reportStart ? new Date(reportStart + 'T00:00:00') : null;
       const end = reportEnd ? new Date(reportEnd + 'T23:59:59.999') : null;
@@ -1231,10 +1256,10 @@ export default function AdminApp() {
           if (start && oDate < start) return false;
           if (end && oDate > end) return false;
           // Session completion is stored in `status`; ignition access is a separate field.
-          if (reportStatus === 'completed' && String(o.status || '').trim().toLowerCase() !== 'completed') return false;
+          if (reportStatus !== 'all' && reportRideStatus(o) !== reportStatus) return false;
+          if (reportIgnition !== 'all' && reportIgnitionState(o) !== reportIgnition) return false;
           const reading = o.brac?.trim() ? Number(o.brac) : NaN;
           const hasReading = Number.isFinite(reading) && reading >= 0;
-          if (reportStatus === 'alert' && (!hasReading || reading <= sobrietyThreshold)) return false;
           if (reportAlcohol === '1' && (!hasReading || reading <= sobrietyThreshold)) return false;
           if (reportAlcohol === '0' && (!hasReading || reading > sobrietyThreshold)) return false;
           return true;
@@ -1277,16 +1302,27 @@ export default function AdminApp() {
         });
       }
 
-      setReportPreview(createReportSnapshot(frozenType, filtered, {
+      const search = reportSearch.trim().toLocaleLowerCase();
+      const snapshot = createReportSnapshot(frozenType, filtered, {
         coverage: `${reportStart || 'Beginning'} to ${reportEnd || 'Present'}`,
         alcoholThreshold: String(sobrietyThreshold),
+        sortOrder: reportSort,
+        hasFilters: !!(search || reportStart || reportEnd || (isRides && [reportStatus, reportAlcohol, reportIgnition].some(value => value !== 'all')) || (isUsers && reportRole !== 'all')),
         filters: isRides
-          ? `Ride status: ${{ all: 'All Rides', completed: 'Completed Session', alert: 'Alert (Sobriety Fail)' }[reportStatus]} | Alcohol: ${{ all: 'All sessions', '1': 'Intoxicated only', '0': 'Sober only' }[reportAlcohol]}`
-          : isUsers ? `Role: ${reportRole === 'all' ? 'All Roles' : reportRole}` : 'All matching records',
-      }));
-      setIsGeneratingReport(false);
-    }, 600);
-  };
+          ? `Ride Status: ${reportStatus} | Sobriety Status: ${reportAlcohol === 'all' ? 'All' : reportAlcohol === '1' ? 'Not Sober' : 'Sober'} | Ignition State: ${reportIgnition} | Sort Order: ${reportSort === 'newest' ? 'Newest first' : 'Oldest first'}`
+          : `${isUsers ? `Role: ${reportRole}` : 'All matching records'} | Sort Order: ${reportSort === 'newest' ? 'Newest first' : 'Oldest first'}`,
+      });
+      if (search) {
+        snapshot.rows = snapshot.rows.filter(row => row.some(value => value.toLocaleLowerCase().includes(search)));
+        snapshot.filters += ` | Search: ${reportSearch.trim()}`;
+      }
+      setReportPreview(snapshot);
+    }
+  }, [reportType, reportStatus, reportAlcohol, reportIgnition, reportSort, reportSearch, reportRole, reportStart, reportEnd, overrides, riders, auditLogs, devices, alcoholThreshold]);
+
+  useEffect(() => {
+    if (activeTab === 'reports') updateReportPreview();
+  }, [activeTab, updateReportPreview]);
 
   // Export the exact generated snapshot, without querying a different dataset.
   const exportReport = async (format: 'pdf' | 'excel') => {
@@ -1991,168 +2027,10 @@ export default function AdminApp() {
 
 
         {/* Tab 4: Riders */}
-        {activeTab === 'riders' && (
-          <div>
-            <div style={{ ...styles.card, marginBottom: 20 }}>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center' }}>
-                <div style={{ flex: 1 }}>
-                  <input
-                    type="text"
-                    placeholder="Search user name or email..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-                <CustomSelect
-                  options={[
-                    { value: 'all', label: 'All Roles' },
-                    { value: 'rider', label: 'Riders' },
-                    { value: 'admin', label: 'Administrators' },
-                    { value: 'superadmin', label: 'Super Administrators' },
-                  ]}
-                  value={riderRoleFilter}
-                  onChange={val => setRiderRoleFilter(val)}
-                  style={{ width: '190px' }}
-                />
-                <CustomSelect
-                  options={[
-                    { value: 'all', label: 'All Face ID' },
-                    { value: 'enrolled', label: 'Enrolled Only' },
-                    { value: 'missing', label: 'Missing Only' }
-                  ]}
-                  value={riderFaceFilter}
-                  onChange={val => setRiderFaceFilter(val)}
-                  style={{ width: '160px' }}
-                />
-                <button onClick={showAddUserModal} style={{ ...styles.actionBtn, height: '44px', whiteSpace: 'nowrap' }}>
-                  <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
-                    <Icon name="users" size={14} />
-                  </span>
-                  Add User
-                </button>
-              </div>
-
-              <table style={styles.table}>
-                <thead>
-                  <tr>
-                    <th style={styles.tableHeader}>Full Name</th>
-                    <th style={styles.tableHeader}>Email Address</th>
-                    <th style={styles.tableHeader}>Mobile Number</th>
-                    <th style={styles.tableHeader}>Registered Motorcycles</th>
-                    <th style={styles.tableHeader}>Emergency Contacts</th>
-                    <th style={styles.tableHeader}>Role</th>
-                    <th style={styles.tableHeader}>Face ID Profile</th>
-                    <th style={styles.tableHeader}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {riderPagination.rows
-                    .map((r) => (
-                      <tr key={r.id}>
-                        <td style={styles.tableCell}>{r.full_name}</td>
-                        <td style={styles.tableCell}>{r.email}</td>
-                        <td style={styles.tableCell}>{maskPhone(r.phone)}</td>
-                        <td style={styles.tableCell}>
-                          {r.motorcycles && r.motorcycles.length > 0 ? (
-                            r.motorcycles.map((m, mIdx: number) => (
-                              <div key={mIdx} style={{ fontSize: '11px', marginBottom: '2px' }}>
-                                <code>{m.plate_number}</code> - {m.model}
-                              </div>
-                            ))
-                          ) : (
-                            <span style={{ color: 'var(--muted)', fontSize: '11px' }}>None</span>
-                          )}
-                        </td>
-                        <td style={styles.tableCell}>
-                          {r.contacts && r.contacts.length > 0 ? (
-                            r.contacts.map((c, cIdx: number) => (
-                              <div key={cIdx} style={{ fontSize: '11px', marginBottom: '4px', borderBottom: cIdx < (r.contacts?.length || 0) - 1 ? '1px solid var(--border)' : 'none', paddingBottom: '2px' }}>
-                                <strong>{c.name}</strong> ({maskPhone(c.phone)})
-                                <div style={{ fontSize: '10px', color: 'var(--muted)' }}>{c.role}</div>
-                              </div>
-                            ))
-                          ) : (
-                            <span style={{ color: 'var(--muted)', fontSize: '11px' }}>None</span>
-                          )}
-                        </td>
-                        <td style={styles.tableCell}>
-                          <span style={{
-                            padding: '3px 8px',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            background: r.role === 'admin' ? 'rgba(37,99,235,0.1)' : 'rgba(245,158,11,0.1)',
-                            color: r.role === 'admin' ? 'var(--blue)' : 'var(--yellow)'
-                          }}>
-                            {r.role.toUpperCase()}
-                          </span>
-                        </td>
-                        <td style={styles.tableCell}><Icon name={r.face_enrolled ? 'check' : 'close'} size={14} color={r.face_enrolled ? 'var(--green)' : 'var(--red)'} /> {r.face_enrolled ? 'Face Loaded' : 'Missing'}</td>
-                        <td style={styles.tableCell}>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button
-                              onClick={() => handleManageRider(r)}
-                              style={{ ...styles.actionBtn, padding: '6px 12px', fontSize: '11px', height: 'auto' }}
-                            >
-                              Edit
-                            </button>
-                            {r.role !== 'admin' ? (
-                              <button
-                                onClick={() => handleDeleteUser(r.id, r.email)}
-                                style={{ ...styles.delBtn, padding: '6px 12px', fontSize: '11px', height: 'auto' }}
-                              >
-                                Delete
-                              </button>
-                            ) : (
-                              <span style={{ fontSize: 11, color: 'var(--muted)', alignSelf: 'center' }}>Protected</span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-              <TablePagination pagination={riderPagination} label="Riders" styles={styles} />
-            </div>
-          </div>
-        )}
+        {activeTab === 'riders' && <RidersPage riders={riders} styles={styles} maskPhone={maskPhone} onAdd={showAddUserModal} onEdit={handleManageRider} onDelete={rider => handleDeleteUser(rider.id, rider.email, rider.full_name)} />}
 
         {/* Tab 5: MotoLock Devices */}
-        {activeTab === 'devices' && (
-          <div>
-            <div style={styles.card}>
-              <table style={styles.table}>
-                <thead>
-                  <tr>
-                    <th style={styles.tableHeader}>Device ID</th>
-                    <th style={styles.tableHeader}>Lock Status</th>
-                    <th style={styles.tableHeader}>Hardware Model Link</th>
-                    <th style={styles.tableHeader}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {devicePagination.rows.map((d, idx) => (
-                    <tr key={idx}>
-                      <td style={styles.tableCell}><code>DEV-{d.id}</code></td>
-                      <td style={styles.tableCell}><Icon name={d.is_locked ? 'lock' : 'unlock'} size={14} color={d.is_locked ? 'var(--red)' : 'var(--green)'} /> {d.is_locked ? 'Secure Lock' : 'Ignition Ready'}</td>
-                      <td style={styles.tableCell}>SIM Card: {d.sim_number || 'N/A'}</td>
-                      <td style={styles.tableCell}>
-                        <button
-                          onClick={() => showCustomAlert('System Override', 'Please direct device override actions inside safety alerts tab.')}
-                          style={styles.actionBtn}
-                        >
-                          Trigger Audit Override
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <TablePagination pagination={devicePagination} label="MotoLock devices" styles={styles} />
-            </div>
-          </div>
-        )}
+        {activeTab === 'devices' && <DevicesPage devices={devices} styles={styles} onOpenAlerts={() => setActiveTab('alerts')} />}
 
         {/* Tab 6: Sobriety Tests */}
         {activeTab === 'sobriety' && (
@@ -2311,159 +2189,26 @@ export default function AdminApp() {
 
         {/* Tab 10: Reports */}
         {activeTab === 'reports' && (
-          <div>
+          <div className="reports-page">
             <div style={styles.card}>
-              <div style={styles.formRow}>
-                <div style={{ flex: 1 }}>
-                  <label style={styles.label}>Report Type</label>
-                  <CustomSelect
-                    options={reportOptions}
-                    value={reportType}
-                    onChange={val => handleSetReportType(val)}
-                  />
+              <div className="reports-filters">
+                <label>Search<input type="search" style={styles.input} value={reportSearch} onChange={e => setReportSearch(e.target.value)} placeholder="Search name, email, or report details" /></label>
+                <label>Report Type<select style={styles.input} value={reportType} onChange={e => handleSetReportType(e.target.value)}>{reportOptions.map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}</select></label>
+                {rideReportTypes.includes(reportType) && <>
+                  <label>Ride Status<select style={styles.input} value={reportStatus} onChange={e => setReportStatus(e.target.value)}><option value="all">All status</option>{['Ongoing', 'Passed', 'Failed'].map(value => <option key={value}>{value}</option>)}</select></label>
+                  <label>Sobriety Status<select style={styles.input} value={reportAlcohol} onChange={e => setReportAlcohol(e.target.value)}><option value="all">All status</option><option value="0">Sober</option><option value="1">Not Sober</option></select></label>
+                  <label>Ignition State<select style={styles.input} value={reportIgnition} onChange={e => setReportIgnition(e.target.value)}><option value="all">All ignition states</option>{['On', 'Off', 'Locked'].map(value => <option key={value}>{value}</option>)}</select></label>
+                </>}
+                {userReportTypes.includes(reportType) && <label>Role<select style={styles.input} disabled={RIDER_REPORT_TYPES.includes(reportType)} value={reportRole} onChange={e => setReportRole(e.target.value)}><option value="all">All roles</option><option value="rider">Riders</option><option value="admin">Administrators</option></select></label>}
+                <label>Start Date<input type="date" style={styles.input} value={reportStart} max={reportEnd || undefined} onChange={e => setReportStart(e.target.value)} /></label>
+                <label>End Date<input type="date" style={styles.input} value={reportEnd} min={reportStart || undefined} onChange={e => setReportEnd(e.target.value)} /></label>
+                <div className="reports-sort-actions">
+                  <label>Sort Order<select style={styles.input} value={reportSort} onChange={e => setReportSort(e.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
+                  <button style={styles.actionBtn} onClick={() => { setReportSearch(''); setReportStatus('all'); setReportAlcohol('all'); setReportIgnition('all'); setReportStart(''); setReportEnd(''); setReportSort('newest'); setReportRole(RIDER_REPORT_TYPES.includes(reportType) ? 'rider' : 'all'); }}>Clear filters</button>
                 </div>
-
-                {['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(reportType) && (
-                  <>
-                    <div style={{ flex: 1 }}>
-                      <label style={styles.label}>Ride Security Status</label>
-                      <CustomSelect
-                        options={[
-                          { value: 'all', label: 'All Rides' },
-                          { value: 'completed', label: 'Completed Session' },
-                          { value: 'alert', label: 'Alert (Sobriety Fail)' }
-                        ]}
-                        value={reportStatus}
-                        onChange={val => setReportStatus(val)}
-                      />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={styles.label}>Alcohol Status</label>
-                      <CustomSelect
-                        options={[
-                          { value: 'all', label: 'All sessions' },
-                          { value: '1', label: 'Intoxicated only' },
-                          { value: '0', label: 'Sober only' }
-                        ]}
-                        value={reportAlcohol}
-                        onChange={val => setReportAlcohol(val)}
-                      />
-                    </div>
-                  </>
-                )}
-
-                {['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(reportType) && (
-                  <>
-                    <div style={{ flex: 1 }}>
-                      <label style={styles.label}>Role filter</label>
-                      <CustomSelect
-                        options={[
-                          { value: 'all', label: 'All Roles' },
-                          { value: 'rider', label: 'Riders' },
-                          { value: 'admin', label: 'Administrators' }
-                        ]}
-                        value={RIDER_REPORT_TYPES.includes(reportType) ? 'rider' : reportRole}
-                        onChange={val => !RIDER_REPORT_TYPES.includes(reportType) && setReportRole(val)}
-                      />
-                    </div>
-                    <div style={{ flex: 1 }}></div>
-                  </>
-                )}
-
-                {!['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'].includes(reportType) &&
-                  !['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'].includes(reportType) && (
-                    <>
-                      <div style={{ flex: 1 }}></div>
-                      <div style={{ flex: 1 }}></div>
-                    </>
-                  )}
-              </div>
-
-              <div style={styles.formRow}>
-                <div style={{ flex: 1 }}>
-                  <label style={styles.label}>Start Date</label>
-                  <input
-                    type="date"
-                    value={reportStart}
-                    onChange={e => setReportStart(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={styles.label}>End Date</label>
-                  <input
-                    type="date"
-                    value={reportEnd}
-                    onChange={e => setReportEnd(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-                <button
-                  onClick={handleGenerateReport}
-                  disabled={isGeneratingReport}
-                  style={{ ...styles.actionBtn, background: 'var(--red)', color: '#fff', border: 'none', height: 44, padding: '0 24px' }}
-                >
-                  {isGeneratingReport ? 'Generating...' : 'Generate Report'}
-                </button>
               </div>
             </div>
-
-            {/* PREVIEW CONTAINER */}
-            {isGeneratingReport && (
-              <div style={{ ...styles.card, marginTop: 24, textAlign: 'center', padding: 40 }}>
-                <div style={{ color: 'var(--muted)', fontSize: 14 }}><Icon name="refresh" size={15} /> Compiling database records and generating preview safety sheets...</div>
-              </div>
-            )}
-
-            {!isGeneratingReport && reportPreview !== null && (
-              <div style={{ ...styles.card, marginTop: 24 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
-                  <div>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
-                      Report Preview
-                    </h3>
-                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                      {reportPreview.title} · {reportPreview.rows.length} matching record(s)
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    <button disabled={exportingReport} onClick={() => exportReport('pdf')} style={styles.actionBtn}>
-                      <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
-                        <Icon name="reports" size={14} />
-                      </span>
-                      Export PDF
-                    </button>
-                    <button disabled={exportingReport} onClick={() => exportReport('excel')} style={styles.actionBtn}>
-                      <span style={{ marginRight: 6, display: 'inline-flex', alignSelf: 'center' }}>
-                        <Icon name="analytics" size={14} />
-                      </span>
-                      Export Excel
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={styles.table}>
-                    <thead>
-                      <tr>{reportPreview.headers.map(header => <th key={header} style={styles.tableHeader}>{header}</th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {reportPreview.rows.length === 0 ? (
-                        <tr><td colSpan={reportPreview.headers.length} style={{ ...styles.tableCell, textAlign: 'center', color: 'var(--muted)' }}>No matching report data found for the selected range/filters.</td></tr>
-                      ) : reportPreview.rows.slice(0, 15).map((row, index) => (
-                        <tr key={index}>{row.map((value, column) => <td key={column} style={{ ...styles.tableCell, ...(reportCellColor(value) ? { color: reportCellColor(value), fontWeight: 700 } : {}) }}>{value}</td>)}</tr>
-                      ))}
-                      {reportPreview.rows.length > 15 && <tr><td colSpan={reportPreview.headers.length} style={{ ...styles.tableCell, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
-                        Showing first 15 records in preview. Export includes all {reportPreview.rows.length} matching records in this order.
-                      </td></tr>}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+            {reportPreview && <ReportPreview report={reportPreview} exporting={exportingReport} onExport={exportReport} />}
           </div>
         )}
 
@@ -2471,14 +2216,14 @@ export default function AdminApp() {
         {activeTab === 'audit-logs' && <AuditLogsPage logs={auditLogs} styles={styles} />}
         {/* Tab 14: Settings */}
         {activeTab === 'settings' && (
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px', alignItems: 'start' }}>
+          <div className="settings-page">
+            <div className="settings-grid">
 
               {/* Column 1 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div className="settings-column">
 
                 {/* 1. Organization Information */}
-                <div style={styles.card}>
+                <div className="settings-card" style={styles.card}>
                   <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
                     <Icon name="org" size={18} color="var(--red)" />
                     <span>Organization Information</span>
@@ -2496,18 +2241,7 @@ export default function AdminApp() {
                       <label style={styles.label}>Address</label>
                       <input type="text" value={orgAddress} onChange={e => setOrgAddress(e.target.value)} style={styles.input} />
                     </div>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <label style={styles.label}>Timezone</label>
-                        <CustomSelect
-                          options={[
-                            { value: 'Asia/Manila', label: '(GMT+08:00) Asia/Manila' },
-                            { value: 'UTC', label: 'Coordinated Universal Time' }
-                          ]}
-                          value={orgTimezone}
-                          onChange={val => setOrgTimezone(val)}
-                        />
-                      </div>
+                    <div>
                       <div style={{ flex: 1 }}>
                         <label style={styles.label}>Language</label>
                         <CustomSelect
@@ -2520,27 +2254,24 @@ export default function AdminApp() {
                         />
                       </div>
                     </div>
-                    <button onClick={async () => {
+                    <SettingsSave dirty={settingsDirty({ org_name: orgName, org_tagline: orgTagline, org_address: orgAddress, org_language: orgLanguage })} onSave={async () => {
                       try {
                         await Promise.all([
                           saveSettingToDB('org_name', orgName),
                           saveSettingToDB('org_tagline', orgTagline),
                           saveSettingToDB('org_address', orgAddress),
-                          saveSettingToDB('org_timezone', orgTimezone),
                           saveSettingToDB('org_language', orgLanguage)
                         ]);
                         showCustomAlert('Success', 'Organization settings saved to database.');
                       } catch {
                         showCustomAlert('Error', 'Failed to save organization settings.');
                       }
-                    }} style={{ ...styles.primaryButton, background: 'var(--red)', marginTop: 12 }}>
-                      Save Changes
-                    </button>
+                    }} />
                   </div>
                 </div>
 
                 {/* 2. System Preferences */}
-                <div style={styles.card}>
+                <div className="settings-card" style={styles.card}>
                   <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
                     <Icon name="preferences" size={18} color="var(--red)" />
                     <span>System Preferences</span>
@@ -2549,11 +2280,11 @@ export default function AdminApp() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700 }}>Maintenance Mode</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Temporarily disable the system for maintenance</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Temporarily disable rider access while maintenance is in progress.</div>
                       </div>
-                      <div onClick={() => setMaintenanceMode(!maintenanceMode)} style={{ width: 44, height: 24, borderRadius: 12, background: maintenanceMode ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <button type="button" role="switch" aria-checked={maintenanceMode} aria-label="Maintenance Mode" onClick={() => maintenanceMode ? setMaintenanceMode(false) : showCustomConfirm('Enable Maintenance Mode?', 'Riders will be unable to use the system while maintenance mode is active.', () => setMaintenanceMode(true))} style={{ width: 44, height: 24, borderRadius: 12, background: maintenanceMode ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
                         <span style={{ position: 'absolute', top: 2, left: maintenanceMode ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </div>
+                      </button>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2561,19 +2292,19 @@ export default function AdminApp() {
                         <div style={{ fontSize: 13, fontWeight: 700 }}>Allow New Registrations</div>
                         <div style={{ fontSize: 11, color: 'var(--muted)' }}>Allow new rider and device registrations</div>
                       </div>
-                      <div onClick={() => setAllowRegistrations(!allowRegistrations)} style={{ width: 44, height: 24, borderRadius: 12, background: allowRegistrations ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <button type="button" role="switch" aria-checked={allowRegistrations} aria-label="Allow New Registrations" onClick={() => setAllowRegistrations(!allowRegistrations)} style={{ width: 44, height: 24, borderRadius: 12, background: allowRegistrations ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
                         <span style={{ position: 'absolute', top: 2, left: allowRegistrations ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </div>
+                      </button>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700 }}>Automatic Log Cleanup</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Automatically delete old logs</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Automatically remove logs older than the configured retention period.</div>
                       </div>
-                      <div onClick={() => setAutoLogCleanup(!autoLogCleanup)} style={{ width: 44, height: 24, borderRadius: 12, background: autoLogCleanup ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <button type="button" role="switch" aria-checked={autoLogCleanup} aria-label="Automatic Log Cleanup" onClick={() => setAutoLogCleanup(!autoLogCleanup)} style={{ width: 44, height: 24, borderRadius: 12, background: autoLogCleanup ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
                         <span style={{ position: 'absolute', top: 2, left: autoLogCleanup ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </div>
+                      </button>
                     </div>
 
                     <div>
@@ -2596,7 +2327,7 @@ export default function AdminApp() {
                       </div>
                     </div>
 
-                    <button onClick={async () => {
+                    <SettingsSave dirty={settingsDirty({ maintenance_mode: String(maintenanceMode), allow_registrations: String(allowRegistrations), auto_log_cleanup: String(autoLogCleanup), session_timeout: sessionTimeout })} onSave={async () => {
                       try {
                         await Promise.all([
                           saveSettingToDB('maintenance_mode', String(maintenanceMode)),
@@ -2608,14 +2339,12 @@ export default function AdminApp() {
                       } catch {
                         showCustomAlert('Error', 'Failed to save preferences.');
                       }
-                    }} style={{ ...styles.primaryButton, background: 'var(--red)', marginTop: 12 }}>
-                      Save Changes
-                    </button>
+                    }} />
                   </div>
                 </div>
 
                 {/* 3. Alert Thresholds */}
-                <div style={styles.card}>
+                <div className="settings-card" style={styles.card}>
                   <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
                     <Icon name="bell" size={18} color="var(--red)" />
                     <span>Alert Thresholds</span>
@@ -2656,13 +2385,13 @@ export default function AdminApp() {
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Alcohol Threshold (BAC %)</div>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>BAC Threshold (%)</div>
                         <div style={{ fontSize: 11, color: 'var(--muted)' }}>System sobriety cutoff value</div>
                       </div>
                       <input type="number" step="0.01" value={alcoholThreshold} onChange={e => setAlcoholThreshold(e.target.value)} style={{ ...styles.input, width: 80, textAlign: 'center' }} />
                     </div>
 
-                    <button onClick={async () => {
+                    <SettingsSave dirty={settingsDirty({ failed_sobriety_alert: failedSobrietyAlert, override_event_alert: overrideEventAlert, critical_alert_escalation: criticalAlertEscalation, alcohol_threshold: alcoholThreshold })} onSave={async () => {
                       try {
                         await Promise.all([
                           saveSettingToDB('failed_sobriety_alert', failedSobrietyAlert),
@@ -2674,22 +2403,20 @@ export default function AdminApp() {
                       } catch {
                         showCustomAlert('Error', 'Failed to save thresholds.');
                       }
-                    }} style={{ ...styles.primaryButton, background: 'var(--red)', marginTop: 12 }}>
-                      Save Changes
-                    </button>
+                    }} />
                   </div>
                 </div>
 
               </div>
 
               {/* Column 2 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div className="settings-column">
 
-                {/* 4. Date & Time Settings */}
-                <div style={styles.card}>
+                {/* 4. Regional & Time Settings */}
+                <div className="settings-card" style={styles.card}>
                   <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
                     <Icon name="clock" size={18} color="var(--red)" />
-                    <span>Date & Time Settings</span>
+                    <span>Regional & Time Settings</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
                     <div>
@@ -2719,7 +2446,8 @@ export default function AdminApp() {
                       <label style={styles.label}>Timezone</label>
                       <CustomSelect
                         options={[
-                          { value: 'Asia/Manila', label: '(GMT+08:00) Asia/Manila' }
+                          { value: 'Asia/Manila', label: '(GMT+08:00) Asia/Manila' },
+                          { value: 'UTC', label: 'Coordinated Universal Time' }
                         ]}
                         value={orgTimezone}
                         onChange={val => setOrgTimezone(val)}
@@ -2730,13 +2458,14 @@ export default function AdminApp() {
                         <div style={{ fontSize: 13, fontWeight: 700 }}>Auto Sync</div>
                         <div style={{ fontSize: 11, color: 'var(--muted)' }}>Automatically sync date and time with server</div>
                       </div>
-                      <div onClick={() => setAutoSyncTime(!autoSyncTime)} style={{ width: 44, height: 24, borderRadius: 12, background: autoSyncTime ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <button type="button" role="switch" aria-checked={autoSyncTime} aria-label="Auto Sync" onClick={() => setAutoSyncTime(!autoSyncTime)} style={{ width: 44, height: 24, borderRadius: 12, background: autoSyncTime ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
                         <span style={{ position: 'absolute', top: 2, left: autoSyncTime ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </div>
+                      </button>
                     </div>
-                    <button onClick={async () => {
+                    <SettingsSave dirty={settingsDirty({ org_timezone: orgTimezone, date_format: dateFormat, time_format: timeFormat, auto_sync_time: String(autoSyncTime) })} onSave={async () => {
                       try {
                         await Promise.all([
+                          saveSettingToDB('org_timezone', orgTimezone),
                           saveSettingToDB('date_format', dateFormat),
                           saveSettingToDB('time_format', timeFormat),
                           saveSettingToDB('auto_sync_time', String(autoSyncTime))
@@ -2745,14 +2474,12 @@ export default function AdminApp() {
                       } catch {
                         showCustomAlert('Error', 'Failed to save date/time settings.');
                       }
-                    }} style={{ ...styles.primaryButton, background: 'var(--red)', marginTop: 12 }}>
-                      Save Changes
-                    </button>
+                    }} />
                   </div>
                 </div>
 
                 {/* 5. Security Settings */}
-                <div style={styles.card}>
+                <div className="settings-card" style={styles.card}>
                   <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
                     <Icon name="shield" size={18} color="var(--red)" />
                     <span>Security Settings</span>
@@ -2760,22 +2487,22 @@ export default function AdminApp() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Password Policy</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Enforce strong password requirements</div>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>Require Strong Passwords</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Enforce stronger password requirements for admin accounts.</div>
                       </div>
-                      <div onClick={() => setPasswordPolicy(!passwordPolicy)} style={{ width: 44, height: 24, borderRadius: 12, background: passwordPolicy ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <button type="button" role="switch" aria-checked={passwordPolicy} aria-label="Require Strong Passwords" onClick={() => setPasswordPolicy(!passwordPolicy)} style={{ width: 44, height: 24, borderRadius: 12, background: passwordPolicy ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
                         <span style={{ position: 'absolute', top: 2, left: passwordPolicy ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </div>
+                      </button>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700 }}>Two-Factor Authentication</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Require 2FA for admin accounts</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Require 2FA for admin accounts.</div>
                       </div>
-                      <div onClick={() => setTwoFactorAuth(!twoFactorAuth)} style={{ width: 44, height: 24, borderRadius: 12, background: twoFactorAuth ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <button type="button" role="switch" aria-checked={twoFactorAuth} aria-label="Two-Factor Authentication" onClick={() => setTwoFactorAuth(!twoFactorAuth)} style={{ width: 44, height: 24, borderRadius: 12, background: twoFactorAuth ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
                         <span style={{ position: 'absolute', top: 2, left: twoFactorAuth ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </div>
+                      </button>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2783,12 +2510,12 @@ export default function AdminApp() {
                         <div style={{ fontSize: 13, fontWeight: 700 }}>Login Attempt Limit</div>
                         <div style={{ fontSize: 11, color: 'var(--muted)' }}>Maximum failed login attempts</div>
                       </div>
-                      <div style={{ width: 80 }}>
+                      <div style={{ width: 132 }}>
                         <CustomSelect
                           options={[
-                            { value: '3', label: '3' },
-                            { value: '5', label: '5' },
-                            { value: '10', label: '10' }
+                            { value: '3', label: '3 attempts' },
+                            { value: '5', label: '5 attempts' },
+                            { value: '10', label: '10 attempts' }
                           ]}
                           value={loginAttemptLimit}
                           onChange={val => setLoginAttemptLimit(val)}
@@ -2801,12 +2528,12 @@ export default function AdminApp() {
                         <div style={{ fontSize: 13, fontWeight: 700 }}>Account Lockout Duration</div>
                         <div style={{ fontSize: 11, color: 'var(--muted)' }}>Lock account after failed attempts (minutes)</div>
                       </div>
-                      <div style={{ width: 80 }}>
+                      <div style={{ width: 132 }}>
                         <CustomSelect
                           options={[
-                            { value: '5', label: '5' },
-                            { value: '15', label: '15' },
-                            { value: '30', label: '30' }
+                            { value: '5', label: '5 minutes' },
+                            { value: '15', label: '15 minutes' },
+                            { value: '30', label: '30 minutes' }
                           ]}
                           value={lockoutDuration}
                           onChange={val => setLockoutDuration(val)}
@@ -2814,7 +2541,7 @@ export default function AdminApp() {
                       </div>
                     </div>
 
-                    <button onClick={async () => {
+                    <SettingsSave dirty={settingsDirty({ password_policy: String(passwordPolicy), two_factor_auth: String(twoFactorAuth), login_attempt_limit: loginAttemptLimit, lockout_duration: lockoutDuration, lockout_limit: lockoutLimit })} onSave={async () => {
                       try {
                         await Promise.all([
                           saveSettingToDB('password_policy', String(passwordPolicy)),
@@ -2827,30 +2554,28 @@ export default function AdminApp() {
                       } catch {
                         showCustomAlert('Error', 'Failed to save security settings.');
                       }
-                    }} style={{ ...styles.primaryButton, background: 'var(--red)', marginTop: 12 }}>
-                      Save Changes
-                    </button>
+                    }} />
                   </div>
                 </div>
 
                 {/* 6. Bluetooth Settings */}
-                <div style={styles.card}>
+                <div className="settings-card" style={styles.card}>
                   <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
                     <Icon name="bluetooth" size={18} color="var(--red)" />
-                    <span>Bluetooth Settings (Helmet Connection)</span>
+                    <span>Helmet Connection</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>Scan Interval</div>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>Bluetooth Scan Interval</div>
                         <div style={{ fontSize: 11, color: 'var(--muted)' }}>How often to scan for helmet (seconds)</div>
                       </div>
-                      <div style={{ width: 80 }}>
+                      <div style={{ width: 132 }}>
                         <CustomSelect
                           options={[
-                            { value: '5', label: '5' },
-                            { value: '10', label: '10' },
-                            { value: '30', label: '30' }
+                            { value: '5', label: '5 seconds' },
+                            { value: '10', label: '10 seconds' },
+                            { value: '30', label: '30 seconds' }
                           ]}
                           value={scanInterval}
                           onChange={val => setScanInterval(val)}
@@ -2863,12 +2588,12 @@ export default function AdminApp() {
                         <div style={{ fontSize: 13, fontWeight: 700 }}>Connection Timeout</div>
                         <div style={{ fontSize: 11, color: 'var(--muted)' }}>Bluetooth connection timeout (seconds)</div>
                       </div>
-                      <div style={{ width: 80 }}>
+                      <div style={{ width: 132 }}>
                         <CustomSelect
                           options={[
-                            { value: '15', label: '15' },
-                            { value: '30', label: '30' },
-                            { value: '60', label: '60' }
+                            { value: '15', label: '15 seconds' },
+                            { value: '30', label: '30 seconds' },
+                            { value: '60', label: '60 seconds' }
                           ]}
                           value={bluetoothTimeout}
                           onChange={val => setBluetoothTimeout(val)}
@@ -2881,12 +2606,12 @@ export default function AdminApp() {
                         <div style={{ fontSize: 13, fontWeight: 700 }}>Auto Reconnect</div>
                         <div style={{ fontSize: 11, color: 'var(--muted)' }}>Automatically reconnect lost connections</div>
                       </div>
-                      <div onClick={() => setAutoReconnect(!autoReconnect)} style={{ width: 44, height: 24, borderRadius: 12, background: autoReconnect ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <button type="button" role="switch" aria-checked={autoReconnect} aria-label="Auto Reconnect" onClick={() => setAutoReconnect(!autoReconnect)} style={{ width: 44, height: 24, borderRadius: 12, background: autoReconnect ? 'var(--red)' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
                         <span style={{ position: 'absolute', top: 2, left: autoReconnect ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-                      </div>
+                      </button>
                     </div>
 
-                    <button onClick={async () => {
+                    <SettingsSave dirty={settingsDirty({ scan_interval: scanInterval, bluetooth_timeout: bluetoothTimeout, auto_reconnect: String(autoReconnect) })} onSave={async () => {
                       try {
                         await Promise.all([
                           saveSettingToDB('scan_interval', scanInterval),
@@ -2897,23 +2622,22 @@ export default function AdminApp() {
                       } catch {
                         showCustomAlert('Error', 'Failed to save bluetooth settings.');
                       }
-                    }} style={{ ...styles.primaryButton, background: 'var(--red)', marginTop: 12 }}>
-                      Save Changes
-                    </button>
+                    }} />
                   </div>
                 </div>
 
               </div>
 
               {/* Column 3 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div className="settings-column">
 
                 {/* 7. System Information */}
-                <div style={styles.card}>
+                <div className="settings-card" style={styles.card}>
                   <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
                     <Icon name="info" size={18} color="var(--red)" />
                     <span>System Information</span>
                   </div>
+                  <p className="settings-readonly">Read-only system information</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontSize: 13, marginTop: 12 }}>
                     <div>
                       <div style={{ fontWeight: 700 }}>System Name</div>
@@ -2944,23 +2668,23 @@ export default function AdminApp() {
                   </div>
                 </div>
 
-                {/* 8. Quick Actions */}
-                <div style={styles.card}>
+                {/* 8. System Tools */}
+                <div className="settings-card" style={styles.card}>
                   <div style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--red)' }}>
                     <Icon name="lightning" size={18} color="var(--red)" />
-                    <span>Quick Actions</span>
+                    <span>System Tools</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-                    <button onClick={() => showCustomAlert('Clear Cache', 'System cache and temporary safety logs have been cleared.')} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
+                    <button onClick={() => showCustomConfirm('Clear System Cache?', 'This will clear cached system data. Your saved settings and records will not be affected.', () => showCustomAlert('Clear Cache', 'System cache and temporary safety logs have been cleared.'))} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
                       <span style={{ fontWeight: 650 }}>Clear Cache</span>
                       <span>&gt;</span>
                     </button>
                     <button onClick={() => setActiveTab('audit-logs')} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
-                      <span style={{ fontWeight: 650 }}>System Logs</span>
+                      <span style={{ fontWeight: 650 }}>View System Logs</span>
                       <span>&gt;</span>
                     </button>
                     <button onClick={() => showCustomAlert('Email Test', 'A test email notification has been dispatched to the administrator inbox.')} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
-                      <span style={{ fontWeight: 650 }}>Email Test</span>
+                      <span style={{ fontWeight: 650 }}>Test Email Configuration</span>
                       <span>&gt;</span>
                     </button>
                     <button onClick={() => showCustomAlert('Updates', 'You are currently running the latest stable release (v1.0.0).')} style={{ ...styles.actionBtn, justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(128,128,128,0.05)', border: '1px solid var(--border)', borderRadius: '10px' }}>
@@ -3036,7 +2760,7 @@ export default function AdminApp() {
                 }}
                 style={styles.primaryButton}
               >
-                Yes, Proceed
+                {confirmTitle === 'Delete Rider?' ? 'Delete Rider' : confirmTitle === 'Clear System Cache?' ? 'Clear Cache' : confirmTitle === 'Enable Maintenance Mode?' ? 'Enable Maintenance Mode' : 'Yes, Proceed'}
               </button>
               <button
                 onClick={() => {

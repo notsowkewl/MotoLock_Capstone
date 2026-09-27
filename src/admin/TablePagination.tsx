@@ -21,10 +21,11 @@ export function useTablePagination<T>(records: T[], filterKey = '') {
 type Props = {
   pagination: Omit<ReturnType<typeof useTablePagination>, 'rows'>;
   label: string;
+  recordNoun?: string;
   styles: Record<string, CSSProperties>;
 };
 
-export default function TablePagination({ pagination: p, label }: Props) {
+export default function TablePagination({ pagination: p, label, recordNoun = 'records' }: Props) {
   const firstPage = Math.max(1, Math.min(p.page - 2, p.pages - 4));
   const visiblePages = Array.from({ length: Math.min(5, p.pages) }, (_, index) => firstPage + index);
   const button = (active = false, disabled = false): CSSProperties => ({
@@ -37,7 +38,7 @@ export default function TablePagination({ pagination: p, label }: Props) {
     flexShrink: 0,
   });
   return <nav aria-label={`${label} pagination`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, paddingTop: 16, borderTop: '1px solid var(--border)', marginTop: 12 }}>
-    <span role="status" style={{ fontSize: 13, color: 'var(--muted)', marginRight: 'auto' }}>Showing {p.start}-{p.end} of {p.total} records</span>
+    <span role="status" style={{ fontSize: 13, color: 'var(--muted)', marginRight: 'auto' }}>Showing {p.start}{recordNoun === 'riders' ? '–' : '-'}{p.end} of {p.total} {recordNoun}</span>
     <div style={{ display: 'flex', gap: 7, marginLeft: 'auto', flexWrap: 'wrap' }}>
       <button type="button" aria-label="Previous" disabled={p.page === 1} onClick={() => p.setPage(p.page - 1)} style={button(false, p.page === 1)}>&lsaquo;</button>
       {visiblePages.map(page => <button key={page} type="button" aria-label={`Page ${page}`} aria-current={p.page === page ? 'page' : undefined}

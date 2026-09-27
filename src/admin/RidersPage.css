@@ -1,0 +1,42 @@
+.riders-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; margin-bottom: 22px; }
+.riders-filters label { display: grid; gap: 8px; flex: 1 1 160px; font-size: 12px; font-weight: 600; }
+.riders-filters .riders-search { flex: 2 1 260px; }
+.riders-filters :is(input, select) { width: 100%; min-height: 42px; box-sizing: border-box; }
+.riders-filters button { min-height: 42px; white-space: nowrap; }
+.riders-table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+.riders-table-scroll table { min-width: 1180px; }
+.riders-table-scroll th { background: var(--card); white-space: nowrap; }
+.riders-table-scroll td { vertical-align: top; line-height: 1.5; }
+.riders-table-scroll tbody tr:hover { background: color-mix(in srgb, var(--muted) 4%, transparent); }
+.rider-name { padding: 0; border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 650; color: var(--text); cursor: pointer; text-align: left; min-width: 130px; }
+.rider-name:hover { color: var(--red); text-decoration: underline; }
+.rider-email { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.rider-mobile { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rider-items { display: grid; gap: 10px; min-width: 175px; font-size: 12px; }
+.rider-items small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+.rider-plate, .rider-contact-name { font-weight: 600; }
+.rider-contacts > div + div { border-top: 1px solid var(--border); padding-top: 9px; }
+.riders-table-scroll :is(th, td):nth-child(5) { min-width: 245px; }
+.riders-table-scroll :is(th, td):nth-child(6), .riders-table-scroll :is(th, td):nth-child(7), .riders-table-scroll :is(th, td):nth-child(8) { width: 1%; }
+.rider-contacts small { margin-top: 5px; line-height: 1.5; }
+.rider-more-contacts { justify-self: start; padding: 0; border: 0; background: transparent; color: var(--red); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.rider-more-contacts:hover { text-decoration: underline; }
+.rider-contacts-dialog { width: min(440px, calc(100vw - 40px)); }
+.rider-contacts-owner { margin: -10px 0 22px; font-size: 13px; color: var(--muted); }
+.rider-role, .rider-face { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 6px; background: color-mix(in srgb, var(--muted) 8%, transparent); font-size: 11px; white-space: nowrap; }
+.rider-face-registered { color: var(--green); background: color-mix(in srgb, var(--green) 8%, transparent); }
+.rider-secondary { font-size: 12px; color: var(--muted); }
+.rider-actions { display: flex; align-items: center; gap: 7px; }
+.rider-actions button { padding: 6px 10px !important; height: auto !important; font-size: 11px !important; }
+.riders-empty { text-align: center; padding: 30px; }
+.riders-empty p { color: var(--muted); }
+.rider-dialog { position: fixed; inset: 0; margin: auto; width: min(720px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); overflow-y: auto; box-sizing: border-box; padding: 28px; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 16px; font-family: inherit; box-shadow: 0 18px 65px #0003; }
+.rider-dialog::backdrop { background: #0007; }
+.rider-dialog h3 { font-size: 20px; margin: 0 0 22px; }
+.rider-profile { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; margin: 0; }
+.rider-profile dt { color: var(--muted); font-size: 12px; margin-bottom: 7px; }
+.rider-profile dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.rider-profile-wide { grid-column: 1 / -1; border-top: 1px solid var(--border); padding-top: 18px; }
+.rider-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 28px; }
+.riders-page :is(button, input, select, [tabindex]):focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
+@media (max-width: 540px) { .rider-profile { grid-template-columns: 1fr; } }
