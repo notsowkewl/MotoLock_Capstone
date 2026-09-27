@@ -166,7 +166,7 @@ fun PinUnlockScreen(onUnlockSuccess: () -> Unit, onLogout: () -> Unit) {
                                                                     } catch(e: Exception) {}
                                                                     onLogout()
                                                                 } else {
-                                                                    errorMessage = "Incorrect PIN. ${5 - failedAttempts} attempts left before logout."
+                                                                    errorMessage = "Incorrect PIN."
                                                                     pin = ""
                                                                     isChecking = false
                                                                 }
@@ -218,3 +218,4 @@ fun PinUnlockScreen(onUnlockSuccess: () -> Unit, onLogout: () -> Unit) {
         }
     }
 }
+

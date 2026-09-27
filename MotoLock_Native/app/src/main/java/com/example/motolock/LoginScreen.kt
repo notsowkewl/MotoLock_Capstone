@@ -54,6 +54,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
     var passwordError by remember { mutableStateOf<String?>(null) }
     var failedAttempts by remember { mutableIntStateOf(0) }
     var lockedOut by remember { mutableStateOf(false) }
+    var showEmailSentDialog by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -260,13 +261,21 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                 )
                 Button(
-                    onClick = {
+                                        onClick = {
                         if (email.isBlank()) { emailError = "Email is required"; return@Button }
                         isLoading = true
                         coroutineScope.launch {
                             try {
-                                SupabaseClientManager.client.auth.resetPasswordForEmail(email)
-                                Toast.makeText(context, "Reset link sent to $email", Toast.LENGTH_LONG).show()
+                                val userProfile = SupabaseClientManager.client.postgrest["users"]
+                                    .select { filter { eq("email", email) } }
+                                    .decodeList<com.example.motolock.models.User>()
+                                    
+                                if (userProfile.isEmpty()) {
+                                    emailError = "This email is not registered in MotoLock."
+                                } else {
+                                    SupabaseClientManager.client.auth.resetPasswordForEmail(email)
+                                    showEmailSentDialog = true
+                                }
                             } catch (e: Exception) {
                                 Toast.makeText(context, "Failed to send reset link", Toast.LENGTH_LONG).show()
                             } finally {
@@ -320,8 +329,8 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
                                         lockedOut = true
                                         passwordError = "Account locked out. Please reset password."
                                     } else {
-                                        emailError = "Invalid email or password (${5 - failedAttempts} attempts left)"
-                                        passwordError = "Invalid email or password (${5 - failedAttempts} attempts left)"
+                                        emailError = "Invalid email or password"
+                                        passwordError = "Invalid email or password"
                                     }
                                 } else {
                                     Toast.makeText(context, "Login Failed: ${e.message}", Toast.LENGTH_LONG).show()
@@ -411,7 +420,16 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
             )
         }
     }
+    if (showEmailSentDialog) {
+        AlertDialog(
+            onDismissRequest = { showEmailSentDialog = false },
+            title = { Text("Reset Link Sent", fontWeight = FontWeight.Bold) },
+            text = { Text("Please check your email ($email) for instructions to reset your password.") },
+            confirmButton = {
+                TextButton(onClick = { showEmailSentDialog = false }) {
+                    Text("OK", color = Color(0xFFED1C24))
+                }
+            }
+        )
+    }
 }
-
-
-
