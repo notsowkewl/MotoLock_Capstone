@@ -1,21 +1,15 @@
 package com.example.motolock
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.*
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,15 +29,15 @@ import kotlinx.coroutines.launch
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.postgrest
 
-private val motorcycleData = mapOf(
-    "Honda" to listOf("Click 125i", "Beat", "Wave", "TMX", "ADV 160", "PCX 160", "XRM", "Other"),
-    "Yamaha" to listOf("Mio", "NMAX", "Aerox", "XMAX", "Sniper", "MT-15", "R15", "Other"),
-    "Suzuki" to listOf("Smash", "Raider", "Burgman", "Skydrive", "Gixxer", "Other"),
-    "Kawasaki" to listOf("Barako", "Rouser", "Ninja", "Dominar", "Z400", "Other"),
-    "KTM" to listOf("Duke 200", "Duke 390", "RC 200", "RC 390", "Other"),
-    "Vespa" to listOf("Primavera", "Sprint", "GTS", "S 125", "Other"),
-    "BMW Motorrad" to listOf("G 310 R", "G 310 GS", "R 1250 GS", "S 1000 RR", "Other"),
-    "Ducati" to listOf("Monster", "Panigale", "Scrambler", "Multistrada", "Other"),
+val motorcycleData = mapOf(
+    "Honda" to listOf("Click 125i", "Click 160", "ADV 160", "PCX 160", "Beat", "Wave RSX", "XRM 125", "Supra GTR 150", "CBR150R", "CB150X", "Other"),
+    "Yamaha" to listOf("NMAX", "Aerox 155", "Mio i 125", "Mio Gear", "Mio Soul i 125", "Mio Gravis", "Sniper 155", "MT-15", "XSR 155", "YZF-R15", "Other"),
+    "Suzuki" to listOf("Burgman Street", "Skydrive Sport", "Avenis", "Raider R150", "Smash", "Gixxer 250", "GSX-R150", "Other"),
+    "Kawasaki" to listOf("Ninja 400", "Z400", "Dominar 400", "Rouser NS200", "Barako II", "W175", "Other"),
+    "Vespa" to listOf("Primavera", "Sprint", "GTS 300", "LX 125", "Other"),
+    "KTM" to listOf("Duke 200", "Duke 390", "RC 200", "RC 390", "390 Adventure", "Other"),
+    "BMW" to listOf("G 310 R", "G 310 GS", "R 1250 GS", "Other"),
+    "Ducati" to listOf("Scrambler", "Monster", "Panigale V2", "Other"),
     "Royal Enfield" to listOf("Classic 350", "Meteor 350", "Himalayan", "Interceptor 650", "Other"),
     "Triumph" to listOf("Trident 660", "Street Triple", "Bonneville", "Tiger", "Other"),
     "CFMOTO" to listOf("NK 400", "NK 300", "SR 300", "SR 450", "Other"),
@@ -57,8 +51,9 @@ private val motorcycleData = mapOf(
     "Other" to listOf("Other")
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun InlineDropdown(
+private fun SearchableDropdown(
     label: String,
     selected: String,
     options: List<String>,
@@ -70,94 +65,105 @@ private fun InlineDropdown(
     val lineCol = Color(0xFFE8EBF0)
     val inputBg = Color.White.copy(alpha = 0.92f)
     val textGray = Color(0xFF737987)
+    
     var expanded by remember { mutableStateOf(false) }
-
-    // When options change (brand switch), collapse
+    var searchQuery by remember { mutableStateOf(selected) }
+    
+    // Sync searchQuery when selected changes from outside (e.g., brand changes -> model resets)
+    LaunchedEffect(selected) {
+        searchQuery = selected
+    }
+    
     LaunchedEffect(options) { expanded = false }
+
+    val filteredOptions = if (searchQuery.isNotEmpty() && searchQuery != selected) {
+        options.filter { it.contains(searchQuery, ignoreCase = true) }
+    } else {
+        options
+    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(label, fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF2A2F38))
         Spacer(modifier = Modifier.height(7.dp))
 
-        // The dropdown trigger row
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp)
-                .background(inputBg, RoundedCornerShape(12.dp))
-                .border(
-                    1.dp,
-                    if (expanded) motoBlack else lineCol,
-                    if (expanded) RoundedCornerShape(12.dp, 12.dp, 0.dp, 0.dp) else RoundedCornerShape(12.dp)
-                )
-                .clip(if (expanded) RoundedCornerShape(12.dp, 12.dp, 0.dp, 0.dp) else RoundedCornerShape(12.dp))
-                .clickable(enabled = enabled) { expanded = !expanded }
-                .padding(horizontal = 14.dp),
-            contentAlignment = Alignment.CenterStart
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { if (enabled) expanded = !expanded }
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (selected.isEmpty()) placeholder else selected,
-                    color = if (selected.isEmpty()) textGray.copy(alpha = 0.5f) else motoBlack,
-                    fontSize = 14.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(
-                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = textGray,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
-        // Inline dropdown list — appears directly below
-        AnimatedVisibility(
-            visible = expanded,
-            enter = expandVertically(),
-            exit = shrinkVertically()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White, RoundedCornerShape(0.dp, 0.dp, 12.dp, 12.dp))
-                    .border(1.dp, motoBlack, RoundedCornerShape(0.dp, 0.dp, 12.dp, 12.dp))
-                    .clip(RoundedCornerShape(0.dp, 0.dp, 12.dp, 12.dp))
-            ) {
-                options.forEachIndexed { index, option ->
+            BasicTextField(
+                value = searchQuery,
+                onValueChange = { 
+                    searchQuery = it
+                    expanded = true
+                },
+                enabled = enabled,
+                textStyle = TextStyle(fontSize = 14.sp, color = motoBlack),
+                singleLine = true,
+                modifier = Modifier.menuAnchor(),
+                decorationBox = { innerTextField ->
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                onSelect(option)
-                                expanded = false
-                            }
-                            .background(
-                                if (option == selected) motoBlack.copy(alpha = 0.05f) else Color.Transparent
-                            )
-                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                            .height(52.dp)
+                            .background(inputBg, RoundedCornerShape(12.dp))
+                            .border(1.dp, if (expanded) motoBlack else lineCol, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.CenterStart
                     ) {
-                        Text(
-                            text = option,
-                            fontSize = 14.sp,
-                            color = if (option == selected) motoBlack else Color(0xFF3A3F4A),
-                            fontWeight = if (option == selected) FontWeight.SemiBold else FontWeight.Normal
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (searchQuery.isEmpty()) {
+                                    Text(placeholder, color = textGray.copy(alpha = 0.5f), fontSize = 14.sp)
+                                }
+                                innerTextField()
+                            }
+                            Icon(
+                                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = textGray,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
-                    if (index < options.size - 1) {
-                        Divider(color = Color(0xFFE8EBF0), thickness = 0.5.dp)
-                    }
+                }
+            )
+
+            ExposedDropdownMenu(
+                expanded = expanded && filteredOptions.isNotEmpty(),
+                onDismissRequest = { 
+                    expanded = false
+                    searchQuery = selected // Reset if no selection
+                },
+                modifier = Modifier
+                    .background(Color.White)
+                    .heightIn(max = 240.dp)
+            ) {
+                filteredOptions.forEach { option ->
+                    DropdownMenuItem(
+                        text = { 
+                            Text(
+                                text = option,
+                                fontSize = 14.sp,
+                                color = if (option == selected) motoBlack else Color(0xFF3A3F4A),
+                                fontWeight = if (option == selected) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        },
+                        onClick = {
+                            searchQuery = option
+                            onSelect(option)
+                            expanded = false
+                        },
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                    )
                 }
             }
         }
     }
-}
-
-@Composable
+}@Composable
 fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit) {
     val motoRed = Color(0xFFED1C24)
     val motoBlack = Color(0xFF101217)
@@ -173,7 +179,7 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit) {
     var selectedModel by remember { mutableStateOf("") }
     var manualBrand by remember { mutableStateOf("") }
     var manualModel by remember { mutableStateOf("") }
-    var modelDropdownOpen by remember { mutableStateOf(false) }
+    var plateNumber by remember { mutableStateOf("") }
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
@@ -209,7 +215,6 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Title
         Text(
             text = "Register Your Motorcycle",
             fontSize = 24.sp,
@@ -227,7 +232,6 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Image
         Image(
             painter = painterResource(id = R.drawable.tric),
             contentDescription = "Motorcycle",
@@ -237,8 +241,7 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        // Brand Dropdown
-        InlineDropdown(
+        SearchableDropdown(
             label = "Brand",
             selected = selectedBrand,
             options = availableBrands,
@@ -248,14 +251,9 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit) {
                 selectedModel = ""
                 manualBrand = ""
                 manualModel = ""
-                // Auto-open model dropdown after brand select
-                if (brand != "Other") {
-                    modelDropdownOpen = true
-                }
             }
         )
 
-        // Manual brand input when Other
         if (selectedBrand == "Other") {
             Spacer(modifier = Modifier.height(8.dp))
             BasicTextField(
@@ -282,96 +280,18 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Model Dropdown — uses a key so the expanded state resets when brand changes
-        key(selectedBrand) {
-            var modelExpanded by remember { mutableStateOf(modelDropdownOpen) }
+        SearchableDropdown(
+            label = "Model",
+            selected = selectedModel,
+            options = availableModels,
+            placeholder = "Select Model",
+            onSelect = { model ->
+                selectedModel = model
+                manualModel = ""
+            },
+            enabled = selectedBrand.isNotEmpty() && selectedBrand != "Other"
+        )
 
-            LaunchedEffect(modelDropdownOpen) {
-                if (modelDropdownOpen) {
-                    modelExpanded = true
-                    modelDropdownOpen = false
-                }
-            }
-
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("Model", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF2A2F38))
-                Spacer(modifier = Modifier.height(7.dp))
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp)
-                        .background(inputBg, RoundedCornerShape(12.dp))
-                        .border(
-                            1.dp,
-                            if (modelExpanded) motoBlack else lineCol,
-                            if (modelExpanded) RoundedCornerShape(12.dp, 12.dp, 0.dp, 0.dp) else RoundedCornerShape(12.dp)
-                        )
-                        .clip(if (modelExpanded) RoundedCornerShape(12.dp, 12.dp, 0.dp, 0.dp) else RoundedCornerShape(12.dp))
-                        .clickable(enabled = selectedBrand.isNotEmpty()) { modelExpanded = !modelExpanded }
-                        .padding(horizontal = 14.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (selectedModel.isEmpty()) "Select Model" else selectedModel,
-                            color = if (selectedModel.isEmpty()) textGray.copy(alpha = 0.5f) else motoBlack,
-                            fontSize = 14.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Icon(
-                            imageVector = if (modelExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = null,
-                            tint = textGray,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                AnimatedVisibility(
-                    visible = modelExpanded,
-                    enter = expandVertically(),
-                    exit = shrinkVertically()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.White, RoundedCornerShape(0.dp, 0.dp, 12.dp, 12.dp))
-                            .border(1.dp, motoBlack, RoundedCornerShape(0.dp, 0.dp, 12.dp, 12.dp))
-                            .clip(RoundedCornerShape(0.dp, 0.dp, 12.dp, 12.dp))
-                    ) {
-                        availableModels.forEachIndexed { index, m ->
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selectedModel = m
-                                        modelExpanded = false
-                                    }
-                                    .background(if (m == selectedModel) motoBlack.copy(alpha = 0.05f) else Color.Transparent)
-                                    .padding(horizontal = 16.dp, vertical = 14.dp)
-                            ) {
-                                Text(
-                                    text = m,
-                                    fontSize = 14.sp,
-                                    color = if (m == selectedModel) motoBlack else Color(0xFF3A3F4A),
-                                    fontWeight = if (m == selectedModel) FontWeight.SemiBold else FontWeight.Normal
-                                )
-                            }
-                            if (index < availableModels.size - 1) {
-                                Divider(color = Color(0xFFE8EBF0), thickness = 0.5.dp)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Manual model input when Other
         if (selectedModel == "Other") {
             Spacer(modifier = Modifier.height(8.dp))
             BasicTextField(
@@ -390,6 +310,34 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit) {
                         contentAlignment = Alignment.CenterStart
                     ) {
                         if (manualModel.isEmpty()) Text("Input here the model", color = textGray.copy(alpha = 0.5f), fontSize = 14.sp)
+                        innerTextField()
+                    }
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Optional Plate Number
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text("Plate Number (Optional)", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF2A2F38))
+            Spacer(modifier = Modifier.height(7.dp))
+            BasicTextField(
+                value = plateNumber,
+                onValueChange = { plateNumber = it },
+                textStyle = TextStyle(fontSize = 14.sp, color = motoBlack),
+                singleLine = true,
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .background(inputBg, RoundedCornerShape(12.dp))
+                            .border(1.dp, lineCol, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (plateNumber.isEmpty()) Text("Enter your plate number", color = textGray.copy(alpha = 0.5f), fontSize = 14.sp)
                         innerTextField()
                     }
                 }
@@ -416,6 +364,7 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit) {
                 errorMessage = null
                 val finalBrand = if (selectedBrand == "Other") manualBrand.trim() else selectedBrand.trim()
                 val finalModel = if (selectedModel == "Other") manualModel.trim() else selectedModel.trim()
+                val finalPlate = if (plateNumber.trim().isNotEmpty()) plateNumber.trim() else "UNKNOWN"
 
                 if (finalBrand.isEmpty()) { errorMessage = "Please select or enter a brand."; return@Button }
                 if (finalModel.isEmpty()) { errorMessage = "Please select or enter a model."; return@Button }
@@ -442,7 +391,7 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit) {
                                 brand = finalBrand,
                                 model = finalModel,
                                 year = 2024,
-                                plateNumber = "UNKNOWN"
+                                plateNumber = finalPlate
                             )
                             com.example.motolock.network.SupabaseClientManager.client.postgrest["motorcycles"].insert(moto)
                             onNext()
@@ -485,3 +434,5 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit) {
         Spacer(modifier = Modifier.height(20.dp))
     }
 }
+
+

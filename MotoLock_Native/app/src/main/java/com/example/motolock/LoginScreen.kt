@@ -267,13 +267,13 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
                         coroutineScope.launch {
                             try {
                                 val userProfile = SupabaseClientManager.client.postgrest["users"]
-                                    .select { filter { eq("email", email) } }
+                                    .select { filter { eq("email", email.trim()) } }
                                     .decodeList<com.example.motolock.models.User>()
                                     
                                 if (userProfile.isEmpty()) {
                                     emailError = "This email is not registered in MotoLock."
                                 } else {
-                                    SupabaseClientManager.client.auth.resetPasswordForEmail(email)
+                                    SupabaseClientManager.client.auth.resetPasswordForEmail(email.trim())
                                     showEmailSentDialog = true
                                 }
                             } catch (e: Exception) {
@@ -319,7 +319,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
                         coroutineScope.launch {
                             try {
                                 SupabaseClientManager.client.auth.signInWith(Email) {
-                                    this.email = email
+                                    this.email = email.trim()
                                     this.password = password
                                 }
                             } catch (e: Exception) {
@@ -433,3 +433,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
         )
     }
 }
+
+
+

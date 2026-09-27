@@ -57,7 +57,7 @@ const fetchAllSupabaseRows = async (table: string, orderBy = 'id') => {
   const rows: any[] = [];
   for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
     const { data, error } = await supabaseClient
-      .from(table)
+      .from(table as any)
       .select('*')
       .order(orderBy, { ascending: true })
       .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
@@ -70,12 +70,12 @@ const fetchAllSupabaseRows = async (table: string, orderBy = 'id') => {
 const alertStore: AlertStore = {
   read: fetchAllSupabaseRows,
   getActor: async () => {
-    const { data, error } = await supabaseClient.auth.getUser();
+    const { data, error } = await (supabaseClient.auth as any).getUser();
     if (error) throw new Error(error.message);
     return data.user;
   },
   insert: async event => {
-    const { data, error } = await supabaseClient.from('audit_logs').insert(event).select('*').single();
+    const { data, error } = await supabaseClient.from('audit_logs' as any).insert(event).select('*').single();
     if (error) throw new Error(error.message);
     if (!data) throw new Error('Supabase did not confirm the resolution. Refresh alerts before retrying.');
     return data;
@@ -569,8 +569,8 @@ export default function AdminApp() {
   const triggerAuditLog = async (action: string, module: string, targetRecord: string) => {
     try {
       if (!supabaseClient) throw new Error('Supabase client is not available.');
-      const { data: authData } = await supabaseClient.auth.getUser();
-      const { error } = await supabaseClient.from('audit_logs').insert({
+      const { data: authData } = await (supabaseClient.auth as any).getUser();
+      const { error } = await supabaseClient.from('audit_logs' as any).insert({
         user_id: authData.user?.id || null,
         action_type: action,
         action_details: { module, target_record: targetRecord },
@@ -670,8 +670,8 @@ export default function AdminApp() {
         motorcycles: motorcyclesByUser.get(user.id) || [],
         contacts: contactsByUser.get(user.id) || [],
       })).sort((a, b) => {
-        const aUpdated = Date.parse(a.updated_at || a.created_at || '') || 0;
-        const bUpdated = Date.parse(b.updated_at || b.created_at || '') || 0;
+        const aUpdated = Date.parse((a as any).updated_at || a.created_at || '') || 0;
+        const bUpdated = Date.parse((b as any).updated_at || b.created_at || '') || 0;
         return bUpdated - aUpdated;
       }));
     } catch (error) { console.error(error); }
@@ -747,7 +747,7 @@ export default function AdminApp() {
 
   const saveSettingToDB = async (key: string, value: string) => {
     if (!supabaseClient) throw new Error('Supabase client is not available.');
-    const { error } = await supabaseClient.from('system_settings').upsert(
+    const { error } = await supabaseClient.from('system_settings' as any).upsert(
       { setting_key: key, setting_value: value },
       { onConflict: 'setting_key' },
     );
@@ -1019,8 +1019,8 @@ export default function AdminApp() {
         role: editRole,
         updated_at: updatedAt,
       } : r).sort((a, b) => {
-        const aUpdated = Date.parse(a.updated_at || a.created_at || '') || 0;
-        const bUpdated = Date.parse(b.updated_at || b.created_at || '') || 0;
+        const aUpdated = Date.parse((a as any).updated_at || a.created_at || '') || 0;
+        const bUpdated = Date.parse((b as any).updated_at || b.created_at || '') || 0;
         return bUpdated - aUpdated;
       });
       setRiders(updated);
@@ -3617,3 +3617,4 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginBottom: '16px'
   }
 };
+

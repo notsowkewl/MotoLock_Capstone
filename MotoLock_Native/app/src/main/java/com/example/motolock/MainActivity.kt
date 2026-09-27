@@ -266,14 +266,20 @@ fun MotoLockApp() {
                 RideHistoryScreen(onBack = { navController.navigate("dashboard") { popUpTo("dashboard") { inclusive = true } } })
             }
             
-            composable("settings") {
+                        composable("settings") {
                 SettingsScreen(
                     onNavigateToContacts = { navController.navigate("contacts") },
-                    onNavigateToMotorcycle = { navController.navigate("motorcycle_config") },
+                    onNavigateToMotorcycle = { navController.navigate("registered_motorcycles") },
+                    onNavigateToProfile = { navController.navigate("rider_profile") },
+                    onNavigateToChangePassword = { navController.navigate("change_password") },
+                    onNavigateToPin = { navController.navigate("security_pin") },
                     onLogout = { navController.navigate("login") { popUpTo(0) } },
-                    onBack = { navController.navigate("dashboard") { popUpTo("dashboard") { inclusive = true } } }
+                    onBack = { navController.popBackStack() }
                 )
             }
+            composable("rider_profile") { RiderProfileScreen(onBack = { navController.popBackStack() }) }
+            composable("change_password") { ChangePasswordScreen(onBack = { navController.popBackStack() }) }
+            composable("security_pin") { SecurityPinScreen(onBack = { navController.popBackStack() }) }
             
             composable("unlock_pairing") {
                 ESP32PairingScreen(
@@ -305,4 +311,6 @@ fun MotoLockApp() {
         }
     }
 }
+
+
 
