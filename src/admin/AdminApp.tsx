@@ -28,6 +28,21 @@ const SUPABASE_URL = 'https://bafziqymbvhrytziteuo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZnppcXltYnZocnl0eml0ZXVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MjAzMzUsImV4cCI6MjEwMzk5NjMzNX0.F1KVSKnN_x-8O2gKlh0d8XPydlBWTcsS0GPbCS6CP_c';
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const clearPersistedAdminSession = () => {
+  localStorage.removeItem('ml_token');
+  localStorage.removeItem('ml_email');
+  localStorage.removeItem('ml_role');
+  sessionStorage.removeItem('ml_token');
+  sessionStorage.removeItem('ml_email');
+  sessionStorage.removeItem('ml_role');
+};
+
+if (import.meta.hot) {
+  import.meta.hot.on('vite:ws:disconnect', () => {
+    window.dispatchEvent(new Event('motolock:dev-server-disconnected'));
+  });
+}
+
 interface SupabaseRecord extends Record<string, unknown> {
   id?: string | number;
   created_at?: string;
@@ -333,14 +348,38 @@ const CustomSelect = ({
 };
 
 export default function AdminApp() {
-  const [token, setToken] = useState<string>(localStorage.getItem('ml_token') || '');
-  const [adminEmail, setAdminEmail] = useState<string>(localStorage.getItem('ml_email') || '');
-  const [adminRole, setAdminRole] = useState<string>(localStorage.getItem('ml_role') || 'admin');
+  const [token, setToken] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminRole, setAdminRole] = useState('admin');
+  const [authReady, setAuthReady] = useState(false);
   const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('ml_tab') || 'dashboard');
   useEffect(() => { localStorage.setItem('ml_tab', activeTab); }, [activeTab]);
   const [isLightMode, setIsLightMode] = useState<boolean>(localStorage.getItem('ml_theme') === 'light');
   const [notifications, setNotifications] = useState<SafetyLog[]>([]);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
+
+  useEffect(() => {
+    let active = true;
+    const endSession = () => {
+      clearPersistedAdminSession();
+      setToken('');
+      setAdminEmail('');
+      setAdminRole('admin');
+      void supabaseClient?.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    };
+    const handleDevServerDisconnect = () => endSession();
+    window.addEventListener('motolock:dev-server-disconnected', handleDevServerDisconnect);
+
+    clearPersistedAdminSession();
+    void supabaseClient?.auth.signOut({ scope: 'local' })
+      .catch(() => undefined)
+      .finally(() => { if (active) setAuthReady(true); });
+
+    return () => {
+      active = false;
+      window.removeEventListener('motolock:dev-server-disconnected', handleDevServerDisconnect);
+    };
+  }, []);
 
   // Login Form States
   const [loginEmail, setLoginEmail] = useState('');
@@ -569,9 +608,6 @@ export default function AdminApp() {
         body: JSON.stringify({ email: loginEmail, password: loginPass })
       });
       if (res.token) {
-        localStorage.setItem('ml_token', res.token);
-        localStorage.setItem('ml_email', loginEmail);
-        localStorage.setItem('ml_role', res.user.role);
         setToken(res.token);
         setAdminEmail(loginEmail);
         setAdminRole(res.user.role);
@@ -587,11 +623,11 @@ export default function AdminApp() {
   // Logout handler
   const handleLogout = () => {
     triggerAuditLog('Logged Out', 'Authentication', adminEmail);
-    void supabaseClient.auth.signOut();
-    localStorage.removeItem('ml_token');
-    localStorage.removeItem('ml_email');
+    void supabaseClient.auth.signOut({ scope: 'local' });
+    clearPersistedAdminSession();
     setToken('');
     setAdminEmail('');
+    setAdminRole('admin');
   };
 
   // Log administrative actions
@@ -1298,6 +1334,10 @@ export default function AdminApp() {
     if (p.length < 7) return p;
     return p.slice(0, 3) + '*'.repeat(p.length - 5) + p.slice(-2);
   };
+
+  if (!authReady) {
+    return <div style={styles.loginContainer}><div style={styles.loginBox}>Ending previous session…</div></div>;
+  }
 
   // If no auth token, display Login Box
   if (!token) {

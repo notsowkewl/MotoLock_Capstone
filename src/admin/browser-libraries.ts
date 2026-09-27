@@ -36,7 +36,7 @@ interface SupabaseClient {
       data: { user: { email?: string } | null; session: Session | null };
       error: ServiceError | null;
     }>;
-    signOut(): Promise<unknown>;
+    signOut(options?: { scope?: 'global' | 'local' | 'others' }): Promise<unknown>;
     getSession(): Promise<{ data: { session: Session | null }; error: ServiceError | null }>;
   };
   functions: {
