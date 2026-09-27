@@ -1,5 +1,6 @@
 package com.example.motolock
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -30,8 +32,10 @@ fun PinUnlockScreen(onUnlockSuccess: () -> Unit, onLogout: () -> Unit) {
     var pin by remember { mutableStateOf("") }
     var isChecking by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var failedAttempts by remember { mutableIntStateOf(0) }
     
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
     val motoRed = Color(0xFFED1C24)
     val motoBlack = Color(0xFF101217)
     val lineCol = Color(0xFFE8EBF0)
@@ -146,16 +150,26 @@ fun PinUnlockScreen(onUnlockSuccess: () -> Unit, onLogout: () -> Unit) {
                                                             .decodeList<Pin>()
                                                             
                                                         if (savedPins.isEmpty()) {
-                                                            // No PIN saved at all, let them through to dashboard where they can finish setup
-                                                            // Or they could be prompted to create one, but for now we'll pass them to the app.
                                                             onUnlockSuccess()
                                                         } else {
                                                             if (savedPins.any { it.pin == pin }) {
                                                                 onUnlockSuccess()
                                                             } else {
-                                                                errorMessage = "Incorrect PIN."
-                                                                pin = ""
-                                                                isChecking = false
+                                                                failedAttempts++
+                                                                if (failedAttempts >= 5) {
+                                                                    // Lockout: Save flag to SharedPreferences, then sign out
+                                                                    val prefs = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
+                                                                    prefs.edit().putBoolean("reset_pin_for_$finalUserId", true).apply()
+                                                                    
+                                                                    try {
+                                                                        SupabaseClientManager.client.auth.signOut()
+                                                                    } catch(e: Exception) {}
+                                                                    onLogout()
+                                                                } else {
+                                                                    errorMessage = "Incorrect PIN. ${5 - failedAttempts} attempts left before logout."
+                                                                    pin = ""
+                                                                    isChecking = false
+                                                                }
                                                             }
                                                         }
                                                     } else {
@@ -200,7 +214,7 @@ fun PinUnlockScreen(onUnlockSuccess: () -> Unit, onLogout: () -> Unit) {
                 onLogout()
             }
         }) {
-            Text("Logout", color = motoRed)
+            Text("Logout", color = motoRed, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }

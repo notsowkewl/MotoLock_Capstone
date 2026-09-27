@@ -1,4 +1,4 @@
-﻿package com.example.motolock
+package com.example.motolock
 
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -36,6 +36,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.motolock.network.SupabaseClientManager
+import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.builtin.Email
 import kotlinx.coroutines.launch
@@ -45,19 +46,51 @@ import io.github.jan.supabase.gotrue.SessionStatus
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotClick: () -> Unit) {
-    var email by remember { mutableStateOf("") }
+        var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
+    var failedAttempts by remember { mutableIntStateOf(0) }
+    var lockedOut by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val loginSuccess by rememberUpdatedState(onLoginSuccess)
     LaunchedEffect(Unit) {
-        SupabaseClientManager.client.auth.sessionStatus.collect { status ->
-            if (status is SessionStatus.Authenticated) loginSuccess()
+                SupabaseClientManager.client.auth.sessionStatus.collect { status ->
+            if (status is SessionStatus.Authenticated) {
+                val user = SupabaseClientManager.client.auth.currentSessionOrNull()?.user
+                if (user != null) {
+                    coroutineScope.launch {
+                        try {
+                            var finalUserId = user.id
+                            val profile = SupabaseClientManager.client.postgrest["users"]
+                                .select { filter { eq("id", user.id) } }
+                                .decodeList<com.example.motolock.models.User>().firstOrNull()
+                                ?: (user.email?.let {
+                                    SupabaseClientManager.client.postgrest["users"]
+                                        .select { filter { eq("email", it) } }
+                                        .decodeList<com.example.motolock.models.User>().firstOrNull()
+                                })
+                            if (profile != null) finalUserId = profile.id
+                            
+                            val prefs = context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE)
+                            if (prefs.getBoolean("reset_pin_for_$finalUserId", false)) {
+                                SupabaseClientManager.client.postgrest["pins"]
+                                    .delete { filter { eq("user_id", finalUserId) } }
+                                prefs.edit().remove("reset_pin_for_$finalUserId").apply()
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                        loginSuccess()
+                    }
+                } else {
+                    loginSuccess()
+                }
+            }
         }
     }
 
@@ -218,54 +251,108 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            Button(
-                onClick = {
-                    var valid = true
-                    if (email.isBlank()) { emailError = "Email is required"; valid = false }
-                    if (password.isBlank()) { passwordError = "Password is required"; valid = false }
-                    if (!valid) return@Button
-                    
-                    isLoading = true
-                    coroutineScope.launch {
-                        try {
-                            SupabaseClientManager.client.auth.signInWith(Email) {
-                                this.email = email
-                                this.password = password
+                        if (lockedOut) {
+                Text(
+                    text = "Too many failed attempts. Please reset your password.",
+                    color = Color.Red,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                )
+                Button(
+                    onClick = {
+                        if (email.isBlank()) { emailError = "Email is required"; return@Button }
+                        isLoading = true
+                        coroutineScope.launch {
+                            try {
+                                SupabaseClientManager.client.auth.resetPasswordForEmail(email)
+                                Toast.makeText(context, "Reset link sent to $email", Toast.LENGTH_LONG).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Failed to send reset link", Toast.LENGTH_LONG).show()
+                            } finally {
+                                isLoading = false
                             }
-                            // Session observation above handles navigation for both login methods.
-                        } catch (e: Exception) {
-                            if (e.message?.contains("credentials") == true || e.message?.contains("invalid") == true) {
-                                emailError = "Invalid email or password"
-                                passwordError = "Invalid email or password"
-                            } else {
-                                Toast.makeText(context, "Login Failed: ${e.message}", Toast.LENGTH_LONG).show()
-                            }
-                        } finally {
-                            isLoading = false
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(51.dp)
+                        .shadow(28.dp, RoundedCornerShape(15.dp), spotColor = motoRed.copy(alpha = 0.22f)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    contentPadding = PaddingValues(0.dp),
+                    shape = RoundedCornerShape(15.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(listOf(Color(0xFFFF3038), motoRed)),
+                                RoundedCornerShape(15.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                        } else {
+                            Text("Send Reset Link", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
                         }
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(51.dp)
-                    .shadow(28.dp, RoundedCornerShape(15.dp), spotColor = motoRed.copy(alpha = 0.22f)),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                contentPadding = PaddingValues(0.dp),
-                shape = RoundedCornerShape(15.dp)
-            ) {
-                Box(
+                }
+            } else {
+                Button(
+                    onClick = {
+                        var valid = true
+                        if (email.isBlank()) { emailError = "Email is required"; valid = false }
+                        if (password.isBlank()) { passwordError = "Password is required"; valid = false }
+                        if (!valid) return@Button
+                        
+                        isLoading = true
+                        coroutineScope.launch {
+                            try {
+                                SupabaseClientManager.client.auth.signInWith(Email) {
+                                    this.email = email
+                                    this.password = password
+                                }
+                            } catch (e: Exception) {
+                                if (e.message?.contains("credentials") == true || e.message?.contains("invalid") == true) {
+                                    failedAttempts++
+                                    if (failedAttempts >= 5) {
+                                        lockedOut = true
+                                        passwordError = "Account locked out. Please reset password."
+                                    } else {
+                                        emailError = "Invalid email or password (${5 - failedAttempts} attempts left)"
+                                        passwordError = "Invalid email or password (${5 - failedAttempts} attempts left)"
+                                    }
+                                } else {
+                                    Toast.makeText(context, "Login Failed: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                            } finally {
+                                isLoading = false
+                            }
+                        }
+                    },
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(listOf(Color(0xFFFF3038), motoRed)),
-                            RoundedCornerShape(15.dp)
-                        ),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .height(51.dp)
+                        .shadow(28.dp, RoundedCornerShape(15.dp), spotColor = motoRed.copy(alpha = 0.22f)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    contentPadding = PaddingValues(0.dp),
+                    shape = RoundedCornerShape(15.dp)
                 ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                    } else {
-                        Text("Login", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(listOf(Color(0xFFFF3038), motoRed)),
+                                RoundedCornerShape(15.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                        } else {
+                            Text("Login", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+                        }
                     }
                 }
             }
@@ -325,5 +412,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
         }
     }
 }
+
 
 
