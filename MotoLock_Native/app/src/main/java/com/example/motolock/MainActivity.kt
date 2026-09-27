@@ -109,7 +109,7 @@ fun MotoLockApp() {
     val navController = rememberNavController()
     var startDest by remember { mutableStateOf<String?>(null) }
     
-    val navBackStackEntry by currentBackStackEntryAsState()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
     LaunchedEffect(Unit) {
