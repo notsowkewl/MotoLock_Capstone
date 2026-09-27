@@ -22,6 +22,30 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.motolock.ui.theme.MotoLockTheme
 import com.example.motolock.network.SupabaseClientManager
 import io.github.jan.supabase.gotrue.auth
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,12 +107,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MotoLockApp() {
     val navController = rememberNavController()
-    var startDest by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var startDest by remember { mutableStateOf<String?>(null) }
     
-    val navBackStackEntry by androidx.navigation.compose.currentBackStackEntryAsState()
+    val navBackStackEntry by currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    LaunchedEffect(Unit) {
         SupabaseClientManager.client.auth.awaitInitialization()
         startDest = if (SupabaseClientManager.client.auth.currentSessionOrNull() != null) {
             "pin_unlock"
@@ -98,62 +122,62 @@ fun MotoLockApp() {
     }
 
     if (startDest == null) {
-        androidx.compose.foundation.layout.Box(
+        Box(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = androidx.compose.ui.Alignment.Center
+            contentAlignment = Alignment.Center
         ) {
-            androidx.compose.material3.CircularProgressIndicator(color = androidx.compose.ui.graphics.Color(0xFFED1C24))
+            CircularProgressIndicator(color = Color(0xFFED1C24))
         }
         return
     }
 
     val showBottomBar = currentRoute in listOf("dashboard", "ride_history", "settings")
 
-    androidx.compose.material3.Scaffold(
+    Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        containerColor = Color.Transparent,
         bottomBar = {
             if (showBottomBar) {
-                androidx.compose.material3.NavigationBar(
-                    containerColor = androidx.compose.ui.graphics.Color.White,
+                NavigationBar(
+                    containerColor = Color.White,
                     tonalElevation = 0.dp,
                     modifier = Modifier
-                        .androidx.compose.foundation.border(1.dp, androidx.compose.ui.graphics.Color(0xFFE8EBF0))
-                        .androidx.compose.foundation.layout.height(64.dp)
+                        .border(1.dp, Color(0xFFE8EBF0))
+                        .height(64.dp)
                 ) {
-                    val motoRed = androidx.compose.ui.graphics.Color(0xFFED1C24)
-                    val textGray = androidx.compose.ui.graphics.Color(0xFF737987)
+                    val motoRed = Color(0xFFED1C24)
+                    val textGray = Color(0xFF737987)
                     
-                    androidx.compose.material3.NavigationBarItem(
+                    NavigationBarItem(
                         selected = currentRoute == "dashboard",
                         onClick = { navController.navigate("dashboard") { launchSingleTop = true; restoreState = true } },
-                        icon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.Home, "Home", modifier = Modifier.androidx.compose.foundation.layout.size(22.dp)) },
-                        label = { androidx.compose.material3.Text("Home", fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) },
-                        colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                        icon = { Icon(Icons.Default.Home, "Home", modifier = Modifier.size(22.dp)) },
+                        label = { Text("Home", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                        colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = motoRed, selectedTextColor = motoRed,
-                            indicatorColor = androidx.compose.ui.graphics.Color(0xFFFFEDEE),
+                            indicatorColor = Color(0xFFFFEDEE),
                             unselectedIconColor = textGray, unselectedTextColor = textGray
                         )
                     )
-                    androidx.compose.material3.NavigationBarItem(
+                    NavigationBarItem(
                         selected = currentRoute == "ride_history",
                         onClick = { navController.navigate("ride_history") { launchSingleTop = true; restoreState = true } },
-                        icon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.History, "Ride History", modifier = Modifier.androidx.compose.foundation.layout.size(22.dp)) },
-                        label = { androidx.compose.material3.Text("History", fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) },
-                        colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                        icon = { Icon(Icons.Default.History, "Ride History", modifier = Modifier.size(22.dp)) },
+                        label = { Text("History", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                        colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = motoRed, selectedTextColor = motoRed,
-                            indicatorColor = androidx.compose.ui.graphics.Color(0xFFFFEDEE),
+                            indicatorColor = Color(0xFFFFEDEE),
                             unselectedIconColor = textGray, unselectedTextColor = textGray
                         )
                     )
-                    androidx.compose.material3.NavigationBarItem(
+                    NavigationBarItem(
                         selected = currentRoute == "settings",
                         onClick = { navController.navigate("settings") { launchSingleTop = true; restoreState = true } },
-                        icon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.Person, "Profile", modifier = Modifier.androidx.compose.foundation.layout.size(22.dp)) },
-                        label = { androidx.compose.material3.Text("Profile", fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) },
-                        colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                        icon = { Icon(Icons.Default.Person, "Profile", modifier = Modifier.size(22.dp)) },
+                        label = { Text("Profile", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                        colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = motoRed, selectedTextColor = motoRed,
-                            indicatorColor = androidx.compose.ui.graphics.Color(0xFFFFEDEE),
+                            indicatorColor = Color(0xFFFFEDEE),
                             unselectedIconColor = textGray, unselectedTextColor = textGray
                         )
                     )
@@ -281,3 +305,4 @@ fun MotoLockApp() {
         }
     }
 }
+
