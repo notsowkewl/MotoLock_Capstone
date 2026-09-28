@@ -51,7 +51,7 @@ it('paginates, sorts, resets pages for searches and clears combined filters', ()
   fireEvent.change(screen.getByLabelText('Search Logs'), { target: { value: 'USER: 2' } });
   fireEvent.change(screen.getByLabelText('Activity'), { target: { value: 'update' } });
   fireEvent.change(screen.getByLabelText('Area'), { target: { value: 'Riders' } });
-  fireEvent.change(screen.getByLabelText('Performed By'), { target: { value: 'Ana' } });
+  expect(screen.queryByLabelText('Performed By')).toBeNull();
   expect(screen.getByText('Showing 1–6 of 6 logs')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('From Date'), { target: { value: '2026-09-20' } });
   fireEvent.change(screen.getByLabelText('To Date'), { target: { value: '2026-09-20' } });

@@ -37,7 +37,7 @@ export default function DevicesPage({ devices, styles, onOpenAlerts }: {
   }, [override]);
   const close = () => { dialog.current?.close(); setSelectedId(null); setOverride(false); };
   const badge = (device: Device) => <span className={`device-status ${ignition(device) === 'Ignition Ready' ? 'device-status-ready' : ''}`}><span aria-hidden="true">{ignition(device) === 'Ignition Ready' ? '✓' : '•'}</span> {ignition(device)}</span>;
-  const details = (device: Device) => <div className="device-details"><span>Helmet ID: {device.helmet_visual_id || 'Not synced'}</span><span>SIM Card: {device.sim_number || 'N/A'}</span>{device.model && <span>{device.model}</span>}</div>;
+  const details = (device: Device) => <div className="device-details"><span>Helmet ID: {device.helmet_visual_id || 'Not synced'}</span>{device.model && <span>{device.model}</span>}</div>;
 
   return <div className="devices-page">
     <div className="devices-summary" aria-label="Device summary">

@@ -66,17 +66,16 @@ export default function RidersPage({ riders, styles, maskPhone, onAdd, onEdit, o
         <button style={{ ...styles.actionBtn, background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }} onClick={onAdd}>Add User</button>
       </div>
       <div className="riders-table-scroll" tabIndex={0} role="region" aria-label="Riders table"><table style={styles.table}>
-        <thead><tr>{['Rider Name', 'Email', 'Mobile', 'Motorcycle', 'Emergency Contacts', 'Role', 'Face ID Status', 'Actions'].map(header => <th scope="col" style={styles.tableHeader} key={header}>{header}</th>)}</tr></thead>
+        <thead><tr>{['Rider Name', 'Email', 'Motorcycle', 'Emergency Contacts', 'Role', 'Face ID Status', 'Actions'].map(header => <th scope="col" style={styles.tableHeader} key={header}>{header}</th>)}</tr></thead>
         <tbody>{pagination.rows.map(rider => <tr key={rider.id}>
           <td style={styles.tableCell}><button className="rider-name" onClick={() => setViewId(rider.id)} aria-label={`View rider ${rider.full_name}`}>{rider.full_name}</button></td>
           <td style={styles.tableCell}><span className="rider-email">{rider.email}</span></td>
-          <td style={styles.tableCell}><span className="rider-mobile">{maskPhone(rider.phone)}</span></td>
           <td style={styles.tableCell}>{motorcycles(rider)}</td>
           <td style={styles.tableCell}>{contacts(rider)}</td>
           <td style={styles.tableCell}><span className="rider-role">{roleLabel(rider.role)}</span></td>
           <td style={styles.tableCell}>{faceBadge(rider)}</td>
           <td style={styles.tableCell}><div className="rider-actions"><button style={styles.actionBtn} onClick={() => onEdit(rider)}>Edit</button>{rider.role !== 'admin' ? <button style={styles.delBtn} onClick={() => onDelete(rider)}>Delete</button> : <span className="rider-secondary">Protected</span>}</div></td>
-        </tr>)}{!filtered.length && <tr><td colSpan={8} style={styles.tableCell}><div className="riders-empty"><strong>No matching riders</strong><p>Try adjusting your search or filters.</p></div></td></tr>}</tbody>
+        </tr>)}{!filtered.length && <tr><td colSpan={7} style={styles.tableCell}><div className="riders-empty"><strong>No matching riders</strong><p>Try adjusting your search or filters.</p></div></td></tr>}</tbody>
       </table></div>
       <TablePagination pagination={pagination} label="Riders" recordNoun="riders" styles={styles} />
     </div>
@@ -90,7 +89,7 @@ export default function RidersPage({ riders, styles, maskPhone, onAdd, onEdit, o
       <h3 id="rider-details-title">Rider Details</h3>
       <dl className="rider-profile">
         <div><dt>Full Name</dt><dd>{selected.full_name}</dd></div><div><dt>Email</dt><dd>{selected.email}</dd></div>
-        <div><dt>Mobile</dt><dd>{selected.phone || 'Not Recorded'}</dd></div><div><dt>Role</dt><dd>{roleLabel(selected.role)}</dd></div>
+        <div><dt>Role</dt><dd>{roleLabel(selected.role)}</dd></div>
         <div><dt>Face ID Status</dt><dd>{faceBadge(selected)}</dd></div><div><dt>Rider ID</dt><dd>{selected.id}</dd></div>
         {selected.created_at && <div><dt>Account Created</dt><dd>{Number.isFinite(Date.parse(selected.created_at)) ? new Date(selected.created_at).toLocaleString() : selected.created_at}</dd></div>}
         {selected.updated_at && <div><dt>Last Updated</dt><dd>{Number.isFinite(Date.parse(selected.updated_at)) ? new Date(selected.updated_at).toLocaleString() : selected.updated_at}</dd></div>}

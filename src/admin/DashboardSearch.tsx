@@ -21,7 +21,7 @@ export default function DashboardSearch({ riders, devices, rides, logs, onNaviga
     const add = (id: string, title: string, detail: string, tab: string, page: string, extra = '') => result.push({ id, title, detail, tab, page, search: `${title} ${detail} ${page} ${extra}`.toLowerCase() });
     pages.forEach(([tab, page]) => add(`page-${tab}`, page, 'Open admin page', tab, page));
     riders.forEach(rider => add(`rider-${rider.id}`, rider.full_name || rider.name || 'Name not available', [rider.email, `User ID: ${rider.id}`].filter(Boolean).join(' · '), 'riders', 'Riders', [rider.phone, ...rider.motorcycles?.map(motorcycle => `${motorcycle.plate_number} ${motorcycle.model}`) || []].join(' ')));
-    devices.forEach(device => add(`device-${device.id}`, `DEV-${String(device.id).slice(0, 8).toUpperCase()}`, [device.rider_name, `Device ID: ${device.id}`, `SIM Card Slot: ${device.sim_number || 'N/A'}`].filter(Boolean).join(' · '), 'live-monitoring', 'Live Monitoring', `${device.user_id} ${device.model || ''}`));
+    devices.forEach(device => add(`device-${device.id}`, `DEV-${String(device.id).slice(0, 8).toUpperCase()}`, [device.rider_name, `Device ID: ${device.id}`].filter(Boolean).join(' · '), 'live-monitoring', 'Live Monitoring', `${device.user_id} ${device.model || ''}`));
     rides.forEach(ride => {
       add(`ride-${ride.id}`, `${ride.full_name || 'Unknown rider'} · ${activityLabel(ride.status)}`, `Ride: ${ride.id}${ride.brac ? ` · ${ride.brac} BAC` : ''}`, 'sobriety', 'Sobriety Tests', `${ride.email} ${ride.status} ${ride.device_id || ''}`);
       if (['failed_brac', 'failed_face', 'failed_helmet'].includes(ride.status) || ride.alcohol_detected) {

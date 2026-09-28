@@ -34,9 +34,9 @@ export interface Device {
   user_id: string;
   rider_name?: string;
   status?: string;
-  sim_number?: string;
   relay_status?: boolean;
   is_locked?: boolean;
+  recorded_status?: { lock?: import('./monitoring-records').RecordedState; relay?: import('./monitoring-records').RecordedState };
   model?: string;
 }
 export interface SafetyLog extends IdentityMetadata {
@@ -79,7 +79,7 @@ export interface DashboardData {
 }
 // Report categories share a preview table but expose different columns.
 export interface ReportRow {
-  is_locked?: boolean | number;
+  failure_reason?: string;
   id: string | number;
   created_at?: string;
   full_name?: string;

@@ -20,9 +20,9 @@ function setup(data = riders) {
   return callbacks;
 }
 
-it('retains eight columns and all motorcycles and contacts, with read-only details', () => {
+it('shows seven columns without rider mobile numbers and retains motorcycles and contacts', () => {
   setup();
-  expect(screen.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Rider Name', 'Email', 'Mobile', 'Motorcycle', 'Emergency Contacts', 'Role', 'Face ID Status', 'Actions']);
+  expect(screen.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Rider Name', 'Email', 'Motorcycle', 'Emergency Contacts', 'Role', 'Face ID Status', 'Actions']);
   expect(screen.getByText('No plate recorded')).toBeTruthy();
   expect(screen.getByText('Mama')).toBeTruthy();
   expect(screen.queryByText('Ate Yanna')).toBeNull();
@@ -32,7 +32,8 @@ it('retains eight columns and all motorcycles and contacts, with read-only detai
   fireEvent.click(screen.getByRole('button', { name: 'Close' }));
   fireEvent.click(screen.getByRole('button', { name: 'View rider Jenna Diaz' }));
   const dialog = screen.getByRole('dialog');
-  expect(within(dialog).getByText('09123456789')).toBeTruthy();
+  expect(within(dialog).queryByText('09123456789')).toBeNull();
+  expect(within(dialog).queryByText('Mobile')).toBeNull();
   expect(within(dialog).getByText('2024 · Black')).toBeTruthy();
   expect(within(dialog).getByText('Friend · 09112345607')).toBeTruthy();
   expect(within(dialog).queryByRole('textbox')).toBeNull();

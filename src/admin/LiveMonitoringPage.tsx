@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { Device } from './types';
+import { monitoringReading } from './monitoring-records';
 import './LiveMonitoringPage.css';
 
 const shortId = (id: Device['id']) => `DEV-${String(id).slice(0, 8).toUpperCase()}`;
 const shortUser = (id: string) => id.length > 8 ? `${id.slice(0, 8)}…` : id;
-const reading = (value: unknown) => value === true || value === 1 ? true : value === false || value === 0 ? false : null;
-const lockLabel = (device: Device) => reading(device.is_locked) === null ? 'Not Recorded' : reading(device.is_locked) ? 'Locked' : 'Unlocked';
-const relayLabel = (device: Device) => reading(device.relay_status) === null ? 'Not Recorded' : reading(device.relay_status) ? 'Active' : 'Locked';
+const lockLabel = (device: Device) => {
+  const value = monitoringReading(device.is_locked) ?? device.recorded_status?.lock?.value;
+  return value == null ? 'Not Recorded' : value ? 'Locked' : 'Unlocked';
+};
+const relayLabel = (device: Device) => {
+  const value = monitoringReading(device.relay_status) ?? device.recorded_status?.relay?.value;
+  return value == null ? 'Not Recorded' : value ? 'Active' : 'Locked';
+};
 
 export default function LiveMonitoringPage({ devices, styles, onRefresh, lockIcon }: {
   devices: Device[];
@@ -39,6 +45,16 @@ export default function LiveMonitoringPage({ devices, styles, onRefresh, lockIco
     {lock && label !== 'Not Recorded' && lockIcon(label === 'Locked')}{label}
   </span>;
   const close = () => { dialog.current?.close(); setSelectedId(null); };
+  const stateCell = (device: Device, field: 'lock' | 'relay') => {
+    const record = monitoringReading(field === 'lock' ? device.is_locked : device.relay_status) === null
+      ? device.recorded_status?.[field] : undefined;
+    return <div className="monitoring-reading">
+      {badge(field === 'lock' ? lockLabel(device) : relayLabel(device), field === 'lock')}
+      {record && <small>
+        Last recorded status · <time dateTime={record.timestamp}>{new Date(record.timestamp).toLocaleString()}</time>
+      </small>}
+    </div>;
+  };
 
   return <section className="monitoring-page" aria-label="Live Monitoring devices">
     <div className="monitoring-toolbar">
@@ -60,23 +76,21 @@ export default function LiveMonitoringPage({ devices, styles, onRefresh, lockIco
         <label>Search<input type="search" placeholder="Search device or rider..." value={search} onChange={event => setSearch(event.target.value)} style={styles.input} /></label>
         <label>Lock Status<select value={status} onChange={event => setStatus(event.target.value)} style={styles.input}>{['All', 'Locked', 'Unlocked'].map(value => <option key={value}>{value}</option>)}</select></label>
       </div>
-      <p className="monitoring-note">Relay Control shows the relay state; Lock Status shows whether the lock is engaged or released.</p>
       <div className="monitoring-table-scroll"><table style={styles.table}>
-        <colgroup>{['21%', '13%', '16%', '16%', '25%', '9%'].map((width, i) => <col key={i} style={{ width }} />)}</colgroup>
-        <thead><tr>{['Device ID', 'SIM Card Slot', 'Relay Control', 'Lock Status', 'Assigned Rider', 'Actions'].map(header => <th scope="col" key={header} style={styles.tableHeader}>{header}</th>)}</tr></thead>
+        <colgroup>{['25%', '19%', '19%', '27%', '10%'].map((width, i) => <col key={i} style={{ width }} />)}</colgroup>
+        <thead><tr>{['Device ID', 'Relay Control', 'Lock Status', 'Assigned Rider', 'Actions'].map(header => <th scope="col" key={header} style={styles.tableHeader}>{header}</th>)}</tr></thead>
         <tbody>{filtered.map(device => <tr key={device.id}>
           <td style={styles.tableCell}><code title={String(device.id)}>{shortId(device.id)}</code></td>
-          <td style={styles.tableCell}>{device.sim_number || 'N/A'}</td>
-          <td style={styles.tableCell}>{badge(relayLabel(device))}</td>
-          <td style={styles.tableCell}>{badge(lockLabel(device), true)}</td>
+          <td style={styles.tableCell}>{stateCell(device, 'relay')}</td>
+          <td style={styles.tableCell}>{stateCell(device, 'lock')}</td>
           <td style={styles.tableCell}>{rider(device)}</td>
           <td style={styles.tableCell}><button type="button" style={styles.actionBtn} aria-label={`View device ${device.id}`} onClick={() => setSelectedId(device.id)}>Details</button></td>
-        </tr>)}{!filtered.length && <tr><td colSpan={6} style={styles.tableCell}><div className="monitoring-empty">{devices.length ? 'No devices match your search or lock status filter.' : 'No devices registered in the system.'}</div></td></tr>}</tbody>
+        </tr>)}{!filtered.length && <tr><td colSpan={5} style={styles.tableCell}><div className="monitoring-empty">{devices.length ? 'No devices match your search or lock status filter.' : 'No devices registered in the system.'}</div></td></tr>}</tbody>
       </table></div>
     </div>
     {selected && <dialog ref={dialog} className="monitoring-dialog" aria-labelledby="monitoring-details-title" onCancel={close} onClose={() => setSelectedId(null)}>
       <h3 id="monitoring-details-title">Device Details</h3>
-      <dl><dt>Device ID</dt><dd>{selected.id}</dd><dt>SIM Card Slot</dt><dd>{selected.sim_number || 'N/A'}</dd><dt>Relay Control</dt><dd>{badge(relayLabel(selected))}</dd><dt>Lock Status</dt><dd>{badge(lockLabel(selected), true)}</dd><dt>Assigned Rider</dt><dd>{rider(selected, true)}</dd></dl>
+      <dl><dt>Device ID</dt><dd>{selected.id}</dd><dt>Relay Control</dt><dd>{stateCell(selected, 'relay')}</dd><dt>Lock Status</dt><dd>{stateCell(selected, 'lock')}</dd><dt>Assigned Rider</dt><dd>{rider(selected, true)}</dd></dl>
       <div className="monitoring-dialog-footer"><button type="button" style={styles.actionBtn} onClick={close}>Close</button></div>
     </dialog>}
   </section>;

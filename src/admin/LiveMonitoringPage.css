@@ -17,6 +17,8 @@
 .monitoring-rider span { font-size: 11px; color: var(--muted); }
 .monitoring-status { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 6px; background: var(--bg); font-size: 12px; font-weight: 600; white-space: nowrap; }
 .monitoring-status svg { flex-shrink: 0; }
+.monitoring-reading { display: grid; justify-items: start; gap: 6px; }
+.monitoring-reading small { color: var(--muted); font-size: 11px; line-height: 1.5; }
 .monitoring-status-locked { color: var(--red); background: color-mix(in srgb, var(--red) 7%, var(--card)); }
 .monitoring-empty { padding: 20px 0; text-align: center; color: var(--muted); }
 .monitoring-dialog { position: fixed; inset: 0; margin: auto; width: min(480px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); overflow-y: auto; box-sizing: border-box; padding: 28px; border: 1px solid var(--border); border-radius: 20px; background: var(--card); color: var(--text); font-family: inherit; box-shadow: 0 20px 40px #0003; }

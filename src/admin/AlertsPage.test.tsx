@@ -29,7 +29,7 @@ it('combines live rider search and filters and clears them without changing the 
   await screen.findByText('Showing 2 of 2 alerts');
   expect(screen.getAllByRole('row')[1].textContent).toContain('Ben Reyes');
   fireEvent.change(screen.getByLabelText('Search Rider'), { target: { value: 'aNA' } });
-  fireEvent.change(screen.getByLabelText('Severity'), { target: { value: 'High' } });
+  expect(screen.queryByLabelText('Severity')).toBeNull();
   fireEvent.change(screen.getByLabelText('Trigger Reason'), { target: { value: 'Alcohol Above Limit' } });
   fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'Active' } });
   expect(screen.getByText('Showing 1 of 2 alerts')).toBeTruthy();
@@ -37,14 +37,13 @@ it('combines live rider search and filters and clears them without changing the 
   expect(screen.getByText('Showing 2 of 2 alerts')).toBeTruthy();
   expect((screen.getByLabelText('Search Rider') as HTMLInputElement).value).toBe('');
   fireEvent.change(screen.getByLabelText('Search Rider'), { target: { value: 'missing rider' } });
-  fireEvent.change(screen.getByLabelText('Severity'), { target: { value: 'High' } });
   fireEvent.change(screen.getByLabelText('Trigger Reason'), { target: { value: 'Alcohol Above Limit' } });
   fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'Resolved' } });
   expect(screen.getByRole('tab', { name: 'Resolved (0)' }).getAttribute('aria-selected')).toBe('true');
   fireEvent.click(screen.getByRole('button', { name: 'Clear Filters' }));
   expect(screen.getByRole('tab', { name: 'Active Alerts (2)' }).getAttribute('aria-selected')).toBe('true');
   expect(screen.getByText('Showing 2 of 2 alerts')).toBeTruthy();
-  for (const label of ['Status', 'Severity', 'Trigger Reason']) {
+  for (const label of ['Status', 'Trigger Reason']) {
     expect((screen.getByLabelText(label) as HTMLSelectElement).value).toBe('all');
   }
   expect((screen.getByLabelText('Search Rider') as HTMLInputElement).value).toBe('');

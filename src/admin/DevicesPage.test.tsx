@@ -10,7 +10,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const devices: Device[] = [
-  { id: '15a143a0-1111-2222-3333-123456789abc', user_id: 'rider-1', is_locked: false, sim_number: '09123456789', model: 'MotoLock device' },
+  { id: '15a143a0-1111-2222-3333-123456789abc', user_id: 'rider-1', is_locked: false, model: 'MotoLock device' },
   { id: '25b143b0-1111-2222-3333-987654321abc', user_id: 'rider-2', is_locked: true },
   { id: 'unknown-device', user_id: 'rider-3' },
 ];
@@ -24,7 +24,7 @@ it('shows recorded states, abbreviated IDs, and a navigation-only override flow'
   fireEvent.click(screen.getByRole('button', { name: `Manage device ${devices[0].id}` }));
   const dialog = screen.getByRole('dialog');
   expect(within(dialog).getByText(devices[0].id)).toBeTruthy();
-  expect(within(dialog).getByText('SIM Card: 09123456789')).toBeTruthy();
+  expect(within(dialog).queryByText(/SIM Card/)).toBeNull();
   fireEvent.click(within(dialog).getByRole('button', { name: 'Device Override' }));
   expect(within(dialog).getByText('Device override actions are managed through Alerts & Incidents. Open an active alert to continue.')).toBeTruthy();
   fireEvent.click(within(dialog).getByRole('button', { name: 'Go to Alerts & Incidents' }));

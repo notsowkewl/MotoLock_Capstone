@@ -16,7 +16,6 @@ export default function AlertsPage({ store, threshold, styles }: Props) {
   const [view, setView] = useState<AlertStatus>('Active');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
-  const [severity, setSeverity] = useState('all');
   const [trigger, setTrigger] = useState('all');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -53,15 +52,13 @@ export default function AlertsPage({ store, threshold, styles }: Props) {
 
   const incidents = data ? buildIncidents(data.rides, data.users, data.events, threshold) : [];
   const viewIncidents = incidents.filter(incident => incident.status === view);
-  const filtered = filterIncidents(viewIncidents, search, status, severity, trigger);
-  const pagination = useTablePagination(filtered, JSON.stringify([view, search, status, severity, trigger, threshold]));
-  const severities = [...new Set(incidents.map(incident => incident.severity || 'Not Recorded'))].sort();
+  const filtered = filterIncidents(viewIncidents, search, status, 'all', trigger);
+  const pagination = useTablePagination(filtered, JSON.stringify([view, search, status, trigger, threshold]));
   const triggers = [...new Set(incidents.map(incident => incident.trigger || 'Not Recorded'))].sort();
   const changeView = (next: AlertStatus) => { setView(next); setStatus('all'); };
   const clear = () => {
     setSearch('');
     setStatus('all');
-    setSeverity('all');
     setTrigger('all');
     setView('Active');
   };
@@ -102,12 +99,7 @@ export default function AlertsPage({ store, threshold, styles }: Props) {
           setStatus(event.target.value);
           if (event.target.value !== 'all') setView(event.target.value as AlertStatus);
         }} style={styles.input}>
-          <option value="all">All Statuses in View</option><option>Active</option><option>Resolved</option>
-        </select>
-      </label>
-      <label style={labelStyle}><span style={{ fontSize: 13, fontWeight: 600 }}>Severity</span>
-        <select value={severity} onChange={event => setSeverity(event.target.value)} style={styles.input}>
-          <option value="all">All Severities</option>{severities.map(value => <option key={value}>{value}</option>)}
+          <option value="all">All Status</option><option>Active</option><option>Resolved</option>
         </select>
       </label>
       <label style={labelStyle}><span style={{ fontSize: 13, fontWeight: 600 }}>Trigger Reason</span>
@@ -129,7 +121,7 @@ export default function AlertsPage({ store, threshold, styles }: Props) {
           {pagination.rows.map(incident => <tr key={incident.id}>
             <td style={styles.tableCell}>{alertTime(incident.timestamp)}</td>
             <td style={styles.tableCell}>{incident.rider || 'Not Recorded'}{incident.email ? ` (${incident.email})` : ''}</td>
-            <td style={styles.tableCell}>{triggerLabel(incident)}</td>
+            <td style={{ ...styles.tableCell, ...(incident.trigger === 'Alcohol Above Limit' ? { color: 'var(--red)', fontWeight: 600 } : {}) }}>{triggerLabel(incident)}</td>
             <td style={styles.tableCell}><span style={{ fontWeight: 700, color: severityColor(incident.severity) }}>{incident.severity || 'Not Recorded'}</span></td>
             <td style={styles.tableCell}><span style={{ fontWeight: 700, color: incident.status === 'Resolved' ? 'var(--green)' : 'var(--red)' }}>{incident.status}</span></td>
             <td style={styles.tableCell}><button type="button" aria-haspopup="dialog" onClick={() => open(incident)} disabled={loading || !!error} style={styles.actionBtn}>
@@ -156,7 +148,7 @@ export default function AlertsPage({ store, threshold, styles }: Props) {
           ['Trigger reason', triggerLabel(selected)], ['Incident details', selected.details], ['Severity', selected.severity],
           ['System action taken', selected.systemAction], ['Original test status', selected.originalStatus], ['Status', selected.status],
           ...(selected.status === 'Resolved' ? [['Resolved at', alertTime(selected.resolvedAt)], ['Resolved by', selected.resolvedBy], ...(selected.note ? [['Resolution note', selected.note]] : [])] : []),
-        ].map(([label, value]) => <div key={label} style={{ display: 'contents' }}><dt style={{ fontWeight: 600 }}>{label}</dt><dd style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{value || 'Not Recorded'}</dd></div>)}
+        ].map(([label, value]) => <div key={label} style={{ display: 'contents' }}><dt style={{ fontWeight: 600 }}>{label}</dt><dd style={{ margin: 0, whiteSpace: 'pre-wrap', ...(label === 'Trigger reason' && selected.trigger === 'Alcohol Above Limit' ? { color: 'var(--red)', fontWeight: 600 } : {}) }}>{value || 'Not Recorded'}</dd></div>)}
       </dl>
       {selected.status === 'Active' && <>
         <p className="motolock-resolve-message">Resolving this alert confirms that the incident has been reviewed or handled. It does not change the original test result.</p>
