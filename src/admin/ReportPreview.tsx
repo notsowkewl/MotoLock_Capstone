@@ -16,7 +16,7 @@ export default function ReportPreview({ report, exporting, onExport }: {
     ...(rides ? ['Sober', 'Not Sober'].map(label => [label, report.rows.filter(row => row[3].split('\n')[0] === label).length]) : []),
   ];
   const compactSafety = ['Sober', 'Not Sober', 'Failed'].every(label => allCounts.some(item => item[0] === label));
-  const counts = compactSafety ? ['Total Records', 'Sober', 'Not Sober', 'Failed'].map(label =>
+  const counts = compactSafety ? ['Total Records', 'Sober', 'Not Sober'].map(label =>
     [label, allCounts.find(item => item[0] === label || (label === 'Total Records' && item[0] === 'Total Tests'))?.[1] ?? 0]) : allCounts;
   const outcomes = compactSafety ? ['Passed', 'Failed', 'Ongoing'].flatMap(label => {
     const item = allCounts.find(item => item[0] === label);
@@ -24,10 +24,11 @@ export default function ReportPreview({ report, exporting, onExport }: {
   }).join(' · ') : '';
   const passRate = compactSafety ? allCounts.find(item => item[0] === 'Pass Rate')?.[1] : undefined;
   return <section className="report-preview" aria-label="Report preview">
-    <div className="reports-summary" aria-live="polite">{counts.map(([label, count]) => <div className="reports-stat" key={label}><span>{label}</span><strong>{typeof count === 'number' ? count.toLocaleString() : count}</strong></div>)}</div>
+    {!compactSafety && <div className="reports-summary" aria-live="polite">{counts.map(([label, count]) => <div className="reports-stat" key={label}><span>{label}</span><strong>{typeof count === 'number' ? count.toLocaleString() : count}</strong></div>)}</div>}
     <div className="reports-results">
       <div className="reports-toolbar">
         <div><h3 className="reports-heading">{report.title}</h3>
+          {compactSafety && <div className="reports-summary reports-summary-inline" aria-live="polite">{counts.map(([label, count]) => <div className="reports-stat" key={label}><strong>{typeof count === 'number' ? count.toLocaleString() : count}</strong><span>{label}</span></div>)}</div>}
           {outcomes && <p className="reports-outcome-summary" aria-live="polite">{outcomes}{passRate !== undefined ? ` · ${passRate} Pass Rate` : ''}</p>}
           <p className="reports-updated">Last updated: {reportDate(report.generatedAt)}</p></div>
         <div className="reports-actions"><button disabled={exporting} onClick={() => onExport('pdf')}>Export PDF</button><button disabled={exporting} onClick={() => onExport('excel')}>Export Excel</button></div>

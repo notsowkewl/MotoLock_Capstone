@@ -112,7 +112,9 @@ it('shows account filters only for master list and keeps missing device data emp
 it('applies the date range together, cancels drafts, clears filters, and exports newest first', async () => {
   const onExport = vi.fn(async () => {});
   const { container } = render(<OrganizedReports data={data} threshold="0.05" styles={{}} onExport={onExport} />);
-  expect(container.querySelectorAll('.reports-stat')).toHaveLength(4);
+  expect(container.querySelectorAll('.reports-stat')).toHaveLength(3);
+  expect(container.querySelector('.reports-summary-inline')).toBeTruthy();
+  expect(container.querySelector('.reports-summary-inline')?.textContent).not.toContain('Failed');
   expect(screen.getByText('1 Passed · 1 Failed · 0 Ongoing')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Date Range' }));
   fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-09-02' } });
