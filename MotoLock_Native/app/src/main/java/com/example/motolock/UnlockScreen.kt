@@ -126,9 +126,40 @@ private fun ConnectedUnlockScreen(
     var isConnectionFailed by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf("Connecting to MotoLock...") }
     var lowLightDetected by remember { mutableStateOf(false) }
+    var faceCooldownUntil by remember { mutableStateOf(0L) }
+    var faceCooldownSeconds by remember { mutableStateOf(0) }
+    var faceMismatchLatched by remember { mutableStateOf(false) }
     
     // Reset the unlock phase state machine every time this screen opens
     LaunchedEffect(Unit) { CameraDecision.reset() }
+
+    LaunchedEffect(currentStep) {
+        if (currentStep == UnlockStep.FACE_HELMET_CHECK) {
+            val guard = com.example.motolock.data.FaceAttemptCooldown.status(context)
+            faceCooldownUntil = if (guard.remainingMs > 0L) System.currentTimeMillis() + guard.remainingMs else 0L
+        }
+    }
+
+    LaunchedEffect(faceCooldownUntil) {
+        if (faceCooldownUntil == 0L) {
+            faceCooldownSeconds = 0
+            return@LaunchedEffect
+        }
+        while (true) {
+            val remaining = faceCooldownUntil - System.currentTimeMillis()
+            if (remaining <= 0L) break
+            faceCooldownSeconds = ((remaining + 999L) / 1000L).toInt()
+            statusMessage = "Too many failed Face ID checks. Try again in $faceCooldownSeconds seconds."
+            kotlinx.coroutines.delay(250L)
+        }
+        com.example.motolock.data.FaceAttemptCooldown.status(context)
+        faceMismatchLatched = false
+        faceCooldownUntil = 0L
+        faceCooldownSeconds = 0
+        if (currentStep == UnlockStep.FACE_HELMET_CHECK) {
+            statusMessage = "Cooldown complete. Try Face ID again."
+        }
+    }
 
     // AI State
     var faceNetInterpreter by remember { mutableStateOf<Interpreter?>(null) }
@@ -390,7 +421,9 @@ private fun ConnectedUnlockScreen(
                 .background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
-            val showCamera = (currentStep == UnlockStep.FACE_HELMET_CHECK || currentStep == UnlockStep.ALCOHOL_CHECK) && hasCameraPermission && aiReady
+            val showCamera = (currentStep == UnlockStep.ALCOHOL_CHECK ||
+                (currentStep == UnlockStep.FACE_HELMET_CHECK && faceCooldownUntil == 0L)) &&
+                hasCameraPermission && aiReady
             if (showCamera) {
                 // Camera View — stays ON during alcohol check to monitor rider presence
                 val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
@@ -439,6 +472,37 @@ private fun ConnectedUnlockScreen(
                                     ) { success, msg ->
                                         if (disposed.get() || !sessionService.isConnected ||
                                             SessionState.activeBluetoothService !== sessionService) return@DualAiAnalyzer
+
+                                        if (currentStep == UnlockStep.FACE_HELMET_CHECK) {
+                                            if (faceCooldownUntil > System.currentTimeMillis()) return@DualAiAnalyzer
+
+                                            if (msg.startsWith("Face ID not recognized", ignoreCase = true)) {
+                                                isFaceAndHelmetDetected = false
+                                                if (!faceMismatchLatched) {
+                                                    faceMismatchLatched = true
+                                                    val attempt = com.example.motolock.data.FaceAttemptCooldown
+                                                        .registerFailure(context)
+                                                    if (attempt.remainingMs > 0L) {
+                                                        faceCooldownUntil = System.currentTimeMillis() + attempt.remainingMs
+                                                        faceCooldownSeconds = ((attempt.remainingMs + 999L) / 1000L).toInt()
+                                                        statusMessage = "Too many failed Face ID checks. Try again in 30 seconds."
+                                                        activeAnalyzer?.stop()
+                                                        cameraAnalysis?.clearAnalyzer()
+                                                    } else {
+                                                        val remainingAttempts =
+                                                            com.example.motolock.data.FaceAttemptCooldown.MAX_FAILED_ATTEMPTS -
+                                                                attempt.failedAttempts
+                                                        statusMessage = "Face ID not recognized. $remainingAttempts tries before a 30-second cooldown."
+                                                    }
+                                                }
+                                                return@DualAiAnalyzer
+                                            }
+
+                                            faceMismatchLatched = false
+                                            if (msg.startsWith("Face verified", ignoreCase = true)) {
+                                                com.example.motolock.data.FaceAttemptCooldown.registerSuccess(context)
+                                            }
+                                        }
 
                                         // During alcohol check: monitor rider is still in frame and alone
                                         if (currentStep == UnlockStep.ALCOHOL_CHECK) {
@@ -577,6 +641,13 @@ private fun ConnectedUnlockScreen(
                     },
                     modifier = Modifier.fillMaxSize()
                 )
+            } else if (currentStep == UnlockStep.FACE_HELMET_CHECK && faceCooldownSeconds > 0) {
+                androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = motoRed)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Face ID paused", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Try again in $faceCooldownSeconds seconds", color = Color.White.copy(alpha = 0.8f))
+                }
             } else if (currentStep == UnlockStep.CONNECTING) {
                 androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
                     if (isConnectionFailed) {
