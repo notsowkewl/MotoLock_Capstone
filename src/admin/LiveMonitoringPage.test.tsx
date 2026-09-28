@@ -10,8 +10,8 @@ beforeAll(() => {
 });
 afterEach(cleanup);
 const devices: Device[] = [
-  { id: '15a143a0-1234-4567-8901-123456789012', user_id: '39004512-1234-4567-8901-123456789012', rider_name: 'Jenna Diaz', sim_number: 'N/A', relay_status: false, is_locked: false },
-  { id: 'second-device', user_id: 'other-user', sim_number: 'SIM-2', relay_status: true, is_locked: true },
+  { id: '15a143a0-1234-4567-8901-123456789012', user_id: '39004512-1234-4567-8901-123456789012', rider_name: 'Jenna Diaz', relay_status: false, is_locked: false },
+  { id: 'second-device', user_id: 'other-user', relay_status: true, is_locked: true },
   { id: 'unknown-device', user_id: '', rider_name: 'Unassigned' },
 ];
 const props = { devices, styles: {}, onRefresh: vi.fn(async () => {}), lockIcon: () => null };
@@ -23,11 +23,11 @@ it('shows dated history without the source label in the table and details', () =
   }]);
   render(<LiveMonitoringPage {...props} devices={recorded} />);
   const row = screen.getAllByRole('row')[1];
-  expect(row.children[2].textContent).toBe('Not Recorded');
-  expect(row.children[3].textContent).toContain('Locked');
-  expect(row.children[3].textContent).toContain('Last recorded status');
-  expect(row.children[3].textContent).not.toContain('Sample data');
-  expect(row.children[3].textContent).not.toContain('Audit event');
+  expect(row.children[1].textContent).toBe('Not Recorded');
+  expect(row.children[2].textContent).toContain('Locked');
+  expect(row.children[2].textContent).toContain('Last recorded status');
+  expect(row.children[2].textContent).not.toContain('Sample data');
+  expect(row.children[2].textContent).not.toContain('Audit event');
   expect(row.querySelector('time')?.dateTime).toBe('2026-09-18T08:00:00Z');
   fireEvent.click(within(row).getByRole('button'));
   const dialog = screen.getByRole('dialog');
@@ -40,7 +40,7 @@ it('keeps available device readings ahead of historical fallback', () => {
     id: 'event', created_at: '2026-09-18T08:00:00Z', action_details: { device_id: 'device', ignition: 'locked' },
   }]);
   render(<LiveMonitoringPage {...props} devices={recorded} />);
-  expect(screen.getAllByRole('row')[1].children[3].textContent).toBe('Unlocked');
+  expect(screen.getAllByRole('row')[1].children[2].textContent).toBe('Unlocked');
   expect(screen.queryByText(/Last recorded status ·/)).toBeNull();
 });
 
@@ -52,7 +52,7 @@ it.each([
   const device = { id: 'device', user_id: '', is_locked: value } as unknown as Device;
   const lockIcon = vi.fn(() => null);
   render(<LiveMonitoringPage {...props} devices={[device]} lockIcon={lockIcon} />);
-  const cell = screen.getAllByRole('row')[1].children[3] as HTMLElement;
+  const cell = screen.getAllByRole('row')[1].children[2] as HTMLElement;
   expect(cell.textContent).toBe(label);
   if (label === 'Not Recorded') {
     expect(within(cell).getByTitle('Lock status is unavailable or not recognized.')).toBeTruthy();
@@ -63,18 +63,18 @@ it.each([
   expect(device.is_locked).toBe(value);
 });
 
-it('preserves SIM data, distinct relay values and full identifiers in details', () => {
+it('shows device hardware states and full identifiers without phone SIM data', () => {
   render(<LiveMonitoringPage {...props} />);
-  expect(screen.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Device ID', 'SIM Card Slot', 'Relay Control', 'Lock Status', 'Assigned Rider', 'Actions']);
+  expect(screen.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Device ID', 'Relay Control', 'Lock Status', 'Assigned Rider', 'Actions']);
   expect(screen.getByText('DEV-15A143A0').getAttribute('title')).toBe(devices[0].id);
   const row = screen.getByText('Jenna Diaz').closest('tr')!;
-  expect(within(row).getByText('N/A')).toBeTruthy();
   expect(within(row).getByText('Locked')).toBeTruthy();
   expect(within(row).getByText('Unlocked')).toBeTruthy();
   expect(screen.getByText('Active')).toBeTruthy();
   fireEvent.click(within(row).getByRole('button'));
   const dialog = screen.getByRole('dialog');
   expect(within(dialog).getByText(String(devices[0].id))).toBeTruthy();
+  expect(within(dialog).queryByText(/SIM Card Slot/)).toBeNull();
   expect(within(dialog).getByText(`User ID: ${devices[0].user_id}`)).toBeTruthy();
   fireEvent.click(within(dialog).getByText('Close'));
   expect(screen.queryByRole('dialog')).toBeNull();
@@ -88,7 +88,7 @@ it('combines rider/device search with lock filters and counts unknown readings h
   fireEvent.change(screen.getByLabelText('Lock Status'), { target: { value: 'Locked' } });
   expect(screen.getByText('No devices match your search or lock status filter.')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'other-user' } });
-  expect(screen.getByText('SIM-2')).toBeTruthy();
+  expect(screen.queryByText('SIM-2')).toBeNull();
   fireEvent.change(screen.getByLabelText('Lock Status'), { target: { value: 'All' } });
   fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'DEV-15A143A0' } });
   expect(screen.getByText('Jenna Diaz')).toBeTruthy();

@@ -28,12 +28,6 @@ export function reportRideStatus(row: ReportRow): string {
   return 'Not Recorded';
 }
 
-export function reportIgnitionState(row: ReportRow): string {
-  if (row.is_locked === true || row.is_locked === 1) return 'Locked';
-  if (row.is_locked === false || row.is_locked === 0) return 'Unlocked';
-  return 'Not Recorded';
-}
-
 export function createReportSnapshot(type: string, records: ReportRow[], metadata: Pick<ReportSnapshot, 'coverage' | 'filters'> & Partial<Pick<ReportSnapshot, 'alcoholThreshold' | 'sortOrder' | 'hasFilters'>>): ReportSnapshot {
   const rides = rideReportTypes.includes(type);
   const users = userReportTypes.includes(type);
@@ -51,7 +45,7 @@ export function createReportSnapshot(type: string, records: ReportRow[], metadat
   return {
     type, title: reportOptions.find(option => option.value === type)?.label || ({ 'alcohol-detection': 'Alcohol Detection Report', 'sobriety-test': 'Sobriety Test Report' } as Record<string, string>)[type] || 'MotoLock Report',
     generatedAt: new Date().toISOString(), ...metadata,
-    headers: rides ? ['Date & Time', 'Rider Details', 'BAC Level', 'Sobriety Status', 'Ignition State', 'Ride Status']
+    headers: rides ? ['Date & Time', 'Rider Details', 'BAC Level', 'Sobriety Status', 'Failure Reason']
       : users ? ['Rider Name', 'Email', 'Role', 'Face ID'] : ['Timestamp', 'Record ID', 'Details'],
     rows: sortedRecords.map(row => {
       if (rides) {
@@ -61,7 +55,7 @@ export function createReportSnapshot(type: string, records: ReportRow[], metadat
         const threshold = Number.isFinite(configuredThreshold) && configuredThreshold >= 0 ? configuredThreshold : 0.05;
         return [reportDate(row.created_at), [row.full_name || 'Not Recorded', row.email].filter(Boolean).join('\n'),
           tested ? `${reading.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 20, useGrouping: false })} BAC` : 'Not Tested', tested ? reading > threshold ? 'Not Sober' : 'Sober' : 'Not Tested',
-          reportIgnitionState(row), [reportRideStatus(row), reportRideStatus(row) === 'Failed' && row.failure_reason?.trim() ? `Reason: ${row.failure_reason.trim()}` : ''].filter(Boolean).join('\n')];
+          row.failure_reason?.trim() || 'Not Recorded'];
       }
       if (users) return [row.full_name || 'Not Recorded', row.email || 'Not Recorded', row.role || 'Not Recorded', row.face_enrolled ? 'Enrolled' : 'Missing'];
       return [reportDate(row.created_at), `ID-${row.id}`, row.action || row.model || row.unlock_status || 'System Log Activity'];

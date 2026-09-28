@@ -77,21 +77,20 @@ export default function LiveMonitoringPage({ devices, styles, onRefresh, lockIco
         <label>Lock Status<select value={status} onChange={event => setStatus(event.target.value)} style={styles.input}>{['All', 'Locked', 'Unlocked'].map(value => <option key={value}>{value}</option>)}</select></label>
       </div>
       <div className="monitoring-table-scroll"><table style={styles.table}>
-        <colgroup>{['21%', '13%', '16%', '16%', '25%', '9%'].map((width, i) => <col key={i} style={{ width }} />)}</colgroup>
-        <thead><tr>{['Device ID', 'SIM Card Slot', 'Relay Control', 'Lock Status', 'Assigned Rider', 'Actions'].map(header => <th scope="col" key={header} style={styles.tableHeader}>{header}</th>)}</tr></thead>
+        <colgroup>{['25%', '19%', '19%', '27%', '10%'].map((width, i) => <col key={i} style={{ width }} />)}</colgroup>
+        <thead><tr>{['Device ID', 'Relay Control', 'Lock Status', 'Assigned Rider', 'Actions'].map(header => <th scope="col" key={header} style={styles.tableHeader}>{header}</th>)}</tr></thead>
         <tbody>{filtered.map(device => <tr key={device.id}>
           <td style={styles.tableCell}><code title={String(device.id)}>{shortId(device.id)}</code></td>
-          <td style={styles.tableCell}>{device.sim_number || 'N/A'}</td>
           <td style={styles.tableCell}>{stateCell(device, 'relay')}</td>
           <td style={styles.tableCell}>{stateCell(device, 'lock')}</td>
           <td style={styles.tableCell}>{rider(device)}</td>
           <td style={styles.tableCell}><button type="button" style={styles.actionBtn} aria-label={`View device ${device.id}`} onClick={() => setSelectedId(device.id)}>Details</button></td>
-        </tr>)}{!filtered.length && <tr><td colSpan={6} style={styles.tableCell}><div className="monitoring-empty">{devices.length ? 'No devices match your search or lock status filter.' : 'No devices registered in the system.'}</div></td></tr>}</tbody>
+        </tr>)}{!filtered.length && <tr><td colSpan={5} style={styles.tableCell}><div className="monitoring-empty">{devices.length ? 'No devices match your search or lock status filter.' : 'No devices registered in the system.'}</div></td></tr>}</tbody>
       </table></div>
     </div>
     {selected && <dialog ref={dialog} className="monitoring-dialog" aria-labelledby="monitoring-details-title" onCancel={close} onClose={() => setSelectedId(null)}>
       <h3 id="monitoring-details-title">Device Details</h3>
-      <dl><dt>Device ID</dt><dd>{selected.id}</dd><dt>SIM Card Slot</dt><dd>{selected.sim_number || 'N/A'}</dd><dt>Relay Control</dt><dd>{stateCell(selected, 'relay')}</dd><dt>Lock Status</dt><dd>{stateCell(selected, 'lock')}</dd><dt>Assigned Rider</dt><dd>{rider(selected, true)}</dd></dl>
+      <dl><dt>Device ID</dt><dd>{selected.id}</dd><dt>Relay Control</dt><dd>{stateCell(selected, 'relay')}</dd><dt>Lock Status</dt><dd>{stateCell(selected, 'lock')}</dd><dt>Assigned Rider</dt><dd>{rider(selected, true)}</dd></dl>
       <div className="monitoring-dialog-footer"><button type="button" style={styles.actionBtn} onClick={close}>Close</button></div>
     </dialog>}
   </section>;

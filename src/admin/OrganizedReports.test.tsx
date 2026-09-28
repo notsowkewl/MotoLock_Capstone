@@ -67,12 +67,11 @@ it('switches safety views, shows contextual filters and exports the displayed vi
   const onExport = vi.fn(async () => {});
   render(<OrganizedReports data={data} threshold="0.05" styles={{}} onExport={onExport} />);
   expect(screen.getByRole('heading', { name: 'Safety & Sobriety Report' })).toBeTruthy();
-  expect(screen.getByLabelText('Ride Status')).toBeTruthy();
+  expect(screen.queryByLabelText('Ride Status')).toBeNull();
   expect(screen.queryByLabelText('Ignition State')).toBeNull();
   expect(screen.queryByLabelText('Sort Order')).toBeNull();
-  expect(screen.getByRole('columnheader', { name: 'Ignition State' })).toBeTruthy();
-  fireEvent.change(screen.getByLabelText('Ride Status'), { target: { value: 'Passed' } });
-  expect(screen.getAllByRole('row')).toHaveLength(2);
+  expect(screen.queryByRole('columnheader', { name: 'Ignition State' })).toBeNull();
+  expect(screen.queryByRole('columnheader', { name: 'Ride Status' })).toBeNull();
   fireEvent.change(screen.getByLabelText('View'), { target: { value: 'failures' } });
   expect(screen.queryByLabelText('Ride Status')).toBeNull();
   expect(screen.queryByLabelText('Ignition State')).toBeNull();
@@ -95,10 +94,10 @@ it('switches safety views, shows contextual filters and exports the displayed vi
 it('shows account filters only for master list and keeps missing device data empty', () => {
   render(<OrganizedReports data={data} threshold="0.05" styles={{}} onExport={vi.fn(async () => {})} />);
   const type = screen.getByLabelText('Report Type');
-  expect(within(type).getAllByRole('option').map(option => option.textContent)).toEqual(['Safety & Sobriety Report', 'Rider Report', 'Motorcycle Report', 'Device Report']);
+  expect(within(type).getAllByRole('option').map(option => option.textContent)).toEqual(['Safety & Sobriety Report', 'Rider Report', 'Admin Report', 'Motorcycle Report', 'Device Report']);
   fireEvent.change(type, { target: { value: 'rider' } });
   expect((screen.getByLabelText('View') as HTMLSelectElement).value).toBe('rider-master');
-  expect(screen.getByLabelText('Role')).toBeTruthy();
+  expect(screen.queryByLabelText('Role')).toBeNull();
   expect(screen.getByLabelText('Face ID Status')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Date Range' })).toBeNull();
   expect(screen.queryByLabelText('Account Status')).toBeNull();
@@ -106,7 +105,7 @@ it('shows account filters only for master list and keeps missing device data emp
   expect(screen.getByLabelText('Search Device or Rider')).toBeTruthy();
   expect(screen.queryByLabelText('Ignition State')).toBeNull();
   expect(screen.queryByLabelText('Face ID Status')).toBeNull();
-  expect(screen.getByRole('columnheader', { name: 'SIM Card Slot' })).toBeTruthy();
+  expect(screen.queryByRole('columnheader', { name: 'SIM Card Slot' })).toBeNull();
   expect(screen.getByText('No matching records')).toBeTruthy();
 });
 

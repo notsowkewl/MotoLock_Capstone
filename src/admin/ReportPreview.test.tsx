@@ -5,25 +5,25 @@ import { createReportSnapshot } from './report-snapshot';
 
 afterEach(cleanup);
 
-it('distinguishes sober from a failed ride and keeps missing lock information neutral', () => {
+it('shows sobriety and failure reason without session or ignition status columns', () => {
   const report = createReportSnapshot('alcohol-detection', [
     { id: 1, full_name: 'Rider A', brac: '0', status: 'failed_face', failure_reason: 'Face did not match' },
-    { id: 2, full_name: 'Rider B', brac: '0.08', status: 'passed', is_locked: false },
+    { id: 2, full_name: 'Rider B', brac: '0.08', status: 'passed' },
   ], { coverage: 'All', filters: 'All', alcoholThreshold: '0.05' });
   const { container, rerender } = render(<ReportPreview report={report} exporting={false} onExport={vi.fn()} />);
   expect(screen.getByRole('heading', { name: 'Alcohol Detection Report' })).toBeTruthy();
   const summary = container.querySelector('.reports-summary')!;
   expect([...summary.querySelectorAll('.reports-stat')].map(card => card.textContent)).toEqual([
-    'Total Records2', 'Sober1', 'Not Sober1', 'Failed1',
+    'Total Records2', 'Sober1', 'Not Sober1',
   ]);
   const row = screen.getByText('Rider A').closest('tr')!;
   expect(row.cells[2].textContent).toBe('0.00 BAC');
   expect(row.cells[3].textContent).toBe('✓ Sober');
-  expect(row.cells[5].textContent).toBe('FailedReason: Face did not match');
-  const unknown = within(row).getByTitle('Lock status is unavailable or not recognized.');
-  expect(unknown.className).toBe('reports-ignition');
-  expect(unknown.getAttribute('tabindex')).toBe('0');
-  expect(screen.getByText('Unlocked')).toBeTruthy();
+  expect(row.cells[4].textContent).toBe('Face did not match');
+  expect(screen.queryByRole('columnheader', { name: 'Ride Status' })).toBeNull();
+  expect(screen.queryByRole('columnheader', { name: 'Ignition State' })).toBeNull();
+  expect(screen.queryByText('Locked')).toBeNull();
+  expect(screen.queryByText('Unlocked')).toBeNull();
   expect(screen.queryByText(/Failed does not necessarily mean/)).toBeNull();
   rerender(<ReportPreview report={{ ...report, rows: [report.rows[0]] }} exporting={false} onExport={vi.fn()} />);
   expect(summary.querySelector('.reports-stat')?.textContent).toBe('Total Records1');
@@ -37,7 +37,7 @@ it('summarizes the full filtered snapshot and exposes both export formats', () =
   expect(screen.getByText(/Last updated:/)).toBeTruthy();
   const summary = container.querySelector('.reports-summary') as HTMLElement;
   expect(within(summary).getAllByText('12')).toHaveLength(2);
-  expect(screen.getByText('0 Passed · 0 Failed · 12 Ongoing')).toBeTruthy();
+  expect(screen.queryByText(/Passed ·.*Ongoing/)).toBeNull();
   expect(screen.queryByText('Rider 11')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Next' }));
   expect(screen.getByText('Rider 11')).toBeTruthy();

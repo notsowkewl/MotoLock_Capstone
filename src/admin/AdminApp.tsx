@@ -5,6 +5,7 @@ import DashboardPanels from './DashboardPanels';
 import DashboardSearch from './DashboardSearch';
 import { createBackup } from './backup-export';
 import './ReportsPage.css';
+import './AdminLayout.css';
 import type { ReportSnapshot } from './report-snapshot';
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Rider, Device, SafetyLog, AuditLog, DashboardData, ApiResponses } from './types';
@@ -359,6 +360,8 @@ const CustomSelect = ({
 };
 
 export default function AdminApp() {
+  const [sidebarPinned, setSidebarPinned] = useState(false);
+  const [sidebarHoverOpen, setSidebarHoverOpen] = useState(false);
   const [token, setToken] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminRole, setAdminRole] = useState('admin');
@@ -368,6 +371,17 @@ export default function AdminApp() {
   const [isLightMode, setIsLightMode] = useState<boolean>(localStorage.getItem('ml_theme') === 'light');
   const [notifications, setNotifications] = useState<SafetyLog[]>([]);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
+
+  useEffect(() => {
+    const closeSidebarOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSidebarPinned(false);
+        setSidebarHoverOpen(false);
+      }
+    };
+    window.addEventListener('keydown', closeSidebarOnEscape);
+    return () => window.removeEventListener('keydown', closeSidebarOnEscape);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -1348,7 +1362,11 @@ export default function AdminApp() {
   ];
 
   return (
-    <div style={styles.appWrapper}>
+    <div className="admin-shell" onMouseMove={event => {
+      if (!sidebarPinned && sidebarHoverOpen && window.matchMedia('(min-width: 761px)').matches && event.clientX >= 280) {
+        setSidebarHoverOpen(false);
+      }
+    }}>
       <style>{`
         /* Hide scrollbars visually but retain scrolling functionality */
         aside::-webkit-scrollbar {
@@ -1360,8 +1378,40 @@ export default function AdminApp() {
         }
       `}</style>
 
+      <button
+        type="button"
+        className="admin-menu-toggle"
+        onClick={() => {
+          setSidebarPinned(open => !open);
+          setSidebarHoverOpen(false);
+        }}
+        aria-label={sidebarPinned ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-expanded={sidebarPinned || sidebarHoverOpen}
+        aria-controls="admin-sidebar"
+        title={sidebarPinned ? 'Close navigation menu' : 'Open navigation menu'}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          {sidebarPinned ? <path d="m6 6 12 12M18 6 6 18" /> : <path d="M4 6h16M4 12h16M4 18h16" />}
+        </svg>
+      </button>
+      {!sidebarPinned && <button
+        type="button"
+        className="admin-sidebar-edge"
+        aria-label="Open navigation menu"
+        tabIndex={-1}
+        onMouseEnter={() => setSidebarHoverOpen(true)}
+        onFocus={() => setSidebarHoverOpen(true)}
+        onClick={() => setSidebarPinned(true)}
+      />}
+      {sidebarPinned && <button type="button" className="admin-sidebar-backdrop" aria-label="Close navigation menu" onClick={() => setSidebarPinned(false)} />}
+
       {/* SIDEBAR NAVIGATION */}
-      <aside style={styles.sidebar}>
+      <aside
+        id="admin-sidebar"
+        className={`admin-sidebar${sidebarPinned ? ' admin-sidebar--pinned' : sidebarHoverOpen ? ' admin-sidebar--hover' : ''}`}
+        onMouseEnter={() => setSidebarHoverOpen(true)}
+        onMouseLeave={() => { if (!sidebarPinned) setSidebarHoverOpen(false); }}
+      >
         <div style={styles.logoWrapper}>
           <img src="/logo.png" alt="Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', marginRight: '8px' }} />
           <span style={styles.logoMoto}>Moto</span>
@@ -1375,7 +1425,13 @@ export default function AdminApp() {
               {sec.items.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    if (window.matchMedia('(max-width: 760px)').matches) {
+                      setSidebarPinned(false);
+                      setSidebarHoverOpen(false);
+                    }
+                  }}
                   style={{
                     ...styles.menuItem,
                     ...(activeTab === item.id ? styles.menuItemActive : {})
@@ -1411,7 +1467,7 @@ export default function AdminApp() {
       </aside>
 
       {/* MAIN CONTENT VIEW */}
-      <main style={styles.mainContent}>
+      <main className="admin-main">
 
         {/* Global Top Bar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
@@ -2556,26 +2612,6 @@ export default function AdminApp() {
 
 // Enterprise dark/light dashboard design theme styling
 const styles: { [key: string]: React.CSSProperties } = {
-  appWrapper: {
-    display: 'flex',
-    minHeight: '100vh',
-    width: '100vw',
-    background: 'var(--bg)',
-    color: 'var(--text)',
-    overflow: 'hidden'
-  },
-  sidebar: {
-    width: '280px',
-    background: 'var(--sidebar)',
-    borderRight: '1px solid var(--border)',
-    display: 'flex',
-    flexDirection: 'column',
-    padding: '24px',
-    height: '100vh',
-    maxHeight: '100vh',
-    overflowY: 'auto',
-    boxSizing: 'border-box'
-  },
   logoWrapper: {
     fontSize: '24px',
     fontWeight: 800,
@@ -2649,12 +2685,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center'
-  },
-  mainContent: {
-    flex: 1,
-    padding: '40px',
-    overflowY: 'auto',
-    height: '100vh'
   },
   loadingBanner: {
     background: '#ed1c24',

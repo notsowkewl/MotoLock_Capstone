@@ -23,11 +23,11 @@ export default function OrganizedReports({ data, threshold, styles, onExport }: 
   const report = useMemo(() => buildOrganizedReport(reportType, selectedView.value, data, filters, threshold), [reportType, selectedView.value, data, filters, threshold]);
   const change = (key: keyof ReportFilters, value: string) => setFilters(previous => ({ ...previous, [key]: value }));
   const select = (label: string, field: keyof ReportFilters, options: string[]) => <label>{label}<select style={styles.input} value={filters[field]} onChange={event => change(field, event.target.value)}>
-    <option value="all">All</option>{options.map(value => <option key={value} value={value}>{humanLabel(value)}</option>)}
+    <option value="all">All</option>{options.map(value => <option key={value} value={value}>{value === 'superadmin' ? 'Super Admin' : humanLabel(value)}</option>)}
   </select></label>;
   return <div className="reports-page">
     <div style={styles.card}><div className="reports-filters">
-      <label>{controls.devices ? 'Search Device or Rider' : 'Search Rider Name or Email'}<input type="search" style={styles.input} value={filters.search} onChange={event => change('search', event.target.value)} placeholder={controls.devices ? 'Search device, motorcycle, or rider...' : 'Search rider name or email...'} /></label>
+      <label>{controls.devices ? 'Search Device or Rider' : controls.administrator ? 'Search Admin Name or Email' : 'Search Rider Name or Email'}<input type="search" style={styles.input} value={filters.search} onChange={event => change('search', event.target.value)} placeholder={controls.devices ? 'Search device, motorcycle, or rider...' : controls.administrator ? 'Search administrator name or email...' : 'Search rider name or email...'} /></label>
       <label>Report Type<select style={styles.input} value={type} onChange={event => {
         const next = reportAreas.find(option => option.value === event.target.value)!;
         setType(next.value); setView(next.views[0].value); setFilters(defaultReportFilters); setError('');
@@ -37,11 +37,10 @@ export default function OrganizedReports({ data, threshold, styles, onExport }: 
       <label>View<select style={styles.input} value={selectedView.value} onChange={event => { setView(event.target.value); setFilters(defaultReportFilters); setError(''); }}>
         {area.views.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select></label>
-      {controls.ride && select('Ride Status', 'ride', ['Ongoing', 'Passed', 'Failed'])}
       {controls.sobriety && select('Sobriety Status', 'sobriety', ['Sober', 'Not Sober'])}
       {controls.failure && <label>Failure / Lockout Type<select style={styles.input} value={filters.failure} onChange={event => change('failure', event.target.value)}><option value="all">All events</option><option value="sobriety">Sobriety Failures</option><option value="lockout">Lockouts</option></select></label>}
+      {controls.adminRole && select('Admin Level', 'adminRole', ['admin', 'superadmin'])}
       {controls.account && <>
-        {select('Role', 'role', [...new Set(data.users.map(row => String(row.role || '')).filter(Boolean))])}
         {select('Face ID Status', 'face', ['Enrolled', 'Missing'])}
         {data.users.some(row => typeof row.status === 'string' && row.status) && select('Account Status', 'account', [...new Set(['active', 'not_active', ...data.users.map(row => accountStatusValue(row.status)).filter(Boolean)])])}
       </>}

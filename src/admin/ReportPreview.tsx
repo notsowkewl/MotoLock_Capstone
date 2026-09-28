@@ -13,7 +13,7 @@ export default function ReportPreview({ report, exporting, onExport }: {
   const pagination = useTablePagination(report.rows, report.generatedAt);
   const allCounts = report.summary ? report.summary.map(item => [item.label, item.value]) : [
     ['Total Records', report.rows.length],
-    ...(rides ? ['Sober', 'Not Sober', 'Passed', 'Failed', 'Ongoing'].map(label => [label, report.rows.filter(row => row[label === 'Sober' || label === 'Not Sober' ? 3 : 5].split('\n')[0] === label).length]) : []),
+    ...(rides ? ['Sober', 'Not Sober'].map(label => [label, report.rows.filter(row => row[3].split('\n')[0] === label).length]) : []),
   ];
   const compactSafety = ['Sober', 'Not Sober', 'Failed'].every(label => allCounts.some(item => item[0] === label));
   const counts = compactSafety ? ['Total Records', 'Sober', 'Not Sober', 'Failed'].map(label =>
@@ -39,8 +39,6 @@ export default function ReportPreview({ report, exporting, onExport }: {
         <table className="reports-table"><thead><tr>{report.headers.map(header => <th scope="col" key={header}>{header}</th>)}</tr></thead>
           <tbody>{!report.rows.length ? <tr><td colSpan={report.headers.length}><div className="reports-empty"><strong>No matching records</strong><p>Try adjusting your filters or date range.</p></div></td></tr> : pagination.rows.map((row, index) => <tr key={index}>{row.map((value, column) => <td key={column}>
             {['Rider Details', 'Rider', 'Assigned Rider'].includes(report.headers[column]) ? <div className="reports-rider"><strong>{value.split('\n')[0]}</strong><span>{value.split('\n').slice(1).join(' ')}</span></div>
-              : report.headers[column] === 'Ignition State' ? <span className="reports-ignition" title={value === 'Not Recorded' ? 'Lock status is unavailable or not recognized.' : undefined} tabIndex={value === 'Not Recorded' ? 0 : undefined}>{value}</span>
-              : report.headers[column] === 'Ride Status' ? <div className="reports-outcome"><span className={value === 'Not Recorded' ? 'reports-muted' : `report-badge report-badge-${value.split('\n')[0].toLowerCase()}`}>{value.split('\n')[0]}</span>{value.includes('\n') && <small>{value.split('\n').slice(1).join('\n')}</small>}</div>
               : ((rides && column === 3 && !['Not Tested', 'Not Recorded'].includes(value)) || (report.headers[column] === 'Face ID' && ['Enrolled', 'Missing'].includes(value))) ? <span className={`report-badge report-badge-${value.toLowerCase().replace(/ /g, '-')}`}>{value === 'Sober' ? '✓ ' : value === 'Not Sober' ? '✕ ' : ''}{value}</span>
                 : <span className={rides && column === 2 ? `reports-bac${row[3] === 'Not Sober' ? ' reports-bac-high' : ''}` : ['Not Tested', 'Not Recorded'].includes(value) ? 'reports-muted' : ''}>{value}</span>}
           </td>)}</tr>)}</tbody>

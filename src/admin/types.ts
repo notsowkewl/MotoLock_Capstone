@@ -34,7 +34,6 @@ export interface Device {
   user_id: string;
   rider_name?: string;
   status?: string;
-  sim_number?: string;
   relay_status?: boolean;
   is_locked?: boolean;
   recorded_status?: { lock?: import('./monitoring-records').RecordedState; relay?: import('./monitoring-records').RecordedState };
@@ -81,7 +80,6 @@ export interface DashboardData {
 // Report categories share a preview table but expose different columns.
 export interface ReportRow {
   failure_reason?: string;
-  is_locked?: boolean | number;
   id: string | number;
   created_at?: string;
   full_name?: string;

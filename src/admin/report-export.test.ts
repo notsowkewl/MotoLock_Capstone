@@ -54,17 +54,16 @@ it('freezes formatted data, preserves order and does not invent timestamps or ze
   input[0].brac = '99';
   expect(snapshot.rows[0][2]).toBe('0.049 BAC');
   expect(snapshot.rows[1][2]).toBe('0.00 BAC');
-  expect(snapshot.rows[2]).toEqual(['Not Recorded', 'Missing reading', 'Not Tested', 'Not Tested', 'Not Recorded', 'Not Recorded']);
+  expect(snapshot.rows[2]).toEqual(['Not Recorded', 'Missing reading', 'Not Tested', 'Not Tested', 'Not Recorded']);
 });
 
-it('exports a sober failed ride with its recorded reason and independent lock state', async () => {
+it('exports a sober failed ride with its recorded reason and without ignition state', async () => {
   const snapshot = createReportSnapshot('alcohol-detection', [{
-    id: 1, brac: '0', status: 'failed_face', is_locked: false, failure_reason: 'Face did not match',
+    id: 1, brac: '0', status: 'failed_face', failure_reason: 'Face did not match',
   }], metadata);
   const pdf = buildReportPdf(snapshot).output();
   expect(pdf).toContain('Sober');
-  expect(pdf).toContain('Unlocked');
-  expect(pdf).toContain('Reason: Face did not match');
+  expect(pdf).toContain('Face did not match');
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(await buildReportWorkbook(snapshot).xlsx.writeBuffer());
   expect(workbook.getWorksheet('Report')!.getRow(8).values).toEqual([undefined, ...snapshot.rows[0]]);

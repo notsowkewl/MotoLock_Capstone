@@ -5,7 +5,7 @@ import DashboardSearch from './DashboardSearch';
 afterEach(cleanup);
 const props = {
   riders: [{ id: 'rider-123', full_name: 'Jenna Diaz', email: 'jenna@example.com', role: 'rider', motorcycles: [{ id: 1, plate_number: 'ABC-123', model: 'Honda' }] }],
-  devices: [{ id: 'device-456', user_id: 'rider-123', rider_name: 'Jenna Diaz', sim_number: 'SIM-789' }],
+  devices: [{ id: 'device-456', user_id: 'rider-123', rider_name: 'Jenna Diaz' }],
   rides: [{ id: 'ride-789', full_name: 'Jenna Diaz', email: 'jenna@example.com', status: 'failed_face', created_at: '', brac: '' }],
   logs: [{ id: 1, admin_name: 'Jenna Diaz', action: 'alert_resolved', module: 'alert', target_record: 'Ride: ride-789', created_at: '' }],
   onNavigate: vi.fn(),
@@ -19,6 +19,8 @@ it('searches loaded data across categories, including full IDs, plates and frien
   search('ABC-123');
   expect(screen.getByText('Jenna Diaz')).toBeTruthy();
   search('SIM-789');
+  expect(screen.getByRole('status').textContent).toContain('No matching records');
+  search('device-456');
   expect(screen.getByText('DEV-DEVICE-4')).toBeTruthy();
   search('alert resolved');
   expect(screen.getByText('Alert Resolved')).toBeTruthy();
@@ -30,7 +32,7 @@ it('searches loaded data across categories, including full IDs, plates and frien
 it('opens existing pages, clears results, and handles no matches', () => {
   const onNavigate = vi.fn();
   render(<DashboardSearch {...props} onNavigate={onNavigate} />);
-  search('SIM-789');
+  search('device-456');
   fireEvent.click(screen.getByRole('button', { name: 'Open Live Monitoring' }));
   expect(onNavigate).toHaveBeenCalledWith('live-monitoring');
   search('settings');

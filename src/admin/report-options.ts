@@ -7,6 +7,9 @@ export const reportOptions = [
   { value: 'rider-safety', label: 'Rider Safety Summary' },
   { value: 'rider-incident-hist', label: 'Rider Incident History' },
   { value: 'rider-reg', label: 'Rider Registration Report' },
+  { value: 'cat-admin', label: 'ADMINISTRATION & ACCESS', disabled: true },
+  { value: 'admin-accounts', label: 'Admin Accounts Report' },
+  { value: 'admin-activity', label: 'Admin Activity & Audit Report' },
   { value: 'cat-motorcycles', label: 'MOTORCYCLES & DEVICES', disabled: true },
   { value: 'motorcycle-reg', label: 'Motorcycle Registry Report' },
   { value: 'device-inventory', label: 'MotoLock Device Inventory' },
@@ -30,6 +33,10 @@ export const reportAreas = [
     { value: 'rider-safety', label: 'Safety Summary', reportType: 'rider-safety' },
     { value: 'rider-incident-hist', label: 'Incident History', reportType: 'rider-incident-hist' },
     { value: 'rider-reg', label: 'Registration History', reportType: 'rider-reg' },
+  ] },
+  { value: 'admin', label: 'Admin Report', views: [
+    { value: 'admin-accounts', label: 'Admin Accounts', reportType: 'admin-accounts' },
+    { value: 'admin-activity', label: 'Activity & Audit History', reportType: 'admin-activity' },
   ] },
   { value: 'motorcycle', label: 'Motorcycle Report', views: [
     { value: 'motorcycle-reg', label: 'Registry', reportType: 'motorcycle-reg' },

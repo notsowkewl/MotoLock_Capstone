@@ -25,17 +25,20 @@ const data: ReportSources = {
 const report = (type = 'safety-sobriety', view = 'details', filters: Partial<ReportFilters> = {}, sources = data) => buildOrganizedReport(type, view, sources, { ...defaultReportFilters, ...filters }, '0.05');
 const stats = (snapshot: ReturnType<typeof report>) => Object.fromEntries(snapshot.summary!.map(item => [item.label, item.value]));
 
-it('offers exactly three groups with one safety report and no redundant safety report types', () => {
-  expect(reportGroups.map(group => group.options.length)).toEqual([1, 5, 7]);
+it('offers distinct safety, rider, admin and device report groups', () => {
+  expect(reportGroups.map(group => group.options.length)).toEqual([1, 5, 2, 7]);
   expect(reportOptions.some(option => option.value === 'alcohol-detection')).toBe(false);
   expect(reportGroups[1].options.find(option => option.value === 'rider-safety')).toBeTruthy();
 });
 
-it('keeps sobriety, ride outcome and lock state independent and filters actual records', () => {
+it('keeps sobriety results and failure reasons while omitting session and ignition columns', () => {
   const original = JSON.stringify(data);
-  const snapshot = report('safety-sobriety', 'details', { search: 'ana@', sobriety: 'Sober', ride: 'Failed', ignition: 'Not Recorded' });
+  const snapshot = report('safety-sobriety', 'details', { search: 'ana@', sobriety: 'Sober' });
   expect(snapshot.rows).toHaveLength(1);
-  expect(snapshot.rows[0].slice(2)).toEqual(['0.00 BAC', 'Sober', 'Not Recorded', 'Failed\nReason: Face mismatch']);
+  expect(snapshot.rows[0].slice(2)).toEqual(['0.00 BAC', 'Sober', 'Face mismatch']);
+  expect(snapshot.headers).not.toContain('Ride Status');
+  expect(snapshot.headers).not.toContain('Session Status');
+  expect(snapshot.headers).not.toContain('Ignition State');
   expect(stats(snapshot)).toMatchObject({ 'Total Records': 1, Sober: 1, Failed: 1, Passed: 0 });
   expect(JSON.stringify(data)).toBe(original);
   expect(report('safety-sobriety', 'details', { search: 'locked' }).rows).toHaveLength(0);
@@ -45,11 +48,13 @@ it('selects explicit sobriety failures and lockout events without treating every
   const snapshot = report('safety-sobriety', 'failures');
   expect(snapshot.rows).toHaveLength(2);
   expect(snapshot.headers).toContain('Failure / Lockout Reason');
+  expect(snapshot.headers).not.toContain('Ride Status');
+  expect(snapshot.headers).not.toContain('Ignition State');
   expect(snapshot.rows.flat()).not.toContain('Face mismatch');
   expect(stats(snapshot)).toEqual({ 'Total Failed Events': 2, 'Sobriety Failures': 1, Lockouts: 1, 'Riders Affected': 2 });
   expect(report('safety-sobriety', 'failures', { failure: 'lockout' }).rows).toHaveLength(1);
   const noReasons = { ...emptyReportSources, rides: [{ id: 'x', status: 'failed_brac' }] };
-  expect(report('safety-sobriety', 'failures', {}, noReasons).headers).not.toContain('Failure / Lockout Reason');
+  expect(report('safety-sobriety', 'failures', {}, noReasons).headers).toContain('Failure / Lockout Reason');
 });
 
 it('trends aggregate only measured tests, retain undated tests in exports, and define pass rate independently from sobriety', () => {
@@ -64,7 +69,7 @@ it('trends aggregate only measured tests, retain undated tests in exports, and d
 });
 
 it('ignores filters that are irrelevant to the selected view', () => {
-  expect(report('safety-sobriety', 'trends', { ignition: 'Unlocked', ride: 'Passed', failure: 'lockout' }).rows).toEqual(report('safety-sobriety', 'trends').rows);
+  expect(report('safety-sobriety', 'trends', { failure: 'lockout' }).rows).toEqual(report('safety-sobriety', 'trends').rows);
   expect(report('device-inventory', 'details', { start: '2099-01-01' }).rows).toHaveLength(1);
 });
 
@@ -77,9 +82,9 @@ it('aggregates safety per rider and makes master, activity, registration and inc
   expect(report('rider-activity').rows).toHaveLength(3);
 });
 
-it('uses motorcycle and device records directly without invented unit types, SIMs, connection states or faults', () => {
+it('uses motorcycle and device records directly without showing phone SIM data', () => {
   expect(report('motorcycle-reg').rows[0]).toContain('ABC123');
-  expect(report('device-inventory').rows[0]).toEqual(['d', 'N/A', 'Not Recorded', 'Ana\nana@example.com']);
+  expect(report('device-inventory').rows[0]).toEqual(['d', 'Ana\nana@example.com']);
   expect(report('device-connection').rows[0]).toContain('Offline');
   expect(report('device-pairing').rows[0]).toContain('m');
   expect(report('helmet-unit').rows).toEqual([]);
@@ -87,7 +92,8 @@ it('uses motorcycle and device records directly without invented unit types, SIM
   expect(report('device-fault').rows).toHaveLength(1);
   expect(report('device-fault', 'details', {}, { ...data, events: [] }).rows).toHaveLength(0);
   const typed = { ...data, devices: [{ ...data.devices[0], device_type: 'helmet', sim_number: 'SIM-1' }] };
-  expect(report('helmet-unit', 'details', {}, typed).rows[0]).toContain('SIM-1');
+  expect(report('helmet-unit', 'details', {}, typed).rows[0]).not.toContain('SIM-1');
+  expect(report('device-fault').headers).not.toContain('SIM Card Slot');
 });
 
 it('keeps dated rider registrations separate from the current master list without inventing historical metadata', () => {
@@ -103,7 +109,7 @@ it('keeps dated rider registrations separate from the current master list withou
   expect(history.rows.map(row => row[2])).toEqual(['c', 'a']);
   expect(history.headers).not.toContain('Account Status');
   expect(history.headers).not.toContain('Registered By');
-  expect(report('rider-master', 'details', {}, sources).rows).toHaveLength(5);
+  expect(report('rider-master', 'details', {}, sources).rows).toHaveLength(4);
   expect(report('rider-reg', 'details', { start: '2026-09-03', end: '2026-09-03' }, sources).rows.map(row => row[2])).toEqual(['c']);
   expect(report('rider-reg', 'details', { search: 'ana@' }, sources).rows.map(row => row[2])).toEqual(['a']);
   expect(report('rider-reg', 'details', { start: '2026-09-10' }, sources).rows).toEqual([]);
@@ -116,6 +122,9 @@ it('keeps dated rider registrations separate from the current master list withou
 describe('exports match each safety view', () => {
   it.each(['details', 'failures', 'trends'])('%s exports only the current filtered snapshot', view => {
     const snapshot = report('safety-sobriety', view, { search: 'ana' });
+    expect(snapshot.headers).not.toContain('Ride Status');
+    expect(snapshot.headers).not.toContain('Session Status');
+    expect(snapshot.headers).not.toContain('Ignition State');
     const workbook = buildReportWorkbook(snapshot);
     const sheet = workbook.getWorksheet('Report')!;
     expect(sheet.getRow(7).values).toEqual([undefined, ...snapshot.headers]);
