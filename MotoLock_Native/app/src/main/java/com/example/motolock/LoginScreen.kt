@@ -402,7 +402,19 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
                 border = androidx.compose.foundation.BorderStroke(1.dp, lineCol),
                 shape = RoundedCornerShape(15.dp)
             ) {
-                Text("Continue with Google", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F3440))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_google),
+                        contentDescription = "Google Logo",
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Continue with Google", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F3440))
+                }
             }
             
             Spacer(modifier = Modifier.height(20.dp))

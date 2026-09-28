@@ -28,6 +28,8 @@ export interface Rider {
   contacts?: Contact[];
 }
 export interface Device {
+  helmet_device_id?: string | null;
+  helmet_visual_id?: string | null;
   id: string | number;
   user_id: string;
   rider_name?: string;

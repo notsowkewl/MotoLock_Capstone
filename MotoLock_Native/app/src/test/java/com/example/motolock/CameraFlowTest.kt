@@ -44,7 +44,7 @@ class CameraFlowTest {
 
     @Test fun identityPrecedesHelmetPrompt() {
         assertEquals("Face ID not recognized.", evaluate(matches = false, helmet = false).message)
-        assertEquals("Put your helmet on.", evaluate(helmet = false).message)
+        assertTrue(evaluate(helmet = false).message.contains("Helmet sensor is ON"))
         assertEquals("Lift your visor.", evaluate(faceCount = 0, associated = true).message)
     }
 

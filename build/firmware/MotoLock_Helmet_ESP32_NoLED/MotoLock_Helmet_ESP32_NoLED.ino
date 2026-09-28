@@ -357,8 +357,8 @@ void loop() {
   }
 
   Serial.printf("BLE=%d IRraw=%d worn=%d clear=%d stabilizing=%d "
-                "Alcohol=%.3f%% MQ=%u baseline=%u seq=%llu\n",
+                "Alcohol=%.3f%% MQ=%u baseline=%u seq=%llu ID=%s\n",
                 receiverConnected.load(), irRaw, worn, alcoholClear, stabilizing,
                 alcoholPercent, mqRaw, cleanAirBaseline,
-                static_cast<unsigned long long>(sequenceNumber));
+                static_cast<unsigned long long>(sequenceNumber), mlVisualId(helmetVisualId).c_str());
 }

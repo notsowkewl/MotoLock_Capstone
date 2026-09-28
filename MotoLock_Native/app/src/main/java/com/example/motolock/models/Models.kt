@@ -58,5 +58,7 @@ data class Device(
     @SerialName("user_id") val userId: String,
     @SerialName("motorcycle_id") val motorcycleId: String? = null,
     @SerialName("mac_address") val macAddress: String,
+    @SerialName("helmet_device_id") val helmetDeviceId: String? = null,
+    @SerialName("helmet_visual_id") val helmetVisualId: String? = null,
     val status: String? = "active"
 )

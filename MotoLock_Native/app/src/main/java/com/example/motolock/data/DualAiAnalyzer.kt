@@ -129,29 +129,39 @@ class DualAiAnalyzer(
                 false
             }
             
-            if (faces.size != 1) {
-                if (faces.size == 0) {
+            // Filter out tiny background faces to prevent "Multiple faces" flickering
+            val validFaces = faces.filter { it.boundingBox.width() >= proxy.width * 0.15f && it.boundingBox.height() >= proxy.height * 0.15f }
+            
+            if (validFaces.size != 1) {
+                if (validFaces.size == 0) {
                     val helmetModel = helmetInterpreter ?: return reportFallback(false, "Helmet model not loaded")
                     bitmap = FaceData.uprightBitmap(proxy)
                     
                     val prevRect = lastRecognizedFaceRect
                     val recentlyRecognized = prevRect != null && (now - lastFaceMatchTime < 3000)
                     
-                    val detectedHelmetBox = helmetOnHead(bitmap, if (recentlyRecognized) prevRect else null, helmetModel)
+                    val detectedHelmetBox = helmetOnHead(bitmap, if (recentlyRecognized) prevRect else null, helmetModel, isTransition = true)
                     val spatiallyAssociated = recentlyRecognized && (detectedHelmetBox != null)
                     
+                    val extractedLogoId = if (detectedHelmetBox != null) {
+                        logoIdentityDetector.extractIdentity(bitmap, detectedHelmetBox)
+                    } else {
+                        null
+                    }
+
                     if (!spatiallyAssociated) {
                         lastRecognizedFaceRect = null 
                     }
                     
-                    return report(CameraDecision.evaluate(0, false, detectedHelmetBox != null, telemetry, pairedHelmetDeviceId, pairedHelmetVisualId, currentNonce, helmetPublicKey, null, isSequenceValid, spatiallyAssociated))
+                    return report(CameraDecision.evaluate(0, false, detectedHelmetBox != null, telemetry, pairedHelmetDeviceId, pairedHelmetVisualId, currentNonce, helmetPublicKey, extractedLogoId, isSequenceValid, spatiallyAssociated))
                 }
                 lastRecognizedFaceRect = null
-                return report(CameraDecision.evaluate(faces.size, false, false, telemetry, pairedHelmetDeviceId, pairedHelmetVisualId, currentNonce, helmetPublicKey, null, isSequenceValid))
+                return report(CameraDecision.evaluate(validFaces.size, false, false, telemetry, pairedHelmetDeviceId, pairedHelmetVisualId, currentNonce, helmetPublicKey, null, isSequenceValid))
             }
             
-            val face = faces.single()
+            val face = validFaces.single()
             
+            // We already filtered by size, but keep this for safety
             if (face.boundingBox.width() < proxy.width * 0.15f || face.boundingBox.height() < proxy.height * 0.15f) {
                 return reportFallback(false, "Move closer to the camera.")
             }
@@ -227,7 +237,7 @@ class DualAiAnalyzer(
         }
     }
 
-    private fun helmetOnHead(bitmap: Bitmap, face: Rect?, model: Interpreter): Rect? {
+    private fun helmetOnHead(bitmap: Bitmap, face: Rect?, model: Interpreter, isTransition: Boolean = false): Rect? {
         require(model.getInputTensor(0).shape().contentEquals(intArrayOf(1, 3, 640, 640))) { "Unsupported helmet input" }
         require(model.getOutputTensor(0).shape().contentEquals(intArrayOf(1, 6, 8400))) { "Unsupported helmet output" }
         val scale = min(640f / bitmap.width, 640f / bitmap.height)
@@ -241,6 +251,7 @@ class DualAiAnalyzer(
             canvas.drawBitmap(bitmap, null, Rect(dx, dy, dx + w, dy + h), Paint(Paint.FILTER_BITMAP_FLAG))
             letterbox.getPixels(pixels, 0, 640, 0, 0, 640, 640)
         } finally { letterbox.recycle() }
+
         val input = ByteBuffer.allocateDirect(pixels.size * 3 * 4).order(ByteOrder.nativeOrder())
         for (shift in intArrayOf(16, 8, 0)) for (pixel in pixels) input.putFloat((pixel shr shift and 255) / 255f)
         input.rewind()
@@ -254,19 +265,40 @@ class DualAiAnalyzer(
         
         for (i in 0 until 8400) {
             val confidence = o[4][i]; val other = o[5][i]
-            if (!confidence.isFinite() || !other.isFinite() || confidence < 0.85f || confidence < other + 0.15f) continue
+            // Increased baseline confidence to 0.70 to avoid bare heads
+            if (!confidence.isFinite() || !other.isFinite() || confidence < 0.70f || confidence < other + 0.15f) continue
             val cx = (o[0][i] * coordinateScale - dx) / scale
             val cy = (o[1][i] * coordinateScale - dy) / scale
             val bw = o[2][i] * coordinateScale / scale; val bh = o[3][i] * coordinateScale / scale
             if (!listOf(cx, cy, bw, bh).all { it.isFinite() } || bw <= 0 || bh <= 0) continue
             val boxF = RectF(cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2)
-            
+
             if (face != null) {
+                // Relax overlap and center checks if this is a transition (stale face box)
+                val requiredOverlap = if (isTransition) 0.15f else 0.3f
                 val overlap = max(0f, min(boxF.right, face.right.toFloat()) - max(boxF.left, face.left.toFloat())) / face.width()
-                if (overlap < 0.3f || boxF.top > face.top + face.height() * 0.5f || boxF.bottom < face.top ||
-                    abs(cx - face.exactCenterX()) > face.width() * 1.5f || bw < face.width() * 0.5f || bw > face.width() * 5f || bh < face.height() * 0.2f) {
+                
+                if (overlap < requiredOverlap || boxF.bottom < face.top ||
+                    abs(cx - face.exactCenterX()) > face.width() * 2.0f || bw < face.width() * 0.5f || bw > face.width() * 5f || bh < face.height() * 0.2f) {
                     continue
                 }
+
+                // ── Forehead Coverage Check ───────────────────────────────────────
+                // If it's a transition, the head might have moved down, so allow the helmet box 
+                // to start lower. Otherwise, enforce that it extends above the face.
+                val foreheadCoverageThreshold = if (isTransition) {
+                    face.top + face.height() * 0.15f
+                } else {
+                    face.top - face.height() * 0.10f
+                }
+                
+                if (boxF.top > foreheadCoverageThreshold) continue
+
+                // ── Helmet Height Ratio Check ─────────────────────────────────────
+                // Relaxed for transition since the face box might be stale/smaller relative to helmet
+                val minHeightRatio = if (isTransition) 0.60f else 0.80f
+                if (bh < face.height() * minHeightRatio) continue
+
             } else {
                 if (bw < bitmap.width * 0.25f || bh < bitmap.height * 0.25f || cy > bitmap.height * 0.7f) {
                     continue

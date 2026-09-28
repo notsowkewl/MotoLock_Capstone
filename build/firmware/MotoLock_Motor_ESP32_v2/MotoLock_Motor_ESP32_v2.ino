@@ -1,4 +1,4 @@
-/*
+/*q
   MotoLock - Motorcycle receiver / motor controller
   Board: ESP32 Dev Module (38-pin ESP32-WROOM style)
 
@@ -947,8 +947,12 @@ void loop() {
   if (millis() - lastDisplayMs >= 500) {
     lastDisplayMs = millis();
     char alcoholLine[32];
-    snprintf(alcoholLine, sizeof(alcoholLine), "Alcohol: %.3f%%",
-             alcoholPercent);
+    if (packetFresh && warmedUp && sensorOk) {
+      snprintf(alcoholLine, sizeof(alcoholLine), "Alcohol: %.3f%%",
+               alcoholPercent);
+    } else {
+      snprintf(alcoholLine, sizeof(alcoholLine), "Alcohol: --");
+    }
 
     if (!deviceSecret.length()) {
       char pinLine[24];
@@ -978,7 +982,6 @@ void loop() {
 
   delay(10);
 }
-
 
 
 

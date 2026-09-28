@@ -3,6 +3,8 @@ import type { CSSProperties } from 'react';
 import type { Device } from './types';
 import TablePagination, { useTablePagination } from './TablePagination';
 import './DevicesPage.css';
+import HelmetStickerDialog from './HelmetStickerDialog';
+import { isHelmetVisualId } from '../shared/helmet-marker';
 
 const shortId = (id: Device['id']) => `DEV-${String(id).slice(0, 8).toUpperCase()}`;
 const ignition = (device: Device) => {
@@ -17,13 +19,15 @@ export default function DevicesPage({ devices, styles, onOpenAlerts }: {
   onOpenAlerts: () => void;
 }) {
   const [search, setSearch] = useState('');
+  const [stickerId, setStickerId] = useState<Device['id'] | null>(null);
+  const stickerDevice = devices.find(device => device.id === stickerId);
   const [status, setStatus] = useState('all');
   const [selectedId, setSelectedId] = useState<Device['id'] | null>(null);
   const [override, setOverride] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const selected = devices.find(device => device.id === selectedId);
   const query = search.trim().toLowerCase();
-  const filtered = devices.filter(device => (String(device.id).toLowerCase().includes(query) || shortId(device.id).toLowerCase().includes(query)) && (status === 'all' || ignition(device) === status));
+  const filtered = devices.filter(device => (String(device.id).toLowerCase().includes(query) || shortId(device.id).toLowerCase().includes(query) || device.helmet_visual_id?.toLowerCase().includes(query)) && (status === 'all' || ignition(device) === status));
   const pagination = useTablePagination(filtered, JSON.stringify([search, status]));
   useEffect(() => {
     if (selected && dialog.current && !dialog.current.open) dialog.current.showModal();
@@ -33,7 +37,7 @@ export default function DevicesPage({ devices, styles, onOpenAlerts }: {
   }, [override]);
   const close = () => { dialog.current?.close(); setSelectedId(null); setOverride(false); };
   const badge = (device: Device) => <span className={`device-status ${ignition(device) === 'Ignition Ready' ? 'device-status-ready' : ''}`}><span aria-hidden="true">{ignition(device) === 'Ignition Ready' ? '✓' : '•'}</span> {ignition(device)}</span>;
-  const details = (device: Device) => <div className="device-details"><span>SIM Card: {device.sim_number || 'N/A'}</span>{device.model && <span>{device.model}</span>}</div>;
+  const details = (device: Device) => <div className="device-details"><span>Helmet ID: {device.helmet_visual_id || 'Not synced'}</span><span>SIM Card: {device.sim_number || 'N/A'}</span>{device.model && <span>{device.model}</span>}</div>;
 
   return <div className="devices-page">
     <div className="devices-summary" aria-label="Device summary">
@@ -56,11 +60,12 @@ export default function DevicesPage({ devices, styles, onOpenAlerts }: {
           <td style={styles.tableCell}><span className="device-id" title={String(device.id)}>{shortId(device.id)}</span></td>
           <td style={styles.tableCell}>{badge(device)}</td>
           <td style={styles.tableCell}>{details(device)}</td>
-          <td style={styles.tableCell}><button style={styles.actionBtn} aria-label={`Manage device ${device.id}`} onClick={() => { setOverride(false); setSelectedId(device.id); }}>Manage</button></td>
+          <td style={styles.tableCell}><button style={styles.actionBtn} aria-label={`Manage device ${device.id}`} onClick={() => { setOverride(false); setSelectedId(device.id); }}>Manage</button> <button style={styles.actionBtn} aria-label={`Generate sticker for device ${device.id}`} onClick={() => setStickerId(device.id)}>Generate sticker</button>{!isHelmetVisualId(device.helmet_visual_id) && <small className="sticker-sync-note">Helmet ID needs syncing</small>}</td>
         </tr>)}{!filtered.length && <tr><td colSpan={4} style={styles.tableCell}><div className="devices-empty"><strong>{devices.length ? 'No matching devices' : 'No devices available'}</strong><p>{devices.length ? 'Try adjusting your search or ignition status filter.' : 'Registered devices will appear here.'}</p></div></td></tr>}</tbody>
       </table></div>
       <TablePagination pagination={pagination} label="MotoLock devices" styles={styles} />
     </div>
+    {stickerDevice && <HelmetStickerDialog key={String(stickerDevice.id)} device={stickerDevice} onClose={() => setStickerId(null)} />}
     {selected && <dialog ref={dialog} className="device-dialog" aria-labelledby="device-dialog-title" onCancel={close} onClose={() => { setSelectedId(null); setOverride(false); }}>
       <h3 id="device-dialog-title">{override ? 'Device Override' : `Device ${shortId(selected.id)}`}</h3>
       {override && <p className="device-override-message">Device override actions are managed through Alerts &amp; Incidents. Open an active alert to continue.</p>}

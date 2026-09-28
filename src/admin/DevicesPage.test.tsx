@@ -65,3 +65,37 @@ it('shows an empty state when no devices exist', () => {
   expect(screen.getByText('No devices available')).toBeTruthy();
   expect(screen.getByText('Showing 0-0 of 0 records')).toBeTruthy();
 });
+
+it('opens a sticker for the selected device visual ID and supports searching it', async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer });
+  vi.stubGlobal('fetch', fetchMock);
+  try {
+    render(<DevicesPage devices={[
+      { ...devices[0], helmet_visual_id: 'MOTO-01D44' },
+      { ...devices[1], helmet_visual_id: 'MOTO-2ABCD' },
+    ]} styles={{}} onOpenAlerts={vi.fn()} />);
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'MOTO-2ABCD' } });
+    expect(screen.getByText('Showing 1-1 of 1 records')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: `Generate sticker for device ${devices[1].id}` }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('MOTO-2ABCD')).toBeTruthy();
+    const image = await within(dialog).findByRole('img', { name: 'Encoded helmet sticker MOTO-2ABCD' });
+    expect(decodeURIComponent(image.getAttribute('src')!)).toContain('MOTO-2ABCD');
+    expect(decodeURIComponent(image.getAttribute('src')!)).not.toContain('#80FF80');
+    fireEvent.change(within(dialog).getByLabelText('Background'), { target: { value: 'green' } });
+    expect(decodeURIComponent(image.getAttribute('src')!)).toContain('#80FF80');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  } finally { vi.unstubAllGlobals(); }
+});
+
+it('does not invent a sticker ID for an unsynced device', () => {
+  vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => {})));
+  try {
+    render(<DevicesPage devices={devices} styles={{}} onOpenAlerts={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: `Generate sticker for device ${devices[0].id}` }));
+    expect(screen.getByRole('alert').textContent).toContain('Pair and sync');
+    expect((screen.getByRole('button', { name: 'Download SVG' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Download PNG' }) as HTMLButtonElement).disabled).toBe(true);
+  } finally { vi.unstubAllGlobals(); }
+});

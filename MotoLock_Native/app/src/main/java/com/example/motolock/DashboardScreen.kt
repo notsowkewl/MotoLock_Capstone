@@ -377,7 +377,7 @@ fun DashboardScreen(
                         iconTint = motoGreen,
                         iconBg = Color(0xFFE6F4EE),
                         label = "MotoLock Hardware",
-                        value = "Motor: Connected\nHelmet: Connected through Motor"
+                        value = "Motor: Connected\nHelmet: Connected through Motor\nWear sensor: ${latestMotorStatus?.helmetWearLabel() ?: "Unknown"}"
                     )
                 }
 
@@ -581,5 +581,3 @@ private fun InfoCard(
         }
     }
 }
-
-

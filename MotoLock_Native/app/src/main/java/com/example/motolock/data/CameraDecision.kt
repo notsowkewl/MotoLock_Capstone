@@ -22,11 +22,13 @@ object CameraDecision {
         helmetPublicKey: ByteArray?,
         extractedLogoId: String?,
         isSequenceValid: Boolean,
-        spatiallyAssociatedHelmetWithoutFace: Boolean = false
+        spatiallyAssociatedHelmetWithoutFace: Boolean = false,
+        recentlyRecognized: Boolean = false
     ): VerificationState {
+        val logoMatched = (extractedLogoId != null && extractedLogoId == pairedHelmetVisualId)
         val cameraState = evaluateCamera(
             faceCount, faceMatches, helmetOnHead, telemetry.sensorActive,
-            spatiallyAssociatedHelmetWithoutFace
+            spatiallyAssociatedHelmetWithoutFace, recentlyRecognized, logoMatched
         )
         if (!cameraState.finalAuthenticationState) return cameraState
 
@@ -55,7 +57,9 @@ object CameraDecision {
         faceMatches: Boolean, 
         helmetOnHead: Boolean, 
         irSensorActive: Boolean,
-        spatiallyAssociatedHelmetWithoutFace: Boolean = false
+        spatiallyAssociatedHelmetWithoutFace: Boolean = false,
+        recentlyRecognized: Boolean = false,
+        logoMatched: Boolean = false
     ): VerificationState {
         val faceDetected = faceCount == 1
         val multipleFaces = faceCount > 1
@@ -76,27 +80,65 @@ object CameraDecision {
         return when {
             multipleFaces -> state.copy(message = "Multiple faces detected. Only one rider allowed.")
             
-            // CASE 2: Different/unregistered rider (Priority over helmet)
+            // CASE 2: Different/unregistered rider
             faceDetected && !faceMatches -> state.copy(message = "Face ID not recognized.")
             
-            // CASE 3: Visor DOWN (Spatially associated helmet covering the last known face region)
-            visorBlockingFace -> state.copy(message = "Lift your visor.")
-            
-            // No face, no helmet
-            !faceDetected && !spatiallyAssociatedHelmetWithoutFace -> state.copy(message = "No face detected. Keep your face visible.")
-            
-            // CASE 1: Registered rider, no helmet
-            faceDetected && faceMatches && !helmetOnHead -> state.copy(message = "Put your helmet on.")
-            
-            // CASE 5: Camera says helmet, IR sensor = 0
-            faceDetected && faceMatches && helmetOnHead && !irSensorActive -> state.copy(
-                message = "Camera sees a helmet, but the wear sensor is not active. Put the helmet on and position the sensor correctly."
+            // ── NEW SECURE WORKFLOW ──────────────────────────────────────────
+            // State 3: Visor DOWN after face was recently verified -> SUCCESS
+            visorBlockingFace && irSensorActive && recentlyRecognized && logoMatched -> state.copy(
+                finalAuthenticationState = true,
+                message = "Rider and helmet secured. Proceeding to alcohol detection..."
             )
             
-            // CASE 4 & 6: Registered rider + helmet + face verified + IR sensor = 1
+            // State 3 Alt: Missing logo
+            visorBlockingFace && irSensorActive && recentlyRecognized && !logoMatched -> state.copy(
+                message = "Face verified, but logo missing. Show the MotoLock logo to the camera."
+            )
+            
+            // State 1: Visor DOWN initially (never verified face)
+            visorBlockingFace && irSensorActive && !recentlyRecognized && logoMatched -> state.copy(
+                message = "Registered helmet detected. Lift your chin bar for Face ID."
+            )
+            
+            // State 1 Alt: Helmet detected, no face, IR=1, not spatially associated (new scan)
+            !faceDetected && helmetOnHead && irSensorActive && !recentlyRecognized && logoMatched -> state.copy(
+                message = "Registered helmet detected. Lift your chin bar for Face ID."
+            )
+
+            // State 1 Missing Logo: Helmet detected, IR=1, but no logo seen yet
+            (!faceDetected || visorBlockingFace) && helmetOnHead && irSensorActive && !recentlyRecognized && !logoMatched -> state.copy(
+                message = "Show the MotoLock logo on your helmet to the camera."
+            )
+
+            // State 2: Visor is UP (Face verified, Helmet ON, IR=0) -> Tell them to close it
+            faceDetected && faceMatches && helmetOnHead && !irSensorActive -> state.copy(
+                message = "Face verified. Pull down your chin bar to secure the helmet."
+            )
+            // ─────────────────────────────────────────────────────────────────
+
+            // Transition: Visor is coming down (Face blocked, IR=0 still)
+            visorBlockingFace && !irSensorActive -> state.copy(
+                message = "Face hidden. Pull down your chin bar to activate the sensor."
+            )
+            
+            // No face, no helmet
+            !faceDetected && !spatiallyAssociatedHelmetWithoutFace && !helmetOnHead -> state.copy(
+                message = "No face detected. Keep your face visible."
+            )
+            
+            // Registered rider, no helmet detected by camera
+            faceDetected && faceMatches && !helmetOnHead && irSensorActive -> state.copy(
+                message = "Helmet sensor is ON, but the camera can't confirm your helmet. Center your head in frame, improve the lighting, and show the helmet logo."
+            )
+
+            faceDetected && faceMatches && !helmetOnHead -> state.copy(
+                message = "No helmet detected. Put your helmet on."
+            )
+            
+            // Open-face helmet case (Face verified, helmet on, IR=1 simultaneously)
             faceDetected && faceMatches && helmetOnHead && irSensorActive -> state.copy(
                 finalAuthenticationState = true,
-                message = "Face and helmet verified. Proceeding..."
+                message = "Face and helmet verified. Proceeding to alcohol detection..."
             )
             
             else -> state.copy(message = "Verifying...")

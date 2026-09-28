@@ -114,7 +114,7 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
     
 
 
-    suspend fun registerDevice(address: String) {
+    suspend fun registerDevice(address: String, identity: com.example.motolock.data.HelmetIdentity) {
         val authUser = SupabaseClientManager.client.auth.currentSessionOrNull()?.user
             ?: error("Please sign in before pairing your hardware.")
         var profile = SupabaseClientManager.client.postgrest["users"]
@@ -133,17 +133,33 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
         val motorcycleId = motorcycle?.get("id")?.jsonPrimitive?.content
             
 
-        try {
-            val deviceData = Device(
+        val existing = SupabaseClientManager.client.postgrest["devices"]
+            .select { filter { eq("user_id", finalUserId); eq("mac_address", address) } }
+            .decodeList<JsonObject>()
+        if (existing.isEmpty()) {
+            SupabaseClientManager.client.postgrest["devices"].insert(Device(
                 userId = finalUserId,
                 motorcycleId = motorcycleId,
-                macAddress = address
-            )
-            SupabaseClientManager.client.postgrest["devices"].insert(deviceData)
-        } catch (insertEx: Exception) {
-            if (insertEx is kotlinx.coroutines.CancellationException) throw insertEx
-            // Device may already be registered - not fatal
+                macAddress = address,
+                helmetDeviceId = identity.deviceId,
+                helmetVisualId = identity.visualId
+            ))
+        } else {
+            SupabaseClientManager.client.postgrest["devices"].update({
+                set("helmet_device_id", identity.deviceId)
+                set("helmet_visual_id", identity.visualId)
+            }) { filter { eq("user_id", finalUserId); eq("mac_address", address) } }
         }
+        val synced = SupabaseClientManager.client.postgrest["devices"]
+            .select { filter { eq("user_id", finalUserId); eq("mac_address", address) } }
+            .decodeList<JsonObject>()
+        check(synced.isNotEmpty() && synced.all {
+            it["helmet_device_id"]?.jsonPrimitive?.content == identity.deviceId &&
+                it["helmet_visual_id"]?.jsonPrimitive?.content == identity.visualId
+        }) { "Helmet identity could not sync. Check device permissions and retry." }
+        // Do not mark a failed database write as synced; retry on the next connection.
+        check(context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE).edit().putString("helmet_identity_synced", "${authUser.id}:$address:${identity.deviceId}:${identity.visualId}")
+            .commit()) { "Unable to save helmet sync state." }
 
     }
 
@@ -211,7 +227,7 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                     actual.save(context)
                     hardwareVerified = true
                     connectionProgress = "Saving device registration..."
-                    registerDevice(device.address)
+                    registerDevice(device.address, actual)
                     prefs.edit().remove("device_registration_pending").apply()
                     success = true
                 } else {
@@ -346,9 +362,11 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                     check(saved == null || saved.matches(actual)) { "Helmet identity changed. Re-pair deliberately." }
                     actual.save(context)
                     hardwareVerified = true
-                    if (prefs.getBoolean("device_registration_pending", false)) {
+                    if (prefs.getBoolean("device_registration_pending", false) ||
+                        prefs.getString("helmet_identity_synced", null) !=
+                        "${SupabaseClientManager.client.auth.currentSessionOrNull()?.user?.id}:$mac:${actual.deviceId}:${actual.visualId}") {
                         connectionProgress = "Saving device registration..."
-                        registerDevice(mac)
+                        registerDevice(mac, actual)
                         prefs.edit().remove("device_registration_pending").apply()
                     }
                     pairingComplete = true
@@ -486,6 +504,8 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                 )
             }
             Text("Helmet: $helmetStatus", fontSize = 13.sp, color = motoBlack)
+            Text("Helmet status: ${motorStatus?.helmetWearLabel() ?: "Unknown"}",
+                fontSize = 13.sp, color = motoBlack)
             when {
                 helmetStatus == "Not Detected" -> Text(
                     "Helmet is not currently detected by the Motor. Turn on the helmet and keep it near the motorcycle.",

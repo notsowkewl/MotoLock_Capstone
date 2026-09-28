@@ -35,6 +35,13 @@ data class MotorStatus(
     val irDetected: Boolean?,
     val receivedAt: Long
 ) {
+    /** The motor maps the wear switch to HELMET_NOT_WORN in its existing STATUS message. */
+    fun helmetWearLabel(): String = when {
+        helmetConnected != true || helmetDataFresh != true || testStatus == "HELMET_NOT_FOUND" -> "Unknown"
+        testStatus == "HELMET_NOT_WORN" -> "OFF (not worn)"
+        else -> "ON (worn)"
+    }
+
     fun helmetLabel(): String = when {
         helmetConnected == false -> "Disconnected"
         helmetConnected == true && helmetDataFresh == true && testStatus != "HELMET_NOT_FOUND" -> "Connected through Motor"
