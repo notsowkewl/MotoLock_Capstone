@@ -25,6 +25,12 @@
 .dashboard-key-failed { background: var(--red); }
 .dashboard-chart { display: block; width: 100%; height: auto; }
 .dashboard-chart text { fill: var(--muted); font-size: 12px; font-family: inherit; }
+.dashboard-chart-scroll { overflow-x: auto; }
+.dashboard-chart .dashboard-bar-count { fill: var(--text); font-size: 10px; font-weight: 600; }
+.dashboard-chart-day { cursor: pointer; }
+.dashboard-chart-day:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.dashboard-day-details { display: flex; flex-wrap: wrap; gap: 8px 20px; min-height: 20px; margin-top: 10px; color: var(--muted); font-size: 12px; }
+.dashboard-day-details strong { color: var(--text); }
 .dashboard-feed { list-style: none; padding: 0; margin: 0; }
 .dashboard-feed li { padding: 14px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .dashboard-feed li:first-child { padding-top: 0; }

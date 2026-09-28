@@ -8,7 +8,6 @@ export default function AuditLogsPage({ logs, styles }: { logs: AuditLog[]; styl
   const [search, setSearch] = useState('');
   const [module, setModule] = useState('');
   const [action, setAction] = useState('');
-  const [admin, setAdmin] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [sort, setSort] = useState('newest');
@@ -20,7 +19,7 @@ export default function AuditLogsPage({ logs, styles }: { logs: AuditLog[]; styl
   const filtered = sortAuditLogs(logs.filter(log => {
     const date = new Date(log.created_at);
     const day = Number.isFinite(date.getTime()) ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : '';
-    return (!module || log.module === module) && (!action || log.action === action) && (!admin || log.admin_name === admin)
+    return (!module || log.module === module) && (!action || log.action === action)
       && (!from || !!day && day >= from) && (!to || !!day && day <= to)
       && (!query || [log.admin_name, log.action, log.module, log.target_record, log.created_at].some(value => value?.toLowerCase().includes(query)));
   }), sort === 'oldest');
@@ -33,17 +32,17 @@ export default function AuditLogsPage({ logs, styles }: { logs: AuditLog[]; styl
     <div style={{ ...styles.card, display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: 16, marginBottom: 16 }}>
       <label style={labelStyle}>Search Logs<input type="search" placeholder="Search people, activities, areas or records" value={search} onChange={e => change(setSearch, e.target.value)} style={styles.input} /></label>
       {([
-        ['Area', 'module', module, setModule], ['Activity', 'action', action, setAction], ['Performed By', 'admin_name', admin, setAdmin],
+        ['Area', 'module', module, setModule], ['Activity', 'action', action, setAction],
       ] as const).map(([label, field, selected, setter]) => <label key={field} style={labelStyle}>{label}
         <select value={selected} onChange={e => change(setter, e.target.value)} style={styles.input}>
-          <option value="">{field === 'module' ? 'All Areas' : field === 'action' ? 'All Activities' : 'Everyone'}</option>
-          {[...new Set(logs.map(log => log[field]).filter((v): v is string => !!v))].sort().map(v => <option key={v} value={v}>{field === 'module' ? areaLabel(v) : field === 'action' ? activityLabel(v) : v === 'MotoLock Developers' && logs.filter(log => log.admin_name === v).every(log => performerLabel(log) === 'System') ? 'System' : v}</option>)}
+          <option value="">{field === 'module' ? 'All Areas' : 'All Activities'}</option>
+          {[...new Set(logs.map(log => log[field]).filter((v): v is string => !!v))].sort().map(v => <option key={v} value={v}>{field === 'module' ? areaLabel(v) : activityLabel(v)}</option>)}
         </select>
       </label>)}
       <label style={labelStyle}>From Date<input type="date" value={from} max={to || undefined} onChange={e => change(setFrom, e.target.value)} style={styles.input} /></label>
       <label style={labelStyle}>To Date<input type="date" value={to} min={from || undefined} onChange={e => change(setTo, e.target.value)} style={styles.input} /></label>
       <label style={labelStyle}>Sort Order<select value={sort} onChange={e => change(setSort, e.target.value)} style={styles.input}><option value="newest">Newest to Oldest</option><option value="oldest">Oldest to Newest</option></select></label>
-      <button type="button" style={{ ...styles.actionBtn, minHeight: 42, whiteSpace: 'nowrap' }} onClick={() => { setSearch(''); setModule(''); setAction(''); setAdmin(''); setFrom(''); setTo(''); setSort('newest'); setPage(1); }}>Clear Filters</button>
+      <button type="button" style={{ ...styles.actionBtn, minHeight: 42, whiteSpace: 'nowrap' }} onClick={() => { setSearch(''); setModule(''); setAction(''); setFrom(''); setTo(''); setSort('newest'); setPage(1); }}>Clear Filters</button>
     </div>
     <div style={{ ...styles.card, overflowX: 'auto' }}>
       <table style={styles.table}>

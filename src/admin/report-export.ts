@@ -29,6 +29,7 @@ export function buildReportPdf(report: ReportSnapshot) {
     `Coverage: ${report.coverage}`,
     report.filters,
     `Generated: ${reportDate(report.generatedAt)} | ${report.rows.length} matching records`,
+    ...(report.note ? [report.note] : []),
   ];
   for (const line of metadata) {
     const lines = doc.splitTextToSize(line, width - 28);
@@ -90,7 +91,10 @@ export function buildReportWorkbook(report: ReportSnapshot) {
   banner(3, `Coverage: ${report.coverage}`, 11, 'FFF1F4F8', 'FF202938');
   banner(4, report.filters, 11, 'FFF1F4F8', 'FF202938');
   banner(5, `Generated: ${reportDate(report.generatedAt)}  |  ${report.rows.length} matching records`, 11, 'FFF1F4F8', 'FF596579');
-  sheet.getRow(6).height = 10;
+  if (report.note) {
+    banner(6, report.note, 10, 'FFF1F4F8', 'FF596579');
+    sheet.getRow(6).height = 54;
+  } else sheet.getRow(6).height = 10;
   sheet.getRow(7).values = report.headers;
   sheet.getRow(7).height = 28;
   sheet.getRow(7).eachCell((cell: any) => {
@@ -111,7 +115,7 @@ export function buildReportWorkbook(report: ReportSnapshot) {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: index % 2 ? 'FFF1F4F8' : 'FFFFFFFF' } };
       cell.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
       cell.border = { bottom: { style: 'hair', color: { argb: 'FFDCE1E8' } } };
-      // Strings preserve the exact preview text, masked phones, zeros, and timezone.
+      // Strings preserve the exact preview text, zeros, and timezone.
       cell.numFmt = '@';
       const columnWidth = (sheet.getColumn(column).width || 20) - 4;
       lines = Math.max(lines, String(cell.value).split('\n').reduce((total, line) => total + Math.max(1, Math.ceil(line.length / columnWidth)), 0));
@@ -124,7 +128,7 @@ export function buildReportWorkbook(report: ReportSnapshot) {
 }
 
 export async function downloadReport(report: ReportSnapshot, format: 'pdf' | 'excel') {
-  const filename = `MotoLock_${report.type}_${report.generatedAt.slice(0, 10)}`;
+  const filename = `MotoLock_${report.type}${report.view ? '_' + report.view : ''}_${report.generatedAt.slice(0, 10)}`;
   if (format === 'pdf') {
     buildReportPdf(report).save(filename + '.pdf');
     return;

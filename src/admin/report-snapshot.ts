@@ -4,6 +4,10 @@ import { reportOptions } from './report-options';
 export const rideReportTypes = ['sobriety-test', 'alcohol-detection', 'failed-sobriety', 'rider-safety', 'sobriety-trend', 'alert-summary', 'safety-incident', 'critical-incident', 'resolved-incident', 'incident-resolution', 'alert-trend', 'comp-safety'];
 export const userReportTypes = ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg', 'admin-list', 'user-activity', 'role-permission', 'login-history', 'failed-login', 'account-status', 'comp-system'];
 export interface ReportSnapshot {
+  summary?: { label: string; value: string | number }[];
+  note?: string;
+  view?: string;
+  chart?: { date: string; total: number; sober: number; notSober: number }[];
   type: string;
   title: string;
   generatedAt: string;
@@ -16,9 +20,8 @@ export interface ReportSnapshot {
   rows: string[][];
 }
 export const reportDate = (value?: string) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'Not Recorded';
-const phone = (value?: string) => !value ? '—' : value.length < 7 ? value : value.slice(0, 3) + '*'.repeat(value.length - 5) + value.slice(-2);
 export function reportRideStatus(row: ReportRow): string {
-  const status = (row.status || row.unlock_status || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const status = (row.status || '').trim().toLowerCase().replace(/[\s-]+/g, '_').replace(/^ride_/, '');
   if (['ongoing', 'in_progress', 'started', 'pending', 'testing', 'verifying'].includes(status)) return 'Ongoing';
   if (['passed', 'completed', 'cleared'].includes(status)) return 'Passed';
   if (['failed', 'failed_brac', 'failed_face', 'failed_helmet', 'failed_identity', 'verification_failed', 'completed_with_issues', 'restricted'].includes(status)) return 'Failed';
@@ -26,12 +29,8 @@ export function reportRideStatus(row: ReportRow): string {
 }
 
 export function reportIgnitionState(row: ReportRow): string {
-  // Access granted is not evidence that the engine was switched on.
   if (row.is_locked === true || row.is_locked === 1) return 'Locked';
-  const state = (row.unlock_status || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-  if (['locked', 'motor_still_locked'].includes(state)) return 'Locked';
-  if (state === 'on' || state === 'ignition_on') return 'On';
-  if (state === 'off' || state === 'ignition_off') return 'Off';
+  if (row.is_locked === false || row.is_locked === 0) return 'Unlocked';
   return 'Not Recorded';
 }
 
@@ -50,10 +49,10 @@ export function createReportSnapshot(type: string, records: ReportRow[], metadat
     return a.index - b.index;
   }).map(item => item.record);
   return {
-    type, title: reportOptions.find(option => option.value === type)?.label || 'MotoLock Report',
+    type, title: reportOptions.find(option => option.value === type)?.label || ({ 'alcohol-detection': 'Alcohol Detection Report', 'sobriety-test': 'Sobriety Test Report' } as Record<string, string>)[type] || 'MotoLock Report',
     generatedAt: new Date().toISOString(), ...metadata,
     headers: rides ? ['Date & Time', 'Rider Details', 'BAC Level', 'Sobriety Status', 'Ignition State', 'Ride Status']
-      : users ? ['Rider Name', 'Email', 'Phone', 'Role', 'Face ID'] : ['Timestamp', 'Record ID', 'Details'],
+      : users ? ['Rider Name', 'Email', 'Role', 'Face ID'] : ['Timestamp', 'Record ID', 'Details'],
     rows: sortedRecords.map(row => {
       if (rides) {
         const reading = row.brac?.trim() ? Number(row.brac) : NaN;
@@ -62,15 +61,15 @@ export function createReportSnapshot(type: string, records: ReportRow[], metadat
         const threshold = Number.isFinite(configuredThreshold) && configuredThreshold >= 0 ? configuredThreshold : 0.05;
         return [reportDate(row.created_at), [row.full_name || 'Not Recorded', row.email].filter(Boolean).join('\n'),
           tested ? `${reading.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 20, useGrouping: false })} BAC` : 'Not Tested', tested ? reading > threshold ? 'Not Sober' : 'Sober' : 'Not Tested',
-          reportIgnitionState(row), reportRideStatus(row)];
+          reportIgnitionState(row), [reportRideStatus(row), reportRideStatus(row) === 'Failed' && row.failure_reason?.trim() ? `Reason: ${row.failure_reason.trim()}` : ''].filter(Boolean).join('\n')];
       }
-      if (users) return [row.full_name || 'Not Recorded', row.email || 'Not Recorded', phone(row.phone), row.role || 'Not Recorded', row.face_enrolled ? 'Enrolled' : 'Missing'];
+      if (users) return [row.full_name || 'Not Recorded', row.email || 'Not Recorded', row.role || 'Not Recorded', row.face_enrolled ? 'Enrolled' : 'Missing'];
       return [reportDate(row.created_at), `ID-${row.id}`, row.action || row.model || row.unlock_status || 'System Log Activity'];
     }),
   };
 }
 export function reportCellColor(value: string): string | undefined {
   if (['Sober', 'Enrolled'].includes(value)) return '#16804a';
-  if (['Not Sober', 'Failed'].includes(value)) return '#c91e30';
-  if (['Not Tested', 'Missing', 'Not Recorded'].includes(value)) return '#6b7280';
+  if (['Not Sober', 'Failed', 'Missing'].includes(value)) return '#c91e30';
+  if (['Not Tested', 'Not Recorded'].includes(value)) return '#6b7280';
 }

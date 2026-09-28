@@ -2,6 +2,7 @@ import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import LiveMonitoringPage from './LiveMonitoringPage';
 import type { Device } from './types';
+import { attachMonitoringRecords } from './monitoring-records';
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
@@ -14,6 +15,34 @@ const devices: Device[] = [
   { id: 'unknown-device', user_id: '', rider_name: 'Unassigned' },
 ];
 const props = { devices, styles: {}, onRefresh: vi.fn(async () => {}), lockIcon: () => null };
+
+it('shows dated history without the source label in the table and details', () => {
+  const recorded = attachMonitoringRecords([{ id: 'device', user_id: '' }], [], [{
+    id: 'event', created_at: '2026-09-18T08:00:00Z',
+    action_details: { device_id: 'device', ignition: 'locked', synthetic: true },
+  }]);
+  render(<LiveMonitoringPage {...props} devices={recorded} />);
+  const row = screen.getAllByRole('row')[1];
+  expect(row.children[2].textContent).toBe('Not Recorded');
+  expect(row.children[3].textContent).toContain('Locked');
+  expect(row.children[3].textContent).toContain('Last recorded status');
+  expect(row.children[3].textContent).not.toContain('Sample data');
+  expect(row.children[3].textContent).not.toContain('Audit event');
+  expect(row.querySelector('time')?.dateTime).toBe('2026-09-18T08:00:00Z');
+  fireEvent.click(within(row).getByRole('button'));
+  const dialog = screen.getByRole('dialog');
+  expect(within(dialog).queryByText('Audit event · Sample data')).toBeNull();
+  expect(dialog.querySelector('time')?.dateTime).toBe('2026-09-18T08:00:00Z');
+});
+
+it('keeps available device readings ahead of historical fallback', () => {
+  const recorded = attachMonitoringRecords([{ id: 'device', user_id: '', is_locked: false }], [], [{
+    id: 'event', created_at: '2026-09-18T08:00:00Z', action_details: { device_id: 'device', ignition: 'locked' },
+  }]);
+  render(<LiveMonitoringPage {...props} devices={recorded} />);
+  expect(screen.getAllByRole('row')[1].children[3].textContent).toBe('Unlocked');
+  expect(screen.queryByText(/Last recorded status ·/)).toBeNull();
+});
 
 it.each([
   [true, 'Locked'], [1, 'Locked'], [false, 'Unlocked'], [0, 'Unlocked'],

@@ -5,6 +5,37 @@ import { dashboardSummary } from './dashboard-presentation';
 import type { DashboardData } from './types';
 
 afterEach(cleanup);
+
+it('plots daily counts on one scale, keeps genuine ties equal, and exposes exact counts including zeros', () => {
+  const daily = { ...data, sobrietySummary: [
+    { date: '2026-09-10', passed: 7, failed: 0 },
+    { date: '2026-09-18', passed: 0, failed: 2 },
+    { date: '2026-09-19', passed: 7, failed: 7 },
+  ] };
+  const before = JSON.stringify(daily);
+  const { container } = render(<DashboardPanels {...props} data={daily} />);
+  const day = (date: string) => container.querySelector(`[data-date="${date}"]`)!;
+  const height = (date: string, result: string) => Number(day(date).querySelector(`[data-result="${result}"]`)!.getAttribute('height'));
+  expect(height('2026-09-10', 'passed') / height('2026-09-18', 'failed')).toBeCloseTo(7 / 2);
+  expect(height('2026-09-10', 'failed')).toBe(0);
+  expect(height('2026-09-18', 'passed')).toBe(0);
+  expect(height('2026-09-19', 'passed')).toBe(height('2026-09-19', 'failed'));
+  expect(height('2026-09-10', 'passed')).toBe(7 / 8 * 180);
+  fireEvent.mouseEnter(day('2026-09-18'));
+  const details = screen.getByRole('status');
+  expect(within(details).getByText('Passed: 0')).toBeTruthy();
+  expect(within(details).getByText('Failed: 2')).toBeTruthy();
+  expect(within(details).getByText('Total: 2')).toBeTruthy();
+  fireEvent.focus(day('2026-09-11'));
+  expect(within(details).getByText('Total: 0')).toBeTruthy();
+  expect(container.querySelector('.dashboard-test-totals')?.textContent).toContain('Total Tests23');
+  fireEvent.change(screen.getByLabelText('Sobriety summary period'), { target: { value: 'custom' } });
+  fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-09-18' } });
+  fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-09-18' } });
+  expect(container.querySelectorAll('.dashboard-chart-day')).toHaveLength(1);
+  expect(height('2026-09-18', 'failed')).toBe(2 / 4 * 180);
+  expect(JSON.stringify(daily)).toBe(before);
+});
 const data: DashboardData = {
   totalRiders: 7, totalMotorcycles: 4, activeDevices: 2, recentOverrides: 3, todaysRides: 1, failedTests: 14,
   sobrietySummary: [{ date: '2026-09-26', passed: '49', failed: '14' }],

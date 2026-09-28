@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import ExcelJS from 'exceljs';
-import { createReportSnapshot, rideReportTypes, userReportTypes } from './report-snapshot';
+import { createReportSnapshot } from './report-snapshot';
 import { reportOptions } from './report-options';
+import { buildOrganizedReport, defaultReportFilters, emptyReportSources } from './organized-report-data';
 import { buildReportPdf, buildReportWorkbook } from './report-export';
 import type { ReportRow } from './types';
 
@@ -15,7 +16,14 @@ const records: ReportRow[] = [
 describe('all report exports use the preview snapshot', () => {
   for (const option of reportOptions.filter(option => !option.disabled)) {
     it(option.label, async () => {
-      const snapshot = createReportSnapshot(option.value, records, metadata);
+      const snapshot = buildOrganizedReport(option.value, 'details', {
+        ...emptyReportSources,
+        users: [{ id: 'rider', name: 'Jenna Diaz', email: 'jenna@example.com', role: 'rider', face_enrolled: true }],
+        rides: records.map(row => ({ ...row, user_id: 'rider', initial_brac_level: row.brac })),
+        motorcycles: [{ id: 'motorcycle', user_id: 'rider', model: 'Moto', plate_number: 'ABC123' }],
+        devices: [{ id: 'device', user_id: 'rider', motorcycle_id: 'motorcycle', status: 'online' }],
+        events: [{ id: 'event', user_id: 'rider', action_type: 'ride_completed', created_at: '2026-09-10T05:00:00Z', action_details: { ride_id: 12 } }],
+      }, defaultReportFilters, '0.05');
       expect(snapshot.title).toBe(option.label);
       const workbook = buildReportWorkbook(snapshot);
       const saved = new ExcelJS.Workbook();
@@ -26,17 +34,15 @@ describe('all report exports use the preview snapshot', () => {
       expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 7 });
       expect(sheet.getCell('A7').fill).toMatchObject({ fgColor: { argb: 'FF202938' } });
       const pdf = buildReportPdf(snapshot).output();
-      for (const header of snapshot.headers) expect(pdf).toContain(header);
-      if (rideReportTypes.includes(option.value)) {
+      expect(pdf).toContain(snapshot.title);
+      if (option.value === 'safety-sobriety') {
         expect(pdf).toContain('0.049 BAC');
         expect(pdf).toContain('0.00 BAC');
         expect(pdf).toContain('Not Tested');
-      } else if (userReportTypes.includes(option.value)) {
-        expect(pdf).toContain('091******67');
+      } else if (option.value === 'rider-master') {
+        expect(pdf).not.toContain('091******67');
+        expect(snapshot.headers).not.toContain('Phone');
         expect(pdf).toContain('Enrolled');
-      } else {
-        expect(pdf).toContain('ID-0');
-        expect(pdf).toContain('settings_updated');
       }
     });
   }
@@ -48,7 +54,20 @@ it('freezes formatted data, preserves order and does not invent timestamps or ze
   input[0].brac = '99';
   expect(snapshot.rows[0][2]).toBe('0.049 BAC');
   expect(snapshot.rows[1][2]).toBe('0.00 BAC');
-  expect(snapshot.rows[2]).toEqual(['Not Recorded', 'Missing reading', 'Not Tested', 'Not Tested', 'Not Recorded', 'Failed']);
+  expect(snapshot.rows[2]).toEqual(['Not Recorded', 'Missing reading', 'Not Tested', 'Not Tested', 'Not Recorded', 'Not Recorded']);
+});
+
+it('exports a sober failed ride with its recorded reason and independent lock state', async () => {
+  const snapshot = createReportSnapshot('alcohol-detection', [{
+    id: 1, brac: '0', status: 'failed_face', is_locked: false, failure_reason: 'Face did not match',
+  }], metadata);
+  const pdf = buildReportPdf(snapshot).output();
+  expect(pdf).toContain('Sober');
+  expect(pdf).toContain('Unlocked');
+  expect(pdf).toContain('Reason: Face did not match');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildReportWorkbook(snapshot).xlsx.writeBuffer());
+  expect(workbook.getWorksheet('Report')!.getRow(8).values).toEqual([undefined, ...snapshot.rows[0]]);
 });
 
 it('exports all rows beyond the 15-row preview and produces multiple PDF pages', async () => {
@@ -75,5 +94,7 @@ it('handles empty reports and stores formula-looking input as literal text', asy
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(await buildReportWorkbook(snapshot).xlsx.writeBuffer());
   expect(workbook.getWorksheet('Report')!.getCell('A8').value).toBe('=1+1');
-  expect(workbook.getWorksheet('Report')!.getCell('C8').value).toBe('00123');
+  expect(snapshot.headers).toEqual(['Rider Name', 'Email', 'Role', 'Face ID']);
+  expect(workbook.getWorksheet('Report')!.getCell('C8').value).toBe('Not Recorded');
+  expect(snapshot.rows[0]).not.toContain('00123');
 });

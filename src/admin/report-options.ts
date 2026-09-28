@@ -1,18 +1,12 @@
 export const reportOptions = [
   { value: 'cat-safety', label: 'SAFETY & SOBRIETY', disabled: true },
-  { value: 'sobriety-test', label: 'Sobriety Test Report' },
-  { value: 'alcohol-detection', label: 'Alcohol Detection Report' },
-  { value: 'failed-sobriety', label: 'Failed Sobriety & Lockout Report' },
-  { value: 'rider-safety', label: 'Rider Safety Summary' },
-  { value: 'sobriety-trend', label: 'Sobriety Trend Report' },
-
+  { value: 'safety-sobriety', label: 'Safety & Sobriety Report' },
   { value: 'cat-riders', label: 'RIDERS', disabled: true },
   { value: 'rider-master', label: 'Rider Master List' },
   { value: 'rider-activity', label: 'Rider Activity Report' },
-  { value: 'rider-safety-hist', label: 'Rider Safety History' },
+  { value: 'rider-safety', label: 'Rider Safety Summary' },
   { value: 'rider-incident-hist', label: 'Rider Incident History' },
   { value: 'rider-reg', label: 'Rider Registration Report' },
-
   { value: 'cat-motorcycles', label: 'MOTORCYCLES & DEVICES', disabled: true },
   { value: 'motorcycle-reg', label: 'Motorcycle Registry Report' },
   { value: 'device-inventory', label: 'MotoLock Device Inventory' },
@@ -21,56 +15,35 @@ export const reportOptions = [
   { value: 'device-pairing', label: 'Device Pairing Report' },
   { value: 'device-connection', label: 'Device Connection Status Report' },
   { value: 'device-fault', label: 'Device Fault & Failure Report' },
-
-  { value: 'cat-identity', label: 'IDENTITY VERIFICATION', disabled: true },
-  { value: 'identity-verif', label: 'Identity Verification Report' },
-  { value: 'failed-verif', label: 'Failed Verification Report' },
-  { value: 'verif-attempt', label: 'Verification Attempt History' },
-  { value: 'liveness-verif', label: 'Liveness Verification Report' },
-
-  { value: 'cat-alerts', label: 'ALERTS & INCIDENTS', disabled: true },
-  { value: 'alert-summary', label: 'Alert Summary Report' },
-  { value: 'safety-incident', label: 'Safety Incident Report' },
-  { value: 'critical-incident', label: 'Critical Incident Report' },
-  { value: 'resolved-incident', label: 'Resolved Incident Report' },
-  { value: 'incident-resolution', label: 'Incident Resolution Report' },
-  { value: 'alert-trend', label: 'Alert Trend Report' },
-
-  { value: 'cat-location', label: 'LOCATION & GPS', disabled: true },
-  { value: 'gps-activity', label: 'GPS Activity Report' },
-  { value: 'incident-loc', label: 'Incident Location Report' },
-  { value: 'lockout-loc', label: 'Lockout Location Report' },
-  { value: 'last-known-loc', label: 'Last Known Location Report' },
-
-  { value: 'cat-override', label: 'OVERRIDE & ACCESS', disabled: true },
-  { value: 'manual-override', label: 'Manual Override Report' },
-  { value: 'override-history', label: 'Override History Report' },
-  { value: 'ignition-override', label: 'Ignition Override Report' },
-  { value: 'failed-access', label: 'Failed Access Attempt Report' },
-
-  { value: 'cat-admin', label: 'ADMINISTRATION', disabled: true },
-  { value: 'admin-list', label: 'Administrator/User List' },
-  { value: 'user-activity', label: 'User Activity Report' },
-  { value: 'role-permission', label: 'Role & Permission Report' },
-  { value: 'login-history', label: 'Login History Report' },
-  { value: 'failed-login', label: 'Failed Login Report' },
-  { value: 'account-status', label: 'Account Status Report' },
-
-  { value: 'cat-audit', label: 'AUDIT & SYSTEM', disabled: true },
-  { value: 'audit-trail', label: 'Audit Trail Report' },
-  { value: 'system-activity', label: 'System Activity Report' },
-  { value: 'config-change', label: 'Configuration Change Report' },
-  { value: 'system-event', label: 'System Event Report' },
-  { value: 'system-health', label: 'System Health Report' },
-
-  { value: 'cat-backup', label: 'BACKUP & MAINTENANCE', disabled: true },
-  { value: 'backup-history', label: 'Backup History Report' },
-  { value: 'backup-status', label: 'Backup Status Report' },
-  { value: 'restore-history', label: 'Restore History Report' },
-  { value: 'maintenance-activity', label: 'Maintenance Activity Report' },
-  { value: 'system-maintenance', label: 'System Maintenance Report' },
-
-  { value: 'cat-comprehensive', label: 'COMPREHENSIVE', disabled: true },
-  { value: 'comp-safety', label: 'Comprehensive MotoLock Safety Report' },
-  { value: 'comp-system', label: 'Comprehensive MotoLock System Report' }
 ];
+export const safetyViews = [
+  { value: 'details', label: 'Detailed Records' },
+  { value: 'failures', label: 'Failed Tests & Lockouts' },
+  { value: 'trends', label: 'Trends' },
+];
+// Selection groups map to existing reports; data builders and export IDs stay intact.
+export const reportAreas = [
+  { value: 'safety-sobriety', label: 'Safety & Sobriety Report', views: safetyViews.map(view => ({ ...view, reportType: 'safety-sobriety' })) },
+  { value: 'rider', label: 'Rider Report', views: [
+    { value: 'rider-master', label: 'Master List', reportType: 'rider-master' },
+    { value: 'rider-activity', label: 'Activity', reportType: 'rider-activity' },
+    { value: 'rider-safety', label: 'Safety Summary', reportType: 'rider-safety' },
+    { value: 'rider-incident-hist', label: 'Incident History', reportType: 'rider-incident-hist' },
+    { value: 'rider-reg', label: 'Registration History', reportType: 'rider-reg' },
+  ] },
+  { value: 'motorcycle', label: 'Motorcycle Report', views: [
+    { value: 'motorcycle-reg', label: 'Registry', reportType: 'motorcycle-reg' },
+    { value: 'motorcycle-unit', label: 'Unit Details', reportType: 'motorcycle-unit' },
+  ] },
+  { value: 'device', label: 'Device Report', views: [
+    { value: 'device-inventory', label: 'Device Inventory', reportType: 'device-inventory' },
+    { value: 'helmet-unit', label: 'Helmet Units', reportType: 'helmet-unit' },
+    { value: 'device-pairing', label: 'Device Pairing', reportType: 'device-pairing' },
+    { value: 'device-connection', label: 'Connection Status', reportType: 'device-connection' },
+    { value: 'device-fault', label: 'Faults & Failures', reportType: 'device-fault' },
+  ] },
+];
+export const reportGroups = reportOptions.filter(option => option.disabled).map((group, index, groups) => ({
+  label: group.label,
+  options: reportOptions.slice(reportOptions.indexOf(group) + 1, groups[index + 1] ? reportOptions.indexOf(groups[index + 1]) : undefined),
+}));

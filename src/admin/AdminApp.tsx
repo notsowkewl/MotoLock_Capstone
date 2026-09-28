@@ -1,17 +1,18 @@
-import { reportOptions } from './report-options';
-import { createReportSnapshot, reportIgnitionState, reportRideStatus, rideReportTypes, userReportTypes } from './report-snapshot';
-import ReportPreview from './ReportPreview';
+import OrganizedReports from './OrganizedReports';
+import { emptyReportSources } from './organized-report-data';
+import type { ReportSources } from './organized-report-data';
 import DashboardPanels from './DashboardPanels';
 import DashboardSearch from './DashboardSearch';
 import { createBackup } from './backup-export';
 import './ReportsPage.css';
 import type { ReportSnapshot } from './report-snapshot';
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Rider, Device, SafetyLog, AuditLog, DashboardData, ReportRow, ApiResponses } from './types';
+import type { Rider, Device, SafetyLog, AuditLog, DashboardData, ApiResponses } from './types';
 import './browser-libraries';
 import AlertsPage from './AlertsPage';
 import DevicesPage from './DevicesPage';
 import LiveMonitoringPage from './LiveMonitoringPage';
+import { attachMonitoringRecords } from './monitoring-records';
 import RidersPage from './RidersPage';
 import SettingsSave from './SettingsSave';
 import './SettingsPage.css';
@@ -534,29 +535,7 @@ export default function AdminApp() {
   }));
   const settingsDirty = (values: Record<string, string>) => Object.entries(values).some(([key, value]) => savedSettings[key] !== value);
 
-  // Reports Filter states
-  const [reportType, setReportType] = useState('sobriety-test');
-  const [reportStatus, setReportStatus] = useState('all');
-  const [reportAlcohol, setReportAlcohol] = useState('all');
-  const [reportIgnition, setReportIgnition] = useState('all');
-  const [reportSort, setReportSort] = useState('newest');
-  const [reportSearch, setReportSearch] = useState('');
-  const [reportRole, setReportRole] = useState('all');
-
-  const RIDER_REPORT_TYPES = ['rider-master', 'rider-activity', 'rider-safety-hist', 'rider-incident-hist', 'rider-reg'];
-  const handleSetReportType = (val: string) => {
-    setReportType(val);
-    // Auto-lock role to 'rider' for rider-specific reports
-    if (RIDER_REPORT_TYPES.includes(val)) {
-      setReportRole('rider');
-    } else {
-      setReportRole('all');
-    }
-  };
-  const [reportStart, setReportStart] = useState('');
-  const [reportEnd, setReportEnd] = useState('');
-  const [reportPreview, setReportPreview] = useState<ReportSnapshot | null>(null);
-  const [exportingReport, setExportingReport] = useState(false);
+  const [reportSources, setReportSources] = useState<ReportSources>(emptyReportSources);
 
   // Apply visual theme class on change
   useEffect(() => {
@@ -752,6 +731,7 @@ export default function AdminApp() {
         fetchAllSupabaseRows('motorcycles'),
         fetchAllSupabaseRows('emergency_contacts'),
       ]);
+      setReportSources(previous => ({ ...previous, users, motorcycles, contacts }));
       const motorcyclesByUser = new Map<string, SupabaseRecord[]>();
       for (const motorcycle of motorcycles) {
         const userId = motorcycle.user_id || '';
@@ -790,6 +770,7 @@ export default function AdminApp() {
         fetchAllSupabaseRows('users'),
       ]);
       const usersById = new Map(users.map((user) => [String(user.id), user]));
+      setReportSources(previous => ({ ...previous, rides }));
       setOverrides(rides.map((ride) => {
         const user = usersById.get(String(ride.user_id));
         return {
@@ -817,6 +798,7 @@ export default function AdminApp() {
         fetchAllSupabaseRows('users'),
       ]);
       const usersById = new Map(users.map((user) => [String(user.id), user]));
+      setReportSources(previous => ({ ...previous, events: logs }));
       setAuditLogs(sortAuditLogs(logs.map(log => normalizeAuditLog(log, usersById.get(String(log.user_id))?.name))));
     } catch (error) { console.error(error); }
   }, []);
@@ -867,20 +849,23 @@ export default function AdminApp() {
 
   const fetchDevices = useCallback(async () => {
     try {
-      const [deviceRows, users, motorcycles] = await Promise.all([
+      const [deviceRows, users, motorcycles, rides, events] = await Promise.all([
         fetchAllSupabaseRows('devices'),
         fetchAllSupabaseRows('users'),
         fetchAllSupabaseRows('motorcycles'),
+        fetchAllSupabaseRows('ride_history'),
+        fetchAllSupabaseRows('audit_logs'),
       ]);
       const usersById = new Map(users.map((user) => [String(user.id), user]));
       const motorcyclesById = new Map(motorcycles.map((motorcycle) => [String(motorcycle.id), motorcycle]));
-      setDevices(deviceRows.map((device) => ({
+      setReportSources(previous => ({ ...previous, devices: deviceRows }));
+      setDevices(attachMonitoringRecords(deviceRows.map((device) => ({
         ...device,
         id: device.id ?? '',
         user_id: device.user_id || '',
         model: motorcyclesById.get(String(device.motorcycle_id))?.model || device.firmware_version || 'MotoLock device',
         rider_name: usersById.get(String(device.user_id))?.name || 'Unassigned',
-      })));
+      })), rides, events));
     } catch (error) { console.error(error); }
   }, []);
 
@@ -1245,111 +1230,11 @@ export default function AdminApp() {
   };
 
 
-  // Generate report preview
-  const updateReportPreview = useCallback(() => {
-    // Keep the preview and exports synchronized with the current filters.
-    const frozenType = reportType;
-
-    {
-      let filtered: ReportRow[] = [];
-      const start = reportStart ? new Date(reportStart + 'T00:00:00') : null;
-      const end = reportEnd ? new Date(reportEnd + 'T23:59:59.999') : null;
-
-      const isRides = rideReportTypes.includes(frozenType);
-      const isUsers = userReportTypes.includes(frozenType);
-      const configuredThreshold = Number(alcoholThreshold);
-      const sobrietyThreshold = Number.isFinite(configuredThreshold) && configuredThreshold >= 0 ? configuredThreshold : 0.05;
-
-      if (isRides) {
-        filtered = overrides.filter(o => {
-          const oDate = new Date(o.created_at);
-          if (start && oDate < start) return false;
-          if (end && oDate > end) return false;
-          // Session completion is stored in `status`; ignition access is a separate field.
-          if (reportStatus !== 'all' && reportRideStatus(o) !== reportStatus) return false;
-          if (reportIgnition !== 'all' && reportIgnitionState(o) !== reportIgnition) return false;
-          const reading = o.brac?.trim() ? Number(o.brac) : NaN;
-          const hasReading = Number.isFinite(reading) && reading >= 0;
-          if (reportAlcohol === '1' && (!hasReading || reading <= sobrietyThreshold)) return false;
-          if (reportAlcohol === '0' && (!hasReading || reading > sobrietyThreshold)) return false;
-          return true;
-        });
-      } else if (isUsers) {
-        filtered = riders.filter(r => {
-          const rDate = new Date(r.created_at || Date.now());
-          if (start && rDate < start) return false;
-          if (end && rDate > end) return false;
-          if (reportRole !== 'all' && r.role !== reportRole) return false;
-          return true;
-        });
-      } else if (frozenType.includes('override') || frozenType.includes('access')) {
-        filtered = overrides.filter(o => {
-          const oDate = new Date(o.created_at);
-          if (start && oDate < start) return false;
-          if (end && oDate > end) return false;
-          return o.unlock_status?.toLowerCase().includes('override');
-        });
-      } else if (frozenType.includes('audit') || frozenType.includes('system') || frozenType.includes('config')) {
-        filtered = auditLogs.filter(a => {
-          const aDate = new Date(a.created_at);
-          if (start && aDate < start) return false;
-          if (end && aDate > end) return false;
-          return true;
-        });
-      } else if (frozenType.includes('device') || frozenType.includes('helmet') || frozenType.includes('motorcycle-reg')) {
-        filtered = devices.map((d, index) => ({
-          ...d,
-          id: d.id || index,
-          full_name: riders.find(r => r.id === d.user_id)?.full_name || 'Unassigned',
-          created_at: new Date().toISOString()
-        }));
-      } else {
-        filtered = overrides.filter(o => {
-          const oDate = new Date(o.created_at);
-          if (start && oDate < start) return false;
-          if (end && oDate > end) return false;
-          return true;
-        });
-      }
-
-      const search = reportSearch.trim().toLocaleLowerCase();
-      const snapshot = createReportSnapshot(frozenType, filtered, {
-        coverage: `${reportStart || 'Beginning'} to ${reportEnd || 'Present'}`,
-        alcoholThreshold: String(sobrietyThreshold),
-        sortOrder: reportSort,
-        hasFilters: !!(search || reportStart || reportEnd || (isRides && [reportStatus, reportAlcohol, reportIgnition].some(value => value !== 'all')) || (isUsers && reportRole !== 'all')),
-        filters: isRides
-          ? `Ride Status: ${reportStatus} | Sobriety Status: ${reportAlcohol === 'all' ? 'All' : reportAlcohol === '1' ? 'Not Sober' : 'Sober'} | Ignition State: ${reportIgnition} | Sort Order: ${reportSort === 'newest' ? 'Newest first' : 'Oldest first'}`
-          : `${isUsers ? `Role: ${reportRole}` : 'All matching records'} | Sort Order: ${reportSort === 'newest' ? 'Newest first' : 'Oldest first'}`,
-      });
-      if (search) {
-        snapshot.rows = snapshot.rows.filter(row => row.some(value => value.toLocaleLowerCase().includes(search)));
-        snapshot.filters += ` | Search: ${reportSearch.trim()}`;
-      }
-      setReportPreview(snapshot);
-    }
-  }, [reportType, reportStatus, reportAlcohol, reportIgnition, reportSort, reportSearch, reportRole, reportStart, reportEnd, overrides, riders, auditLogs, devices, alcoholThreshold]);
-
-  useEffect(() => {
-    if (activeTab === 'reports') updateReportPreview();
-  }, [activeTab, updateReportPreview]);
-
-  // Export the exact generated snapshot, without querying a different dataset.
-  const exportReport = async (format: 'pdf' | 'excel') => {
-    if (!reportPreview || exportingReport) return;
-    const snapshot = reportPreview;
-    setExportingReport(true);
-    try {
-      const { downloadReport } = await import('./report-export');
-      await downloadReport(snapshot, format);
-      triggerAuditLog(`Generated ${format.toUpperCase()} report`, 'Reports', snapshot.type);
-    } catch (error) {
-      showCustomAlert('Export Failed', errorMessage(error));
-    } finally {
-      setExportingReport(false);
-    }
+  const exportReport = async (snapshot: ReportSnapshot, format: 'pdf' | 'excel') => {
+    const { downloadReport } = await import('./report-export');
+    await downloadReport(snapshot, format);
+    triggerAuditLog(`Generated ${format.toUpperCase()} report`, 'Reports', snapshot.type + (snapshot.view ? ':' + snapshot.view : ''));
   };
-
   // Export JSON Backup
   const exportBackup = async () => {
     if (exportingBackup) return;
@@ -1715,7 +1600,7 @@ export default function AdminApp() {
               <label style={{ display: 'grid', gap: 8, minWidth: 220 }}>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>Overall Status</span>
                 <select value={sobrietyStatusFilter} onChange={e => setSobrietyStatusFilter(e.target.value)} style={styles.input}>
-                  <option value="all">All Statuses</option>
+                  <option value="all">All Status</option>
                   {overallStatuses.map(status => (
                     <option key={status} value={status}>{status}</option>
                   ))}
@@ -1852,30 +1737,7 @@ export default function AdminApp() {
 
 
         {/* Tab 10: Reports */}
-        {activeTab === 'reports' && (
-          <div className="reports-page">
-            <div style={styles.card}>
-              <div className="reports-filters">
-                <label>Search<input type="search" style={styles.input} value={reportSearch} onChange={e => setReportSearch(e.target.value)} placeholder="Search name, email, or report details" /></label>
-                <label>Report Type<select style={styles.input} value={reportType} onChange={e => handleSetReportType(e.target.value)}>{reportOptions.map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}</select></label>
-                {rideReportTypes.includes(reportType) && <>
-                  <label>Ride Status<select style={styles.input} value={reportStatus} onChange={e => setReportStatus(e.target.value)}><option value="all">All status</option>{['Ongoing', 'Passed', 'Failed'].map(value => <option key={value}>{value}</option>)}</select></label>
-                  <label>Sobriety Status<select style={styles.input} value={reportAlcohol} onChange={e => setReportAlcohol(e.target.value)}><option value="all">All status</option><option value="0">Sober</option><option value="1">Not Sober</option></select></label>
-                  <label>Ignition State<select style={styles.input} value={reportIgnition} onChange={e => setReportIgnition(e.target.value)}><option value="all">All ignition states</option>{['On', 'Off', 'Locked'].map(value => <option key={value}>{value}</option>)}</select></label>
-                </>}
-                {userReportTypes.includes(reportType) && <label>Role<select style={styles.input} disabled={RIDER_REPORT_TYPES.includes(reportType)} value={reportRole} onChange={e => setReportRole(e.target.value)}><option value="all">All roles</option><option value="rider">Riders</option><option value="admin">Administrators</option></select></label>}
-                <label>Start Date<input type="date" style={styles.input} value={reportStart} max={reportEnd || undefined} onChange={e => setReportStart(e.target.value)} /></label>
-                <label>End Date<input type="date" style={styles.input} value={reportEnd} min={reportStart || undefined} onChange={e => setReportEnd(e.target.value)} /></label>
-                <div className="reports-sort-actions">
-                  <label>Sort Order<select style={styles.input} value={reportSort} onChange={e => setReportSort(e.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
-                  <button style={styles.actionBtn} onClick={() => { setReportSearch(''); setReportStatus('all'); setReportAlcohol('all'); setReportIgnition('all'); setReportStart(''); setReportEnd(''); setReportSort('newest'); setReportRole(RIDER_REPORT_TYPES.includes(reportType) ? 'rider' : 'all'); }}>Clear filters</button>
-                </div>
-              </div>
-            </div>
-            {reportPreview && <ReportPreview report={reportPreview} exporting={exportingReport} onExport={exportReport} />}
-          </div>
-        )}
-
+        {activeTab === 'reports' && <OrganizedReports data={reportSources} threshold={alcoholThreshold} styles={styles} onExport={exportReport} />}
         {/* Tab 11: Audit Logs */}
         {activeTab === 'audit-logs' && <AuditLogsPage logs={auditLogs} styles={styles} />}
         {/* Tab 14: Settings */}
