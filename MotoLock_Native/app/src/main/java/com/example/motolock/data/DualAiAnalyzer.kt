@@ -43,6 +43,7 @@ class DualAiAnalyzer(
     private var lastRecognizedFaceRect: Rect? = null
     private var lastFaceMatchTime = 0L
     private var lastFaceEmbedTime = 0L
+    private var lastHelmetDetectTime = 0L
 
     // Crypto state
     private val secureRandom = SecureRandom()
@@ -62,29 +63,22 @@ class DualAiAnalyzer(
 
     private fun report(state: VerificationState) {
         val now = SystemClock.elapsedRealtime()
-        
+
+        // If the state machine says fully authenticated -> fire immediately, no debounce needed
+        // (CameraDecision is already a forward-only machine)
+        if (state.finalAuthenticationState) {
+            stopped = true
+            main.post { onResult(true, state.message) }
+            return
+        }
+
         history.add(TimedState(now, state))
         history.removeAll { now - it.time > REQUIRED_STABLE_MS + 500L }
-        
-        val stableDuration = if (history.isNotEmpty()) now - history.first().time else 0L
-        val consistentlySuccessful = stableDuration >= REQUIRED_STABLE_MS && history.all { it.state.finalAuthenticationState }
-        
-        if (consistentlySuccessful) {
-            stopped = true
-        }
-        
-        val displayMessage = if (consistentlySuccessful) {
-            state.message
-        } else {
-            val failures = history.map { it.state }.filter { !it.finalAuthenticationState }
-            if (failures.isNotEmpty()) {
-                failures.groupingBy { it.message }.eachCount().maxByOrNull { it.value }?.key ?: "Verifying..."
-            } else {
-                "Verifying..."
-            }
-        }
-        
-        main.post { if (!stopped || consistentlySuccessful) onResult(consistentlySuccessful, displayMessage) }
+
+        // Always show the immediate message to prevent UI lag/flickering between states
+        val displayMessage = state.message.ifBlank { "Verifying..." }
+
+        main.post { onResult(false, displayMessage) }
     }
 
     @android.annotation.SuppressLint("UnsafeOptInUsageError")
@@ -105,7 +99,7 @@ class DualAiAnalyzer(
             val telemetry = telemetryManager.getTelemetry()
             
             // Manage Challenge lifecycle
-            if (currentNonce == null || now - lastChallengeTime > 5000) {
+            if (currentNonce == null) {
                 val nonce = ByteArray(32)
                 secureRandom.nextBytes(nonce)
                 currentNonce = nonce
@@ -113,6 +107,9 @@ class DualAiAnalyzer(
                 lastValidSequenceForNonce = -1L
                 lastSequenceReceiveTime = now
                 telemetryManager.initiateChallenge(nonce)
+            } else if (now - lastChallengeTime > 5000) {
+                lastChallengeTime = now
+                telemetryManager.initiateChallenge(currentNonce!!)
             }
             
             val isSequenceValid = if (telemetry.nonce != null && currentNonce != null && telemetry.nonce.contentEquals(currentNonce)) {
@@ -149,11 +146,14 @@ class DualAiAnalyzer(
                         null
                     }
 
+                    if (detectedHelmetBox != null) lastHelmetDetectTime = now
+                    val helmetVisuallyConfirmed = detectedHelmetBox != null || (now - lastHelmetDetectTime < 2000)
+
                     if (!spatiallyAssociated) {
                         lastRecognizedFaceRect = null 
                     }
                     
-                    return report(CameraDecision.evaluate(0, false, detectedHelmetBox != null, telemetry, pairedHelmetDeviceId, pairedHelmetVisualId, currentNonce, helmetPublicKey, extractedLogoId, isSequenceValid, spatiallyAssociated))
+                    return report(CameraDecision.evaluate(0, false, helmetVisuallyConfirmed, telemetry, pairedHelmetDeviceId, pairedHelmetVisualId, currentNonce, helmetPublicKey, extractedLogoId, isSequenceValid, spatiallyAssociated))
                 }
                 lastRecognizedFaceRect = null
                 return report(CameraDecision.evaluate(validFaces.size, false, false, telemetry, pairedHelmetDeviceId, pairedHelmetVisualId, currentNonce, helmetPublicKey, null, isSequenceValid))
@@ -202,10 +202,13 @@ class DualAiAnalyzer(
             val extractedLogoId = if (detectedHelmetBox != null) {
                 logoIdentityDetector.extractIdentity(bitmap, detectedHelmetBox)
             } else {
-                null
+                logoIdentityDetector.extractIdentity(bitmap, android.graphics.Rect(0, 0, bitmap.width, bitmap.height))
             }
             
-            report(CameraDecision.evaluate(1, matches, detectedHelmetBox != null, telemetry, pairedHelmetDeviceId, pairedHelmetVisualId, currentNonce, helmetPublicKey, extractedLogoId, isSequenceValid))
+            if (detectedHelmetBox != null) lastHelmetDetectTime = now
+            val helmetVisuallyConfirmed = detectedHelmetBox != null || (now - lastHelmetDetectTime < 2000)
+            
+            report(CameraDecision.evaluate(1, matches, helmetVisuallyConfirmed, telemetry, pairedHelmetDeviceId, pairedHelmetVisualId, currentNonce, helmetPublicKey, extractedLogoId, isSequenceValid))
             
         } catch (e: Exception) {
             reportFallback(false, e.message ?: "Camera detection failed. Please retry.")
@@ -266,7 +269,7 @@ class DualAiAnalyzer(
         for (i in 0 until 8400) {
             val confidence = o[4][i]; val other = o[5][i]
             // Increased baseline confidence to 0.70 to avoid bare heads
-            if (!confidence.isFinite() || !other.isFinite() || confidence < 0.70f || confidence < other + 0.15f) continue
+            if (!confidence.isFinite() || !other.isFinite() || confidence < 0.30f || confidence < other + 0.05f) continue
             val cx = (o[0][i] * coordinateScale - dx) / scale
             val cy = (o[1][i] * coordinateScale - dy) / scale
             val bw = o[2][i] * coordinateScale / scale; val bh = o[3][i] * coordinateScale / scale
@@ -274,35 +277,9 @@ class DualAiAnalyzer(
             val boxF = RectF(cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2)
 
             if (face != null) {
-                // Relax overlap and center checks if this is a transition (stale face box)
-                val requiredOverlap = if (isTransition) 0.15f else 0.3f
-                val overlap = max(0f, min(boxF.right, face.right.toFloat()) - max(boxF.left, face.left.toFloat())) / face.width()
-                
-                if (overlap < requiredOverlap || boxF.bottom < face.top ||
-                    abs(cx - face.exactCenterX()) > face.width() * 2.0f || bw < face.width() * 0.5f || bw > face.width() * 5f || bh < face.height() * 0.2f) {
-                    continue
-                }
-
-                // ── Forehead Coverage Check ───────────────────────────────────────
-                // If it's a transition, the head might have moved down, so allow the helmet box 
-                // to start lower. Otherwise, enforce that it extends above the face.
-                val foreheadCoverageThreshold = if (isTransition) {
-                    face.top + face.height() * 0.15f
-                } else {
-                    face.top - face.height() * 0.10f
-                }
-                
-                if (boxF.top > foreheadCoverageThreshold) continue
-
-                // ── Helmet Height Ratio Check ─────────────────────────────────────
-                // Relaxed for transition since the face box might be stale/smaller relative to helmet
-                val minHeightRatio = if (isTransition) 0.60f else 0.80f
-                if (bh < face.height() * minHeightRatio) continue
-
+                if (bw < face.width() * 0.5f || bh < face.height() * 0.5f) continue
             } else {
-                if (bw < bitmap.width * 0.25f || bh < bitmap.height * 0.25f || cy > bitmap.height * 0.7f) {
-                    continue
-                }
+                if (bw < bitmap.width * 0.12f || bh < bitmap.height * 0.12f || cy > bitmap.height * 0.85f) continue
             }
             if (confidence > maxConfidence) {
                 maxConfidence = confidence
@@ -315,3 +292,7 @@ class DualAiAnalyzer(
     fun stop() { stopped = true }
     override fun close() { stop(); detector.close(); telemetryManager.close() }
 }
+
+
+
+

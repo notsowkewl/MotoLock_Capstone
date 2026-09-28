@@ -66,9 +66,7 @@ fun RiderProfileScreen(onBack: () -> Unit) {
                     }
                 }
             
-                val userProfile = SupabaseClientManager.client.postgrest["users"]
-                    .select { filter { eq("id", userId) } }
-                    .decodeSingleOrNull<com.example.motolock.models.User>()
+                val userProfile = com.example.motolock.data.RiderAccount.profile()
                 
                 if (userProfile != null) {
                     username = userProfile.name
@@ -195,10 +193,11 @@ fun RiderProfileScreen(onBack: () -> Unit) {
                                 val currentSessionEmail = session.user?.email
                                 
                                 // Update username
+                                val profileId = com.example.motolock.data.RiderAccount.userId()
                                 SupabaseClientManager.client.postgrest["users"]
                                     .update({
                                         set("name", username)
-                                    }) { filter { eq("id", userId) } }
+                                    }) { filter { eq("id", profileId) } }
                                 
                                 // Handle email change
                                 if (isEmailEditable && email.isNotBlank() && email != currentSessionEmail) {

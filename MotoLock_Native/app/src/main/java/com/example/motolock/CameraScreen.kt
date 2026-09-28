@@ -65,7 +65,7 @@ private enum class CameraMode { LOADING, REGISTRATION, UNLOCK }
 
 private enum class LivenessStep(val title: String, val progress: Float) {
     DETECT_FACE("Position your face in the circle", 0f),
-    BLINK      ("Blink slowly",                     0.25f),
+    BLINK      ("Blink", 0.25f),
     TURN_LEFT  ("Turn your head to your left",      0.5f),
     TURN_RIGHT ("Turn your head to your right",     0.75f),
     PROCESSING ("Processing...",                      0.9f),
@@ -331,7 +331,7 @@ fun CameraScreen(
 
                                                         LivenessStep.BLINK -> {
                                                             if (abs(frame.eulerY) > 15f) {
-                                                                statusText = "Look straight ahead to blink"
+                                                                statusText = "Blink"
                                                                 eyePhaseState.intValue = 0
                                                                 return@LivenessAnalyzer
                                                             }
@@ -347,7 +347,7 @@ fun CameraScreen(
                                                                 0 -> { // Wait for eyes to be OPEN
                                                                     if (open) {
                                                                         eyePhaseState.intValue = 1
-                                                                        statusText = "Eyes open - now blink!"
+                                                                        statusText = "Blink"
                                                                     }
                                                                 }
                                                                 1 -> { // Wait for eyes to CLOSE

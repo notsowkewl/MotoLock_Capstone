@@ -95,6 +95,8 @@ fun DashboardScreen(
 
     var userName          by remember { mutableStateOf("") }
     var isLoading         by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+    var reloadData by remember { mutableStateOf(0) }
     var showSetupModal    by remember { mutableStateOf(false) }
     var motorcycleInfo    by remember { mutableStateOf<String?>(null) }
     val disconnected = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
@@ -132,8 +134,9 @@ fun DashboardScreen(
                 try {
                     val authUser = SupabaseClientManager.client.auth.currentSessionOrNull()?.user
                     if (authUser != null) {
+                        val userId = com.example.motolock.data.RiderAccount.userId()
                         val contacts = SupabaseClientManager.client.postgrest["emergency_contacts"]
-                            .select { filter { eq("user_id", authUser.id) } }
+                            .select { filter { eq("user_id", userId) } }
                             .decodeList<EmergencyContact>()
                             
                         val msg = if (isDrunkMidRide) {
@@ -154,27 +157,16 @@ fun DashboardScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(reloadData) {
         try {
             isLoading = true
+            loadError = null
             val authUser = SupabaseClientManager.client.auth.currentSessionOrNull()?.user
             if (authUser != null) {
-                var profile = SupabaseClientManager.client.postgrest["users"]
-                    .select { filter { eq("id", authUser.id) } }
-                    .decodeSingleOrNull<User>()
-
-                if (profile == null && authUser.email != null) {
-                    profile = SupabaseClientManager.client.postgrest["users"]
-                        .select { filter { eq("email", authUser.email!!) } }
-                        .decodeList<User>().firstOrNull()
-                }
-
-                val finalUserId = profile?.id ?: authUser.id
-
-                if (profile != null) {
-                    userName = profile.name.split(" ").firstOrNull() ?: ""
-                    hasFaceId = profile.faceDescriptor != null && profile.faceDescriptor !is kotlinx.serialization.json.JsonNull
-                }
+                val profile = com.example.motolock.data.RiderAccount.requireProfile()
+                val finalUserId = profile.id
+                userName = profile.name.split(" ").firstOrNull() ?: ""
+                hasFaceId = profile.faceDescriptor != null && profile.faceDescriptor !is kotlinx.serialization.json.JsonNull
 
                 // Parallel fetch
                 coroutineScope {
@@ -218,10 +210,13 @@ fun DashboardScreen(
                 }
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            loadError = if (e is com.example.motolock.data.ProfileUnavailableException) e.message
+                else "Unable to load saved setup. Check your connection and retry."
             e.printStackTrace()
         } finally {
             isLoading = false
-            if (!(hasFaceId && hasEmergencyContact && hasMotorcycle && hasPin && hasConnectedDevice) && SessionState.isFirstDashboardLoad) {
+            if (loadError == null && !(hasFaceId && hasEmergencyContact && hasMotorcycle && hasPin && hasConnectedDevice) && SessionState.isFirstDashboardLoad) {
                 showSetupModal = true
                 SessionState.isFirstDashboardLoad = false
             }
@@ -261,7 +256,10 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(30.dp))
 
-            if (isLoading) {
+            if (loadError != null) {
+                Text(loadError!!, color = motoRed)
+                TextButton(onClick = { reloadData++ }) { Text("Retry") }
+            } else if (isLoading) {
                 // Greeting skeleton
                 Box(modifier = Modifier.width(180.dp).height(32.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFFF0F0F0)))
                 Spacer(modifier = Modifier.height(6.dp))
@@ -383,8 +381,8 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Only show Unlock button when setup is fully complete
-                if (isSetupComplete) {
+                // Only show Unlock button when setup is fully complete and motor is not already unlocked
+                if (isSetupComplete && !SessionState.isMotorUnlocked) {
                     val sharedPrefs = context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE)
                     val isPaired = sharedPrefs.getString("esp32_mac", null) != null
 
@@ -581,3 +579,4 @@ private fun InfoCard(
         }
     }
 }
+

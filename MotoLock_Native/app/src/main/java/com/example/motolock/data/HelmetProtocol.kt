@@ -49,7 +49,7 @@ object HelmetProtocol {
         val flags = payload[51].toInt() and 255
         val raw = data.getShort(52).toInt() and 65535
         val baseline = data.getShort(54).toInt() and 65535
-        require(visual in 0..0x3ffff && sequence > 0 && flags and 0xe0 == 0 && raw <= 4095 && baseline <= 4095)
+        require(visual in 0..0x3ffff && sequence > 0 && flags and 0xc0 == 0 && raw <= 4095 && baseline <= 4095)
         require(flags and 8 == 0 || (raw in 6..4089 && baseline in 6..4089))
         require(flags and 4 == 0 || (flags and 10 == 10 && flags and 16 == 0))
         return HelmetTelemetry(hex(payload.copyOfRange(1, 7)), flags and 1 != 0, now, sequence, now,

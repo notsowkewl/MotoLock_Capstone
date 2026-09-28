@@ -30,6 +30,9 @@ import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material3.*
+import com.example.motolock.data.AlcoholCheckPolicy
+import com.example.motolock.data.AlcoholCheckPolicy.State
+import com.example.motolock.data.CameraDecision
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,7 +69,8 @@ private enum class UnlockStep {
     CONNECTING,
     FACE_HELMET_CHECK,
     ALCOHOL_CHECK,
-    SUCCESS
+    SUCCESS,
+    ALCOHOL_DETECTED
 }
 
 @Composable
@@ -77,7 +81,10 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
 
     // The camera screen does not exist until there is a live motor connection.
     if (service == null || !connected) {
-        LaunchedEffect(Unit) { SessionState.isMotorUnlocked = false }
+        LaunchedEffect(Unit) {
+            SessionState.isMotorUnlocked = false
+            CameraDecision.reset()
+        }
         ESP32PairingScreen(onComplete = {}, onBack = onBack)
     } else {
         key(service) {
@@ -117,9 +124,12 @@ private fun ConnectedUnlockScreen(
 
     var currentStep by remember { mutableStateOf(UnlockStep.CONNECTING) }
     var isConnectionFailed by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf("Loading saved Face ID...") }
+    var statusMessage by remember { mutableStateOf("Connecting to MotoLock...") }
     var lowLightDetected by remember { mutableStateOf(false) }
     
+    // Reset the unlock phase state machine every time this screen opens
+    LaunchedEffect(Unit) { CameraDecision.reset() }
+
     // AI State
     var faceNetInterpreter by remember { mutableStateOf<Interpreter?>(null) }
     var helmetInterpreter by remember { mutableStateOf<Interpreter?>(null) }
@@ -133,7 +143,48 @@ private fun ConnectedUnlockScreen(
     var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var activeCamera by remember { mutableStateOf<Camera?>(null) }
     var activeAnalyzer by remember { mutableStateOf<DualAiAnalyzer?>(null) }
+    var activeTelemetryManager by remember { mutableStateOf<com.example.motolock.data.HelmetTelemetryManager?>(null) }
+    var alcoholFailed by remember { mutableStateOf(false) }
+    var pendingHistoryWrites by remember { mutableStateOf(0) }
+    val savingRide = pendingHistoryWrites > 0
+    var alcoholStatus by remember { mutableStateOf("Reading sensor...") }
     val disposed = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+
+    val alcoholSamples = remember { com.example.motolock.data.AlcoholSampleWindow() }
+
+    fun handleAlcoholDetected(detectedLevel: Float? = sessionService.motorStatus.value?.alcoholPercent) {
+        if (currentStep == UnlockStep.ALCOHOL_DETECTED) return
+        pendingHistoryWrites++
+        alcoholFailed = true
+        currentStep = UnlockStep.ALCOHOL_DETECTED
+        SessionState.isMotorUnlocked = false
+        alcoholStatus = "Alcohol detected. Unlock blocked."
+        coroutineScope.launch {
+            try {
+                try { sessionService.sendLockCommand() } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    alcoholStatus = "Alcohol detected. Lock confirmation unavailable."
+                }
+                // A lock acknowledgement failure must not discard the alcohol result.
+                com.example.motolock.data.RideHistoryRepository.recordAlcoholDetected(context, detectedLevel)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                e.printStackTrace()
+                Toast.makeText(context, "Alcohol detected, but history could not be saved. Check your connection.", Toast.LENGTH_LONG).show()
+            } finally {
+                pendingHistoryWrites--
+            }
+        }
+    }
+
+    val liveMotorStatus by sessionService.motorStatus.collectAsState()
+    LaunchedEffect(liveMotorStatus) {
+        if (currentStep == UnlockStep.ALCOHOL_CHECK) alcoholSamples.observe(liveMotorStatus, android.os.SystemClock.elapsedRealtime())
+        if (currentStep == UnlockStep.SUCCESS &&
+            AlcoholCheckPolicy.state(liveMotorStatus, android.os.SystemClock.elapsedRealtime()) == State.DETECTED) {
+            handleAlcoholDetected()
+        }
+    }
 
     // Camera-only status; no hardware sensor is simulated.
     var isFaceAndHelmetDetected by remember { mutableStateOf(false) }
@@ -154,8 +205,7 @@ private fun ConnectedUnlockScreen(
             // Load embedding
             val authUser = SupabaseClientManager.client.auth.currentSessionOrNull()?.user
             if (authUser != null) {
-                val profile = SupabaseClientManager.client.postgrest["users"]
-                    .select { filter { eq("id", authUser.id) } }.decodeSingleOrNull<User>()
+                val profile = com.example.motolock.data.RiderAccount.profile()
                 
                 val faceDesc = profile?.faceDescriptor
                 registeredEmbedding = FaceData.decode(faceDesc)
@@ -191,7 +241,7 @@ private fun ConnectedUnlockScreen(
 
     LaunchedEffect(SessionState.activeBluetoothService) {
         SessionState.activeBluetoothService?.connectionState?.collect { connected ->
-            if (!connected && currentStep != UnlockStep.CONNECTING) {
+            if (!connected && currentStep != UnlockStep.CONNECTING && currentStep != UnlockStep.ALCOHOL_DETECTED) {
                 activeAnalyzer?.stop()
                 cameraAnalysis?.clearAnalyzer()
                 SessionState.isMotorUnlocked = false
@@ -202,34 +252,19 @@ private fun ConnectedUnlockScreen(
         }
     }
 
-    // Keep the displayed result tied to the motor after the camera has stopped.
+    // Stop camera processing once the result page is displayed.
     LaunchedEffect(currentStep) {
-        if (currentStep != UnlockStep.SUCCESS) return@LaunchedEffect
-        val service = SessionState.activeBluetoothService ?: return@LaunchedEffect
-        val statusMonitor = launch {
-            service.readDataStream().collect { line ->
-                if (line.startsWith("STATUS:")) {
-                    val locked = runCatching {
-                        val json = kotlinx.serialization.json.Json.parseToJsonElement(line.substringAfter(':'))
-                            as kotlinx.serialization.json.JsonObject
-                        (json["locked"] as? JsonPrimitive)?.content == "true"
-                    }.getOrDefault(false)
-                    if (locked) {
-                        SessionState.isMotorUnlocked = false
-                        statusMessage = "Motorcycle locked. Return and verify again."
-                        isConnectionFailed = true
-                        currentStep = UnlockStep.CONNECTING
-                    }
-                }
+        if (currentStep == UnlockStep.FACE_HELMET_CHECK) {
+            try { sessionService.setAlcoholCheckPhase(false) } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                // Alcohol entry requires an acknowledged phase update before prompting.
             }
         }
-        try {
-            while (service.isConnected) delay(250)
-            statusMessage = "Bluetooth disconnected. Return and verify again."
-            isConnectionFailed = true
-            currentStep = UnlockStep.CONNECTING
-        } finally {
-            statusMonitor.cancel()
+        if (currentStep == UnlockStep.SUCCESS || currentStep == UnlockStep.ALCOHOL_DETECTED) {
+            cameraAnalysis?.clearAnalyzer()
+            activeAnalyzer?.stop()
+            cameraAnalysis?.let { cameraProvider?.unbind(it) }
+            cameraPreview?.let { cameraProvider?.unbind(it) }
         }
     }
 
@@ -270,6 +305,17 @@ private fun ConnectedUnlockScreen(
                 window.attributes = window.attributes.apply { screenBrightness = originalBrightness }
             }
         }
+    }
+
+    if (currentStep == UnlockStep.SUCCESS || currentStep == UnlockStep.ALCOHOL_DETECTED) {
+        AlcoholResultScreen(
+            success = currentStep == UnlockStep.SUCCESS,
+            motorLocked = liveMotorStatus?.locked == true,
+            message = if (currentStep == UnlockStep.ALCOHOL_DETECTED) alcoholStatus else statusMessage,
+            savingRide = savingRide,
+            onReturnToDashboard = onComplete
+        )
+        return
     }
 
     Column(
@@ -333,8 +379,9 @@ private fun ConnectedUnlockScreen(
                 .background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
-            if (currentStep == UnlockStep.FACE_HELMET_CHECK && hasCameraPermission && aiReady) {
-                // Camera View
+            val showCamera = (currentStep == UnlockStep.FACE_HELMET_CHECK || currentStep == UnlockStep.ALCOHOL_CHECK) && hasCameraPermission && aiReady
+            if (showCamera) {
+                // Camera View — stays ON during alcohol check to monitor rider presence
                 val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
                 AndroidView(
                     factory = { ctx ->
@@ -343,7 +390,7 @@ private fun ConnectedUnlockScreen(
                         cameraProviderFuture.addListener({
                             if (disposed.get() || !sessionService.isConnected ||
                                 SessionState.activeBluetoothService !== sessionService ||
-                                currentStep != UnlockStep.FACE_HELMET_CHECK) return@addListener
+                                (currentStep != UnlockStep.FACE_HELMET_CHECK && currentStep != UnlockStep.ALCOHOL_CHECK)) return@addListener
                             val provider = cameraProviderFuture.get()
                             cameraProvider = provider
                             val preview = Preview.Builder().build().also {
@@ -358,11 +405,13 @@ private fun ConnectedUnlockScreen(
                                 .build()
                                 .also {
                                     cameraAnalysis = it
+                                    val manager = com.example.motolock.data.RealHelmetTelemetryManager(context)
+                                    activeTelemetryManager = manager
                                     val analyzer = DualAiAnalyzer(
                                         faceNetInterpreter = faceNetInterpreter,
                                         helmetInterpreter = helmetInterpreter,
                                         registeredEmbedding = registeredEmbedding,
-                                        telemetryManager = com.example.motolock.data.RealHelmetTelemetryManager(context),
+                                        telemetryManager = manager,
                                         // Pin all verification to the physically provisioned helmet.
                                         pairedHelmetDeviceId = helmetIdentity?.deviceId,
                                         pairedHelmetVisualId = helmetIdentity?.visualId,
@@ -378,27 +427,133 @@ private fun ConnectedUnlockScreen(
                                         }
                                     ) { success, msg ->
                                         if (disposed.get() || !sessionService.isConnected ||
-                                            SessionState.activeBluetoothService !== sessionService ||
-                                            currentStep != UnlockStep.FACE_HELMET_CHECK) return@DualAiAnalyzer
+                                            SessionState.activeBluetoothService !== sessionService) return@DualAiAnalyzer
+
+                                        // During alcohol check: monitor rider is still in frame and alone
+                                        if (currentStep == UnlockStep.ALCOHOL_CHECK) {
+                                            if (alcoholFailed) return@DualAiAnalyzer
+                                            if (msg.contains("Multiple faces", ignoreCase = true)) {
+                                                currentStep = UnlockStep.FACE_HELMET_CHECK
+                                                CameraDecision.reset()
+                                                alcoholStatus = "Reading sensor..."
+                                                statusMessage = "Multiple faces detected. Only one rider allowed."
+                                            }
+                                            return@DualAiAnalyzer
+                                        }
+
+                                        if (currentStep != UnlockStep.FACE_HELMET_CHECK) return@DualAiAnalyzer
                                         isFaceAndHelmetDetected = success
                                         if (success) {
                                             currentStep = UnlockStep.ALCOHOL_CHECK
                                             statusMessage = "Authorizing motorcycle..."
                                             coroutineScope.launch {
-                                                try {
-                                                    val prefs = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
-                                                    val encrypted = prefs.getString("esp32_secret_enc", null) ?: error("Pair your motorcycle first.")
-                                                    val secret = com.example.motolock.data.KeystoreHelper.decryptSecret(encrypted) ?: error("Pairing credentials unavailable.")
-                                                    val service = sessionService
-                                                    check(!disposed.get() && service.isConnected && SessionState.activeBluetoothService === service) { "Bluetooth disconnected." }
-                                                    check(service.sendUnlockCommand(secret)) { "Motorcycle refused unlock." }
-                                                    check(!disposed.get() && service.isConnected && SessionState.activeBluetoothService === service) { "Bluetooth disconnected." }
-                                                    currentStep = UnlockStep.SUCCESS
-                                                    SessionState.isMotorUnlocked = true
-                                                    statusMessage = "Motorcycle unlocked."
-                                                } catch (e: Exception) {
-                                                    if (e is kotlinx.coroutines.CancellationException) throw e
-                                                    statusMessage = e.message ?: "Unlock failed. Return and retry."
+                                                val prefs = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
+                                                val encrypted = prefs.getString("esp32_secret_enc", null)
+                                                val secret = encrypted?.let { com.example.motolock.data.KeystoreHelper.decryptSecret(it) }
+                                                
+                                                                                                if (secret == null) {
+                                                    alcoholStatus = "Pair your motorcycle first."
+                                                    return@launch
+                                                }
+
+                                                alcoholSamples.reset()
+                                                var lockRequested = false
+                                                run {
+                                                        try {
+                                                            sessionService.setAlcoholCheckPhase(true)
+                                                        } catch (e: Exception) {
+                                                            if (e is kotlinx.coroutines.CancellationException) throw e
+                                                            alcoholFailed = true
+                                                            alcoholStatus = if (e.message == "ERR_UNSUPPORTED_COMMAND")
+                                                                "Update the motor firmware to sync the alcohol check."
+                                                            else "Unable to sync the motor display. Return and retry."
+                                                            return@launch
+                                                        }
+                                                    }
+                                                while (currentStep == UnlockStep.ALCOHOL_CHECK && !disposed.get()) {
+                                                    val now = android.os.SystemClock.elapsedRealtime()
+                                                    val sensorState = AlcoholCheckPolicy.state(sessionService.motorStatus.value, now)
+                                                    if (alcoholSamples.startedAt == null &&
+                                                        (sensorState == State.READY || sensorState == State.DETECTED)) {
+                                                        alcoholSamples.start(now, sessionService.motorStatus.value)
+                                                    }
+                                                    alcoholSamples.observe(sessionService.motorStatus.value, now)
+                                                    if ((sensorState == State.DETECTED || alcoholSamples.detected) && !lockRequested) {
+                                                        lockRequested = true
+                                                        alcoholFailed = true
+                                                        SessionState.isMotorUnlocked = false
+                                                        coroutineScope.launch {
+                                                            try { sessionService.sendLockCommand() } catch (e: Exception) {
+                                                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                                            }
+                                                        }
+                                                    }
+                                                    if (!lockRequested && sensorState != State.READY) {
+                                                        alcoholSamples.reset()
+                                                        alcoholStatus = when (sensorState) {
+                                                            State.WARMING -> "MQ3 warming up. Please wait."
+                                                            State.STABILIZING -> "MQ3 stabilizing. Keep sensor in clean air."
+                                                            State.NOT_WORN -> "Wear your helmet before the alcohol check."
+                                                            else -> "Waiting for fresh helmet sensor data..."
+                                                        }
+                                                        kotlinx.coroutines.delay(200)
+                                                        continue
+                                                    }
+                                                    val remaining = alcoholSamples.remaining(now)
+                                                    if (remaining > 0) {
+                                                        alcoholStatus = (if (lockRequested) "Alcohol detected. Recording peak... (" else "Blow into sensor... (") + ((remaining + 999) / 1000) + " s)"
+                                                        kotlinx.coroutines.delay(200)
+                                                        continue
+                                                    }
+                                                    if (lockRequested || alcoholSamples.detected) {
+                                                        handleAlcoholDetected(alcoholSamples.maximum)
+                                                        return@launch
+                                                    }
+                                                    alcoholStatus = "Analyzing sample..."
+                                                    try {
+                                                        val service = sessionService
+                                                        check(service.isConnected && SessionState.activeBluetoothService === service) { "Bluetooth disconnected." }
+                                                                                                                if (service.sendUnlockCommand(secret)) {
+                                                            if (disposed.get() || currentStep != UnlockStep.ALCOHOL_CHECK ||
+                                                                !service.isConnected || SessionState.activeBluetoothService !== service) {
+                                                                service.sendLockCommand()
+                                                                return@launch
+                                                            }
+                                                            if (AlcoholCheckPolicy.state(service.motorStatus.value, android.os.SystemClock.elapsedRealtime()) != State.READY) {
+                                                                service.sendLockCommand()
+                                                                continue
+                                                            }
+                                                            pendingHistoryWrites++
+                                                            currentStep = UnlockStep.SUCCESS
+                                                            SessionState.isMotorUnlocked = true
+                                                            statusMessage = "Motorcycle unlocked."
+                                                            
+                                                            try {
+                                                                com.example.motolock.data.RideHistoryRepository.recordUnlock(
+                                                                    context, alcoholSamples.maximum
+                                                                )
+                                                            } catch (e: Exception) {
+                                                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                                                e.printStackTrace()
+                                                                Toast.makeText(context, "Motorcycle unlocked, but ride history could not be saved.", Toast.LENGTH_LONG).show()
+                                                            } finally {
+                                                                pendingHistoryWrites--
+                                                            }
+
+                                                            break
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        if (e is kotlinx.coroutines.CancellationException) throw e
+                                                        if (e.message == "ERR_HELMET_NOT_READY") {
+                                                            alcoholSamples.reset()
+                                                            alcoholStatus = "Waiting for updated helmet sensor status..."
+                                                        } else {
+                                                            alcoholFailed = true
+                                                            alcoholStatus = e.message ?: "Unable to authorize motorcycle. Return and retry."
+                                                            return@launch
+                                                        }
+                                                        kotlinx.coroutines.delay(1000)
+                                                    }
                                                 }
                                             }
                                         } else {
@@ -430,43 +585,55 @@ private fun ConnectedUnlockScreen(
                         androidx.compose.material3.CircularProgressIndicator(color = androidx.compose.ui.graphics.Color(0xFFED1C24))
                     }
                 }
-            } else if (currentStep == UnlockStep.ALCOHOL_CHECK) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.LocalDrink, contentDescription = null, tint = Color.White, modifier = Modifier.size(64.dp))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Authorizing motorcycle...", color = Color.White, fontSize = 16.sp)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    CircularProgressIndicator(color = motoRed, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-
-                }
             } else if (currentStep == UnlockStep.SUCCESS) {
+                val percent = activeTelemetryManager?.getTelemetry()?.alcoholPercent ?: 0f
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(64.dp))
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Unlocked", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Alcohol: %.3f%%".format(percent),
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 16.sp
+                    )
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Status Card
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFFF8FAFC))
-                .border(1.dp, lineCol, RoundedCornerShape(16.dp))
-                .padding(20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                statusMessage,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = motoBlack,
-                textAlign = TextAlign.Center
-            )
+        // Status Card — show during face/helmet and alcohol check steps
+        if (currentStep == UnlockStep.FACE_HELMET_CHECK || currentStep == UnlockStep.ALCOHOL_CHECK) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFFF8FAFC))
+                    .border(1.dp, lineCol, RoundedCornerShape(16.dp))
+                    .padding(20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (currentStep == UnlockStep.ALCOHOL_CHECK) {
+                        Text("Alcohol check", fontSize = 12.sp, color = textGray, textAlign = TextAlign.Center)
+                        val reading = liveMotorStatus?.takeIf {
+                            android.os.SystemClock.elapsedRealtime() - it.receivedAt in 0L..3500L &&
+                                it.helmetDataFresh == true && it.mq3BaselineReady == true
+                        }?.alcoholPercent
+                        Text(reading?.let { "Alcohol: %.3f%%".format(it) } ?: "Alcohol: --",
+                            fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = motoBlack)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (!alcoholFailed) CircularProgressIndicator(color = motoRed, modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(alcoholStatus, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = motoBlack)
+                        }
+                    } else {
+                        Text(statusMessage, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = motoBlack, textAlign = TextAlign.Center)
+                    }
+                }
+            }
         }
     }
 }
@@ -502,3 +669,14 @@ fun StepIndicator(step: Int, current: Int, label: String, icon: androidx.compose
         Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = labelColor)
     }
 }
+
+
+
+
+
+
+
+
+
+
+

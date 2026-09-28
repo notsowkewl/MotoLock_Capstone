@@ -22,6 +22,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.launch
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.postgrest
@@ -103,6 +107,8 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit, motoId: Strin
         motorcycleData[selectedBrand]!!
     } else { emptyList() }
 
+    val modelFocusRequester = remember { FocusRequester() }
+
     Column(
         modifier = Modifier.fillMaxSize().background(Color(0xFFF7F8FA)).verticalScroll(rememberScrollState()).padding(horizontal = 28.dp)
     ) {
@@ -119,6 +125,17 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit, motoId: Strin
             Text(if (motoId != null) "Edit Motorcycle" else "Motorcycle Info", fontSize = 26.sp, fontWeight = FontWeight.Black, color = motoBlack, letterSpacing = (-0.5).sp)
             Spacer(modifier = Modifier.height(6.dp))
             Text("Select your motorcycle brand and model to ensure accurate ESP32 configuration.", fontSize = 13.sp, color = textGray, lineHeight = 20.sp)
+        }
+
+        Spacer(modifier = Modifier.height(30.dp))
+
+        // Center Motorcycle Icon
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = R.drawable.tric),
+                contentDescription = null,
+                modifier = Modifier.size(80.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(36.dp))
@@ -138,6 +155,9 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit, motoId: Strin
                     selectedModel = ""
                     manualBrand = ""
                     manualModel = ""
+                    if (brand != "Other") {
+                        modelFocusRequester.requestFocus()
+                    }
                 }
             )
 
@@ -167,6 +187,7 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit, motoId: Strin
                 selected = selectedModel,
                 options = availableModels,
                 placeholder = "Select Model",
+                focusRequester = modelFocusRequester,
                 onSelect = { model ->
                     selectedModel = model
                     manualModel = ""
@@ -294,7 +315,9 @@ fun SearchableDropdown(
     options: List<String>,
     placeholder: String,
     onSelect: (String) -> Unit,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    icon: Int? = null,
+    focusRequester: FocusRequester? = null
 ) {
     val motoBlack = Color(0xFF101217)
     val lineCol = Color(0xFFE8EBF0)
@@ -306,14 +329,24 @@ fun SearchableDropdown(
     var searchQuery by remember { mutableStateOf("") }
     
     LaunchedEffect(selected) { searchQuery = selected }
-    LaunchedEffect(options) { expanded = false }
     
     val filteredOptions = if (searchQuery.isNotEmpty() && searchQuery != selected) {
         options.filter { it.contains(searchQuery, ignoreCase = true) }
-    } else { options }
+    } else {
+        options // Always show all options when empty or matches selection
+    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Black, color = if (enabled) Color(0xFF2A2F38) else Color.LightGray)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = icon),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp).padding(end = 4.dp)
+                )
+            }
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Black, color = if (enabled) Color(0xFF2A2F38) else Color.LightGray)
+        }
         Spacer(modifier = Modifier.height(7.dp))
 
         Box {
@@ -323,9 +356,12 @@ fun SearchableDropdown(
                 enabled = enabled,
                 textStyle = TextStyle(fontSize = 14.sp, color = if (enabled) motoBlack else Color.Gray),
                 singleLine = true,
+                modifier = (if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+                    .onFocusChanged { if (it.isFocused && enabled) expanded = true }
+                    .fillMaxWidth(),
                 decorationBox = { innerTextField ->
                     Box(
-                        modifier = Modifier.fillMaxWidth().height(52.dp).background(if (enabled) inputBg else Color(0xFFF3F4F6), RoundedCornerShape(12.dp)).border(1.dp, lineCol, RoundedCornerShape(12.dp)).clickable(enabled = enabled) { expanded = true }.padding(horizontal = 14.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp).background(if (enabled) inputBg else Color(0xFFF3F4F6), RoundedCornerShape(12.dp)).border(1.dp, lineCol, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

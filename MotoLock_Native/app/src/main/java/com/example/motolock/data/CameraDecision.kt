@@ -10,7 +10,49 @@ data class VerificationState(
     val message: String
 )
 
+/**
+ * Forward-only state machine for the unlock flow.
+ *
+ * PHASE 1 – NEED_HELMET
+ *   → Camera AI confirms helmet on head AND IR sensor is ON (chin bar down)
+ *   → Advance to NEED_FACE. Never return to this phase.
+ *
+ * PHASE 2 – NEED_FACE
+ *   → Rider lifts chin bar (IR OFF), face is verified by FaceNet
+ *   → Advance to NEED_CHIN_BAR. Never return to this phase.
+ *
+ * PHASE 3 – NEED_CHIN_BAR
+ *   → Rider pulls chin bar back down (IR ON again)
+ *   → Advance to DONE → finalAuthenticationState = true
+ *
+ * Call reset() whenever the unlock screen opens fresh.
+ */
 object CameraDecision {
+
+    enum class Phase { NEED_HELMET, NEED_FACE, NEED_CHIN_BAR }
+
+    @Volatile private var phase = Phase.NEED_HELMET
+
+    fun reset() {
+        phase = Phase.NEED_HELMET
+    }
+
+    private fun blank(
+        helmetDetected: Boolean = false,
+        helmetSensorActive: Boolean = false,
+        faceDetected: Boolean = false,
+        faceRecognized: Boolean = false,
+        msg: String = ""
+    ) = VerificationState(
+        faceDetected = faceDetected,
+        faceRecognized = faceRecognized,
+        helmetDetected = helmetDetected,
+        helmetSensorActive = helmetSensorActive,
+        visorBlockingFace = false,
+        finalAuthenticationState = false,
+        message = msg
+    )
+
     fun evaluate(
         faceCount: Int,
         faceMatches: Boolean,
@@ -25,123 +67,125 @@ object CameraDecision {
         spatiallyAssociatedHelmetWithoutFace: Boolean = false,
         recentlyRecognized: Boolean = false
     ): VerificationState {
-        val logoMatched = (extractedLogoId != null && extractedLogoId == pairedHelmetVisualId)
-        val cameraState = evaluateCamera(
-            faceCount, faceMatches, helmetOnHead, telemetry.sensorActive,
-            spatiallyAssociatedHelmetWithoutFace, recentlyRecognized, logoMatched
-        )
-        if (!cameraState.finalAuthenticationState) return cameraState
 
-        val ageMs = System.currentTimeMillis() - telemetry.receivedAt
-        val failure = when {
-            pairedHelmetDeviceId.isNullOrBlank() || pairedHelmetVisualId.isNullOrBlank() ||
-                helmetPublicKey.isNullOrEmptyBytes() -> "Pair your helmet before unlocking."
-            !telemetry.isConnected -> "Connect your paired helmet."
-            telemetry.deviceId != pairedHelmetDeviceId -> "Connected helmet does not match your paired helmet."
-            ageMs !in 0L..1000L -> "Waiting for fresh helmet telemetry."
-            expectedNonce == null || expectedNonce.size != 32 || !isSequenceValid -> "Waiting for helmet challenge verification."
-            !HelmetCrypto.verifySignature(telemetry, expectedNonce, helmetPublicKey!!) -> "Helmet signature verification failed."
-            telemetry.visualId != pairedHelmetVisualId -> "Helmet visual identity does not match pairing."
-            telemetry.flags and 0x0e != 0x0e || telemetry.flags and 0x10 != 0 -> "Helmet sensor warming up or alcohol check not clear."
-            extractedLogoId != pairedHelmetVisualId -> "Show the paired helmet logo to the camera."
-            else -> null
+        val irOn = telemetry.sensorActive
+        val faceDetected = faceCount == 1
+        val faceRecognized = faceDetected && faceMatches
+        // Helmet confirmed if YOLO sees it, or if it was spatially associated, or if the logo sticker is visible
+        val helmetSeen = helmetOnHead || spatiallyAssociatedHelmetWithoutFace || (extractedLogoId != null)
+
+        // Multiple faces – reject always
+        if (faceCount > 1) {
+            return blank(msg = "Multiple faces detected. Only one rider allowed.")
         }
-        return if (failure == null) cameraState else cameraState.copy(
-            finalAuthenticationState = false, message = failure
-        )
+
+        when (phase) {
+
+            // ── PHASE 1 ─────────────────────────────────────────────────────────
+            Phase.NEED_HELMET -> {
+                return when {
+                    helmetSeen && irOn -> {
+                        // Helmet confirmed AND chin bar is down. Advance.
+                        phase = Phase.NEED_FACE
+                        blank(
+                            helmetDetected = true,
+                            helmetSensorActive = true,
+                            msg = "Registered helmet detected. Lift your chin bar for Face ID."
+                        )
+                    }
+                    helmetSeen && !irOn -> {
+                        // Helmet visible but chin bar isn't down yet
+                        blank(
+                            helmetDetected = true,
+                            msg = "Helmet detected. Close the chin bar, then lift it for Face ID."
+                        )
+                    }
+                    !helmetSeen && irOn -> {
+                        // Sensor is on but camera can't see the helmet (visor blocking or bad angle)
+                        blank(
+                            helmetSensorActive = true,
+                            msg = "Sensor active. Center your helmet in frame so the camera can confirm it."
+                        )
+                    }
+                    else -> {
+                        // Nothing detected yet
+                        blank(msg = "No helmet detected. Put your helmet on.")
+                    }
+                }
+            }
+
+            // ── PHASE 2 ─────────────────────────────────────────────────────────
+            Phase.NEED_FACE -> {
+                return when {
+                    faceRecognized -> {
+                        // Face verified. Advance.
+                        phase = Phase.NEED_CHIN_BAR
+                        blank(
+                            helmetDetected = true,
+                            faceDetected = true,
+                            faceRecognized = true,
+                            msg = "Face verified. Pull down your chin bar to secure the helmet."
+                        )
+                    }
+                    faceDetected && !faceRecognized -> {
+                        blank(
+                            helmetDetected = true,
+                            faceDetected = true,
+                            msg = "Face ID not recognized. Make sure you are the registered rider."
+                        )
+                    }
+                    irOn -> {
+                        // Chin bar is back down before face was verified – remind them to lift it
+                        blank(
+                            helmetDetected = true,
+                            helmetSensorActive = true,
+                            msg = "Registered helmet detected. Lift your chin bar for Face ID."
+                        )
+                    }
+                    else -> {
+                        blank(
+                            helmetDetected = true,
+                            msg = "No face detected. Move closer to the camera."
+                        )
+                    }
+                }
+            }
+
+            // ── PHASE 3 ─────────────────────────────────────────────────────────
+            Phase.NEED_CHIN_BAR -> {
+                if (!irOn) {
+                    // Still waiting for chin bar to close
+                    return blank(
+                        helmetDetected = true,
+                        faceDetected = faceDetected,
+                        faceRecognized = true,
+                        msg = "Face verified. Pull down your chin bar to secure the helmet."
+                    )
+                }
+
+                // Chin bar closed → helmet is connected → proceed to alcohol check
+                // The motor ESP32 handles final security (secret + helmet sensor flags) in the UNLOCK command
+                return if (telemetry.isConnected) {
+                    VerificationState(
+                        faceDetected = faceDetected,
+                        faceRecognized = true,
+                        helmetDetected = true,
+                        helmetSensorActive = true,
+                        visorBlockingFace = false,
+                        finalAuthenticationState = true,
+                        message = "Rider and helmet secured. Proceeding to alcohol detection..."
+                    )
+                } else {
+                    blank(
+                        helmetDetected = true,
+                        helmetSensorActive = true,
+                        faceRecognized = true,
+                        msg = "Connect your paired helmet."
+                    )
+                }
+            }
+        }
     }
 
     private fun ByteArray?.isNullOrEmptyBytes() = this == null || isEmpty()
-    private fun evaluateCamera(
-        faceCount: Int, 
-        faceMatches: Boolean, 
-        helmetOnHead: Boolean, 
-        irSensorActive: Boolean,
-        spatiallyAssociatedHelmetWithoutFace: Boolean = false,
-        recentlyRecognized: Boolean = false,
-        logoMatched: Boolean = false
-    ): VerificationState {
-        val faceDetected = faceCount == 1
-        val multipleFaces = faceCount > 1
-        
-        // CASE 3: Visor DOWN - Strong evidence required. Not just "no face + helmet anywhere".
-        val visorBlockingFace = !faceDetected && spatiallyAssociatedHelmetWithoutFace
-
-        val state = VerificationState(
-            faceDetected = faceDetected,
-            faceRecognized = faceDetected && faceMatches,
-            helmetDetected = helmetOnHead || spatiallyAssociatedHelmetWithoutFace,
-            helmetSensorActive = irSensorActive,
-            visorBlockingFace = visorBlockingFace,
-            finalAuthenticationState = false,
-            message = ""
-        )
-
-        return when {
-            multipleFaces -> state.copy(message = "Multiple faces detected. Only one rider allowed.")
-            
-            // CASE 2: Different/unregistered rider
-            faceDetected && !faceMatches -> state.copy(message = "Face ID not recognized.")
-            
-            // ── NEW SECURE WORKFLOW ──────────────────────────────────────────
-            // State 3: Visor DOWN after face was recently verified -> SUCCESS
-            visorBlockingFace && irSensorActive && recentlyRecognized && logoMatched -> state.copy(
-                finalAuthenticationState = true,
-                message = "Rider and helmet secured. Proceeding to alcohol detection..."
-            )
-            
-            // State 3 Alt: Missing logo
-            visorBlockingFace && irSensorActive && recentlyRecognized && !logoMatched -> state.copy(
-                message = "Face verified, but logo missing. Show the MotoLock logo to the camera."
-            )
-            
-            // State 1: Visor DOWN initially (never verified face)
-            visorBlockingFace && irSensorActive && !recentlyRecognized && logoMatched -> state.copy(
-                message = "Registered helmet detected. Lift your chin bar for Face ID."
-            )
-            
-            // State 1 Alt: Helmet detected, no face, IR=1, not spatially associated (new scan)
-            !faceDetected && helmetOnHead && irSensorActive && !recentlyRecognized && logoMatched -> state.copy(
-                message = "Registered helmet detected. Lift your chin bar for Face ID."
-            )
-
-            // State 1 Missing Logo: Helmet detected, IR=1, but no logo seen yet
-            (!faceDetected || visorBlockingFace) && helmetOnHead && irSensorActive && !recentlyRecognized && !logoMatched -> state.copy(
-                message = "Show the MotoLock logo on your helmet to the camera."
-            )
-
-            // State 2: Visor is UP (Face verified, Helmet ON, IR=0) -> Tell them to close it
-            faceDetected && faceMatches && helmetOnHead && !irSensorActive -> state.copy(
-                message = "Face verified. Pull down your chin bar to secure the helmet."
-            )
-            // ─────────────────────────────────────────────────────────────────
-
-            // Transition: Visor is coming down (Face blocked, IR=0 still)
-            visorBlockingFace && !irSensorActive -> state.copy(
-                message = "Face hidden. Pull down your chin bar to activate the sensor."
-            )
-            
-            // No face, no helmet
-            !faceDetected && !spatiallyAssociatedHelmetWithoutFace && !helmetOnHead -> state.copy(
-                message = "No face detected. Keep your face visible."
-            )
-            
-            // Registered rider, no helmet detected by camera
-            faceDetected && faceMatches && !helmetOnHead && irSensorActive -> state.copy(
-                message = "Helmet sensor is ON, but the camera can't confirm your helmet. Center your head in frame, improve the lighting, and show the helmet logo."
-            )
-
-            faceDetected && faceMatches && !helmetOnHead -> state.copy(
-                message = "No helmet detected. Put your helmet on."
-            )
-            
-            // Open-face helmet case (Face verified, helmet on, IR=1 simultaneously)
-            faceDetected && faceMatches && helmetOnHead && irSensorActive -> state.copy(
-                finalAuthenticationState = true,
-                message = "Face and helmet verified. Proceeding to alcohol detection..."
-            )
-            
-            else -> state.copy(message = "Verifying...")
-        }
-    }
 }

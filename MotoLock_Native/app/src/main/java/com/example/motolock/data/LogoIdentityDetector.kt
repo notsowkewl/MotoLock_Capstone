@@ -32,7 +32,7 @@ class IntegratedLogoDetector : LogoIdentityDetector {
         val top = helmetBox.top.coerceIn(0, bitmap.height)
         val right = helmetBox.right.coerceIn(0, bitmap.width)
         val bottom = helmetBox.bottom.coerceIn(0, bitmap.height)
-        if (right - left < 50 || bottom - top < 50) return null
+        if (right - left < 15 || bottom - top < 15) return null
         // Bound connected-component work on high-resolution camera frames.
         val step = max(1, ceil(max(right - left, bottom - top) / 800.0).toInt())
         val width = (right - left + step - 1) / step
@@ -74,7 +74,7 @@ class IntegratedLogoDetector : LogoIdentityDetector {
                 }
                 if (edge) boundary.add(Point(x.toDouble(), y.toDouble()))
             }
-            if (count >= 120 && boundary.size >= 40) candidates.add(boundary)
+            if (count >= 60 && boundary.size >= 20) candidates.add(boundary)
         }
         val frames = mutableListOf<Pair<Frame, Boolean>>()
         // Largest green components first; cap cost on textured backgrounds.
@@ -95,11 +95,14 @@ class IntegratedLogoDetector : LogoIdentityDetector {
             }
             best?.let { frames.add(it to true) }
         }
-        frames.addAll(redFrames(pixels, width, height).map { it to false })
+        val redFrameList = redFrames(pixels, width, height)
+        // If the shield/M shape is detected visually, logo is confirmed — skip bit decoding
+        if (redFrameList.isNotEmpty()) return "LOGO_DETECTED"
+        frames.addAll(redFrameList.map { it to false })
         val identities = mutableSetOf<String>()
         for ((frame, needsGreenMargin) in frames) {
             val fw = frame.right - frame.left; val fh = frame.bottom - frame.top
-            if (fw < 75 || fh < 85 || fw / fh !in 0.5..1.25) continue
+            if (fw < 40 || fh < 45 || fw / fh !in 0.5..1.25) continue
             fun colorAt(x: Double, y: Double): Int? {
                 val p = frame.map(x, y)
                 val px = p.x.roundToInt(); val py = p.y.roundToInt()

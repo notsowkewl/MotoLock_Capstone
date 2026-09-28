@@ -43,20 +43,24 @@ fun ManageContactsScreen(onBack: () -> Unit, onAddNew: () -> Unit) {
 
     var contacts by remember { mutableStateOf<List<EmergencyContact>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf<String?>(null) }
     var contactToEdit by remember { mutableStateOf<EmergencyContact?>(null) }
 
     fun loadContacts() {
         scope.launch {
             isLoading = true
+            loadError = null
             try {
                 val user = SupabaseClientManager.client.auth.currentSessionOrNull()?.user
                 if (user != null) {
+                    val userId = com.example.motolock.data.RiderAccount.userId()
                     contacts = SupabaseClientManager.client.postgrest["emergency_contacts"]
-                        .select { filter { eq("user_id", user.id) } }
+                        .select { filter { eq("user_id", userId) } }
                         .decodeList<EmergencyContact>()
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                loadError = "Unable to load saved contacts. Check your connection and retry."
             } finally {
                 isLoading = false
             }
@@ -198,6 +202,9 @@ fun ManageContactsScreen(onBack: () -> Unit, onAddNew: () -> Unit) {
 
         if (isLoading) {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = motoRed) }
+        } else if (loadError != null) {
+            Text(loadError!!, color = motoRed)
+            TextButton(onClick = { loadContacts() }) { Text("Retry") }
         } else if (contacts.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { Text("No emergency contacts saved.", color = Color(0xFF737987), fontSize = 14.sp) }
         } else {

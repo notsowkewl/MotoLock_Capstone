@@ -32,21 +32,26 @@ fun FaceIdManagementScreen(onBack: () -> Unit, onEnroll: () -> Unit) {
     
     var isEnrolled by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+    var reloadData by remember { mutableStateOf(0) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(reloadData) {
+        isLoading = true
+        loadError = null
         try {
             val session = SupabaseClientManager.client.auth.currentSessionOrNull()
             val userId = session?.user?.id
             if (userId != null) {
-                val userProfile = SupabaseClientManager.client.postgrest["users"]
-                    .select { filter { eq("id", userId) } }
-                    .decodeSingleOrNull<com.example.motolock.models.User>()
+                val userProfile = com.example.motolock.data.RiderAccount.profile()
                 
                 if (userProfile != null) {
-                    isEnrolled = userProfile.faceDescriptor != null
+                    isEnrolled = userProfile.faceDescriptor != null &&
+                        userProfile.faceDescriptor !is kotlinx.serialization.json.JsonNull
                 }
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            loadError = "Unable to load saved Face ID. Check your connection and retry."
             e.printStackTrace()
         } finally {
             isLoading = false
@@ -90,7 +95,10 @@ fun FaceIdManagementScreen(onBack: () -> Unit, onEnroll: () -> Unit) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        if (isLoading) {
+        if (loadError != null) {
+            Text(loadError!!, color = motoRed)
+            TextButton(onClick = { reloadData++ }) { Text("Retry") }
+        } else if (isLoading) {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = motoRed)
             }

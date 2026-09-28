@@ -39,20 +39,25 @@ fun RegisteredMotorcyclesScreen(onBack: () -> Unit, onAddNew: () -> Unit, onEdit
 
     var motorcycles by remember { mutableStateOf<List<com.example.motolock.models.Motorcycle>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf<String?>(null) }
     var motoToEdit by remember { mutableStateOf<com.example.motolock.models.Motorcycle?>(null) }
 
     fun loadMotorcycles() {
         isLoading = true
+        loadError = null
         scope.launch {
             try {
                 val session = SupabaseClientManager.client.auth.currentSessionOrNull()
-                val userId = session?.user?.id
+                val userId = session?.user?.let { com.example.motolock.data.RiderAccount.userId() }
                 if (userId != null) {
                     motorcycles = SupabaseClientManager.client.postgrest["motorcycles"]
                         .select { filter { eq("user_id", userId) } }
                         .decodeList<com.example.motolock.models.Motorcycle>()
                 }
-            } catch (e: Exception) { e.printStackTrace() } finally { isLoading = false }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                loadError = "Unable to load saved motorcycles. Check your connection and retry."
+            } finally { isLoading = false }
         }
     }
 
@@ -150,6 +155,9 @@ fun RegisteredMotorcyclesScreen(onBack: () -> Unit, onAddNew: () -> Unit, onEdit
 
         if (isLoading) {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = motoRed) }
+        } else if (loadError != null) {
+            Text(loadError!!, color = motoRed)
+            TextButton(onClick = { loadMotorcycles() }) { Text("Retry") }
         } else if (motorcycles.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { Text("No motorcycles registered yet.", color = Color(0xFF737987), fontSize = 14.sp) }
         } else {

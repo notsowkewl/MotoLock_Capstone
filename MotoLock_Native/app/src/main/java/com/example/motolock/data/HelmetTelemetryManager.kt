@@ -21,7 +21,26 @@ data class HelmetTelemetry(
     val signedPayload: ByteArray? = null,
     val flags: Int = 0,
     val visualId: String? = null
-)
+) {
+    val alcoholPercent: Float
+        get() {
+            if (signedPayload == null || signedPayload.size < 56) return 0f
+            val data = java.nio.ByteBuffer.wrap(signedPayload)
+            val mqRaw = data.getShort(52).toInt() and 65535
+            val baseline = data.getShort(54).toInt() and 65535
+            val MQ3_ALCOHOL_DEADBAND_RAW = 35
+            val ALCOHOL_DISPLAY_MAX_PERCENT = 0.500f
+            
+            var delta = mqRaw.toFloat() - baseline - MQ3_ALCOHOL_DEADBAND_RAW
+            if (delta < 0f) delta = 0f
+            
+            var usableRange = 4095f - baseline
+            if (usableRange < 1f) usableRange = 1f
+            
+            val percent = (delta / usableRange) * ALCOHOL_DISPLAY_MAX_PERCENT
+            return if (percent > ALCOHOL_DISPLAY_MAX_PERCENT) ALCOHOL_DISPLAY_MAX_PERCENT else percent
+        }
+}
 
 interface HelmetTelemetryManager {
     fun getTelemetry(): HelmetTelemetry

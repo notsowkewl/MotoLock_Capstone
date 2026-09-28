@@ -160,7 +160,11 @@ fun EmergencyContactsScreen(onBack: () -> Unit) {
                     .border(2.dp, motoRed, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Person, contentDescription = null, tint = motoRed, modifier = Modifier.size(40.dp))
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = R.drawable.front),
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp)
+                )
             }
         }
 

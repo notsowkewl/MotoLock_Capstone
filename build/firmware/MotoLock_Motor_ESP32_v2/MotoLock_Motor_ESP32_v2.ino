@@ -106,6 +106,9 @@ bool nonceForUnlock = false;
 uint32_t appNonceMs = 0;
 bool sessionAuthenticated = false;
 bool appAuthorized = false;
+bool alcoholCheckActive = false; // Display only; never grants relay authorization.
+bool engineLatching = false;
+bool explicitUnlockRequired = false;
 bool pairingPinValid = false;
 uint8_t pairingPinAttempts = 0;
 uint32_t pairingPinCreatedMs = 0;
@@ -338,13 +341,16 @@ void handleAppCommand(const char *message) {
       return;
     }
     sessionAuthenticated = true;
-    if (!unlock) { SerialBT.println("OK_AUTHENTICATED"); return; }
+    if (!unlock) { alcoholCheckActive = false; SerialBT.println("OK_AUTHENTICATED"); return; }
     const uint8_t required = FLAG_WORN | FLAG_WARMED_UP | FLAG_SENSOR_OK | FLAG_ALCOHOL_CLEAR;
     if (!helmetPacketFresh() || (latestPacket.flags & required) != required ||
-        (latestPacket.flags & FLAG_STABILIZING)) {
+        (latestPacket.flags & FLAG_STABILIZING) ||
+        estimateAlcoholPercent(latestPacket.mqRaw, latestPacket.cleanAirBaseline) >= ALCOHOL_LIMIT_PERCENT) {
       SerialBT.println("ERR_HELMET_NOT_READY");
       return;
     }
+    explicitUnlockRequired = false;
+    alcoholCheckActive = false;
     appAuthorized = true;
       sendAuthToHelmet();
       setEngineAllowed(true);
@@ -365,9 +371,17 @@ void handleAppCommand(const char *message) {
     memcpy(requestedChallenge, nonce, sizeof(nonce));
     challengeRequested = true;
     portEXIT_CRITICAL(&packetMux);
+  } else if (command == "PHASE:ALCOHOL" || command == "PHASE:FACE") {
+    if (!sessionAuthenticated) { SerialBT.println("ERR_AUTH_REQUIRED"); return; }
+    alcoholCheckActive = command == "PHASE:ALCOHOL";
+    SerialBT.println("OK_PHASE");
   } else if (command == "LOCK") {
     appAuthorized = false;
-    setEngineAllowed(overrideActive);
+    overrideActive = false;
+    engineLatching = false;
+    explicitUnlockRequired = true;
+    setEngineAllowed(false);
+    sendAuthToHelmet();
     SerialBT.println("OK_LOCKED");
   } else {
     SerialBT.println("ERR_UNSUPPORTED_COMMAND");
@@ -376,7 +390,7 @@ void handleAppCommand(const char *message) {
 
 void sendAuthToHelmet() {
   if (bleClient != nullptr && bleClient->isConnected() && authCharacteristic != nullptr && authCharacteristic->canWrite()) {
-    uint8_t val = 1;
+    uint8_t val = appAuthorized ? 1 : 0;
     authCharacteristic->writeValue(&val, 1, false);
     Serial.println("Sent Authorization to Helmet");
   }
@@ -925,7 +939,7 @@ void loop() {
       const bool normalPermission = packetFresh && packetVersionOk && helmetWorn && warmedUp && sensorOk && alcoholClear;
     
     // Auto-authorize if helmet tells us it's authorized (the 5-minute traffic grace period)
-    if (packetFresh && packetVersionOk && (latestPacket.flags & FLAG_APP_AUTHORIZED)) {
+    if (!explicitUnlockRequired && packetFresh && packetVersionOk && (latestPacket.flags & FLAG_APP_AUTHORIZED)) {
         appAuthorized = true;
     }
     
@@ -935,9 +949,18 @@ void loop() {
     }
 
     // Engine Start Interlock (Latching)
-    // Once engine is allowed to start, it stays allowed until the motorcycle is turned off.
-    static bool engineLatching = false;
-    if ((normalPermission && appAuthorized) || overrideActive) {
+    // Alcohol overrides the latch; recovery requires a new authenticated unlock.
+    const bool alcoholBlocked = packetFresh && sensorOk && warmedUp &&
+        (!alcoholClear || alcoholPercent >= ALCOHOL_LIMIT_PERCENT);
+    if (alcoholBlocked) {
+        const bool newlyBlocked = !explicitUnlockRequired;
+        explicitUnlockRequired = true;
+        engineLatching = false;
+        appAuthorized = false;
+        overrideActive = false;
+        setEngineAllowed(false);
+        if (newlyBlocked) sendAuthToHelmet();
+    } else if (!explicitUnlockRequired && ((normalPermission && appAuthorized) || overrideActive)) {
         engineLatching = true;
     }
     setEngineAllowed(engineLatching);
@@ -967,14 +990,16 @@ void loop() {
     } else if (!helmetWorn) {
       showStatus("Wear helmet", "Engine locked", alcoholLine);
     } else if (!sensorOk || !warmedUp) {
-      showStatus("Sensor not ready", "Engine locked", alcoholLine);
+      showStatus(alcoholCheckActive ? "Alcohol check" : "Sensor not ready", "MQ3 warming up", alcoholLine);
     } else if (stabilizing) {
       showStatus("SENSOR STABILIZING", "Clear air - wait", alcoholLine);
     } else if (!alcoholClear) {
       showStatus("ALCOHOL >= 0.050%", "Engine locked", alcoholLine);
       sendAlertWithCooldown("alcohol threshold exceeded");
+    } else if (appConnected.load() && alcoholCheckActive) {
+      showStatus("Reading alcohol", "Blow into sensor", alcoholLine);
     } else if (!appAuthorized) {
-      showStatus("Helmet verified", "Verify face in app", "Engine locked");
+      showStatus("Verify face in app", "Engine locked", alcoholLine);
     } else {
       showStatus("Helmet verified", "Engine enabled", alcoholLine);
     }

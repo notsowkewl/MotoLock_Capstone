@@ -22,6 +22,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.motolock.ui.theme.MotoLockTheme
 import com.example.motolock.network.SupabaseClientManager
 import io.github.jan.supabase.gotrue.auth
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
@@ -108,6 +109,7 @@ class MainActivity : ComponentActivity() {
 fun MotoLockApp() {
     val navController = rememberNavController()
     var startDest by remember { mutableStateOf<String?>(null) }
+    var showSplash by remember { mutableStateOf(true) }
     
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -121,20 +123,17 @@ fun MotoLockApp() {
         }
     }
 
-    if (startDest == null) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator(color = Color(0xFFED1C24))
-        }
-        return
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(2000)
+        showSplash = false
     }
 
     val showBottomBar = currentRoute in listOf("dashboard", "ride_history", "settings")
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (!showSplash && startDest != null) {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         bottomBar = {
             if (showBottomBar) {
@@ -353,6 +352,17 @@ fun MotoLockApp() {
             }
         }
     }
+    } // End of if
+        
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showSplash || startDest == null,
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(500)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            SplashScreen()
+        }
+    }
 }
 
 
@@ -365,6 +375,34 @@ fun MotoLockApp() {
 
 
 
+
+
+
+
+
+
+@Composable
+fun SplashScreen() {
+    var showSecondImage by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(1000)
+        showSecondImage = true
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(id = if (showSecondImage) R.drawable.front1 else R.drawable.front),
+            contentDescription = "Splash Logo",
+            modifier = Modifier.size(240.dp)
+        )
+    }
+}
 
 
 

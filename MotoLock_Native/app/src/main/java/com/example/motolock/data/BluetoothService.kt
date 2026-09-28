@@ -33,8 +33,20 @@ data class MotorStatus(
     val locked: Boolean?,
     val alcoholDetected: Boolean?,
     val irDetected: Boolean?,
-    val receivedAt: Long
+    val receivedAt: Long,
+    val mq3BaselineReady: Boolean? = null,
+    val mq3Stabilizing: Boolean? = null,
+    val mq3Value: Int? = null,
+    val mq3Baseline: Int? = null
 ) {
+    val alcoholPercent: Float?
+        get() {
+            val raw = mq3Value ?: return null
+            val baseline = mq3Baseline ?: return null
+            if (raw !in 6..4089 || baseline !in 6..4089) return null
+            return ((raw - baseline - 35).coerceAtLeast(0) * 0.500f /
+                (4095 - baseline).coerceAtLeast(1)).coerceAtMost(0.500f)
+        }
     /** The motor maps the wear switch to HELMET_NOT_WORN in its existing STATUS message. */
     fun helmetWearLabel(): String = when {
         helmetConnected != true || helmetDataFresh != true || testStatus == "HELMET_NOT_FOUND" -> "Unknown"
@@ -60,7 +72,11 @@ data class MotorStatus(
                 (json["locked"] as? JsonPrimitive)?.booleanOrNull,
                 (json["alcoholDetected"] as? JsonPrimitive)?.booleanOrNull,
                 (json["irDetected"] as? JsonPrimitive)?.booleanOrNull,
-                now
+                now,
+                (json["mq3BaselineReady"] as? JsonPrimitive)?.booleanOrNull,
+                (json["mq3Stabilizing"] as? JsonPrimitive)?.booleanOrNull,
+                (json["mq3Value"] as? JsonPrimitive)?.intOrNull,
+                (json["mq3Baseline"] as? JsonPrimitive)?.intOrNull
             )
         }.getOrNull()
     }
@@ -235,6 +251,13 @@ class BluetoothService(context: Context) {
 
     suspend fun authenticateSession(secret: String): Boolean = authenticate(secret, false)
     suspend fun sendUnlockCommand(deviceSecret: String): Boolean = authenticate(deviceSecret, true)
+    suspend fun setAlcoholCheckPhase(active: Boolean) = commands.withLock {
+        request(if (active) "PHASE:ALCOHOL" else "PHASE:FACE") { it == "OK_PHASE" }
+        Unit
+    }
+    suspend fun sendLockCommand(): Boolean = commands.withLock {
+        request("LOCK") { it == "OK_LOCKED" } == "OK_LOCKED"
+    }
     suspend fun readHelmetIdentity(): HelmetIdentity = commands.withLock {
         var timeouts = 0
         repeat(40) {

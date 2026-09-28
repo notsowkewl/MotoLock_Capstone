@@ -111,7 +111,7 @@ fun SecurityPinScreen(onBack: () -> Unit) {
                 scope.launch {
                     try {
                         val session = SupabaseClientManager.client.auth.currentSessionOrNull()
-                        val userId = session?.user?.id
+                        val userId = session?.user?.let { com.example.motolock.data.RiderAccount.userId() }
                         if (userId != null) {
                             // Fetch existing PIN
                             val existingPins = SupabaseClientManager.client.postgrest["pins"]
