@@ -40,7 +40,11 @@ interface SupabaseClient {
     getSession(): Promise<{ data: { session: Session | null }; error: ServiceError | null }>;
   };
   functions: {
-    invoke(name: string, options: { body: Record<string, unknown>; headers: Record<string, string> }): Promise<Result<{ error?: string; user?: { id: string } }>>;
+    invoke(name: string, options: { body: Record<string, unknown>; headers?: Record<string, string> }): Promise<Result<{
+      error?: string;
+      user?: { id: string };
+      [key: string]: unknown;
+    }>>;
   };
 }
 declare global {

@@ -108,33 +108,44 @@ const displayContactName = (contact: { id?: string | number; name?: string }) =>
   return sampleContactNames[String(contact.id)] || 'Emergency Contact';
 };
 
-const fetchAllSupabaseRows = async (table: string, orderBy = 'id', columns = '*'): Promise<SupabaseRecord[]> => {
+const invokeAdminData = async <T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> => {
   if (!supabaseClient) throw new Error('Supabase client is not available.');
+  const { data, error } = await supabaseClient.functions.invoke('admin-data', { body });
+  if (error) {
+    const response = error.context;
+    const errorBody = response instanceof Response ? await response.clone().json().catch(() => null) : null;
+    throw new Error(data?.error || errorBody?.error || describeEdgeFunctionError(error));
+  }
+  if (!data || typeof data !== 'object') throw new Error('The admin data service returned an invalid response.');
+  if (typeof data.error === 'string') throw new Error(data.error);
+  return data as T;
+};
+
+const fetchAllSupabaseRows = async (table: string, orderBy = 'id', _columns = '*'): Promise<SupabaseRecord[]> => {
   const rows: SupabaseRecord[] = [];
   for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
-    const { data, error } = await supabaseClient
-      .from(table)
-      .select(columns)
-      .order(orderBy, { ascending: true })
-      .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
-    if (error) throw new Error(error.message);
-    rows.push(...((data || []) as unknown as SupabaseRecord[]));
-    if (!data || data.length < SUPABASE_PAGE_SIZE) return rows;
+    const page = await invokeAdminData<{ rows: SupabaseRecord[]; hasMore: boolean }>({
+      action: 'select', table, orderBy, offset,
+    });
+    rows.push(...(page.rows || []));
+    if (!page.hasMore) return rows;
   }
 };
 
 const alertStore: AlertStore = {
   read: fetchAllSupabaseRows,
   getActor: async () => {
-    const { data, error } = await supabaseClient.auth.getUser();
-    if (error) throw new Error(error.message);
-    return data.user;
+    const { profile } = await invokeAdminData<{ profile: Rider }>({ action: 'profile' });
+    return profile;
   },
   insert: async event => {
-    const { data, error } = await supabaseClient.from('audit_logs').insert(event).select('*').single();
-    if (error) throw new Error(error.message);
-    if (!data) throw new Error('Supabase did not confirm the resolution. Refresh alerts before retrying.');
-    return data;
+    const result = await invokeAdminData<{ row: Record<string, unknown> }>({
+      action: 'insert-audit',
+      action_type: event.action_type,
+      action_details: event.action_details,
+    });
+    if (!result.row) throw new Error('Supabase did not confirm the resolution. Refresh alerts before retrying.');
+    return result.row;
   },
 };
 
@@ -573,34 +584,32 @@ export default function AdminApp() {
         });
         if (authError || !authData.user || !authData.session) throw new Error(authError?.message || 'Invalid email or password');
 
-        const { data: profile, error: profileError } = await supabaseClient
-          .from('users')
-          .select('*')
-          .eq('email', authData.user.email)
-          .single();
-        if (profileError || !profile) throw new Error('This login account does not have a MotoLock administrator profile.');
-        if (profile.role !== 'admin' && profile.role !== 'superadmin') throw new Error('ACCESS DENIED: Not an admin account');
-        return { success: true, token: authData.session.access_token, user: profile } as ApiResponses[K];
+        try {
+          const { profile } = await invokeAdminData<{ profile: Rider }>({ action: 'profile' });
+          return { success: true, token: authData.session.access_token, user: profile } as ApiResponses[K];
+        } catch (error) {
+          await supabaseClient.auth.signOut({ scope: 'local' });
+          throw error;
+        }
       }
       if (endpoint === '/admin/dashboard') {
-        const { data: users } = await supabaseClient.from('users').select('*');
-        const { data: motorcycles } = await supabaseClient.from('motorcycles').select('*');
-        const { data: rides } = await supabaseClient.from('ride_history').select('*');
-        const { data: devices } = await supabaseClient.from('devices').select('*');
+        const [users, motorcycles, rides, devices] = await Promise.all([
+          fetchAllSupabaseRows('users'), fetchAllSupabaseRows('motorcycles'),
+          fetchAllSupabaseRows('ride_history'), fetchAllSupabaseRows('devices'),
+        ]);
         return {
           success: true,
-          totalRiders: users?.length || 0,
-          totalMotorcycles: motorcycles?.length || 0,
-          activeDevices: devices?.filter((d) => d.status === 'online').length || 0,
+          totalRiders: users.length,
+          totalMotorcycles: motorcycles.length,
+          activeDevices: devices.filter((d) => d.status === 'online').length,
           recentOverrides: 0,
-          todaysRides: rides?.length || 0,
-          failedTests: rides?.filter((r) => r.status === 'failed_brac').length || 0
+          todaysRides: rides.length,
+          failedTests: rides.filter((r) => r.status === 'failed_brac').length
         } as ApiResponses[K];
       }
       if (endpoint === '/admin/users' && (!options.method || options.method === 'GET')) {
-        const { data, error } = await supabaseClient.from('users').select('*');
-        if (error) throw new Error(error.message);
-        const mappedUsers = (data || []).map((u) => ({
+        const data = await fetchAllSupabaseRows('users');
+        const mappedUsers = data.map((u) => ({
           ...u,
           full_name: u.name || u.full_name // Map name column for UI backwards compatibility
         }));
@@ -663,14 +672,11 @@ export default function AdminApp() {
   const triggerAuditLog = async (action: string, module: string, targetRecord: string) => {
     try {
       if (!supabaseClient) throw new Error('Supabase client is not available.');
-      const { data: authData } = await supabaseClient.auth.getUser();
-      const { error } = await supabaseClient.from('audit_logs').insert({
-        user_id: authData.user?.id || null,
+      await invokeAdminData({
+        action: 'insert-audit',
         action_type: action,
         action_details: { module, target_record: targetRecord },
-        created_at: new Date().toISOString(),
       });
-      if (error) throw new Error(error.message);
       void fetchAuditLogs();
     } catch (error) { console.error(error); }
   };
@@ -853,11 +859,7 @@ export default function AdminApp() {
 
   const saveSettingToDB = async (key: string, value: string) => {
     if (!supabaseClient) throw new Error('Supabase client is not available.');
-    const { error } = await supabaseClient.from('system_settings').upsert(
-      { setting_key: key, setting_value: value },
-      { onConflict: 'setting_key' },
-    );
-    if (error) throw new Error(error.message);
+    await invokeAdminData({ action: 'save-setting', setting_key: key, setting_value: value });
     setSavedSettings(previous => ({ ...previous, [key]: value }));
   };
 
