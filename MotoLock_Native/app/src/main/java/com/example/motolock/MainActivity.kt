@@ -110,9 +110,67 @@ fun MotoLockApp() {
     val navController = rememberNavController()
     var startDest by remember { mutableStateOf<String?>(null) }
     var showSplash by remember { mutableStateOf(true) }
+    var overrideNavigationHandled by remember { mutableStateOf(false) }
+    val activeBluetoothService = SessionState.activeBluetoothService
     
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    LaunchedEffect(activeBluetoothService, startDest, showSplash) {
+        if (startDest == null || showSplash) return@LaunchedEffect
+        activeBluetoothService?.motorStatus?.collect { status ->
+            if (status?.overrideActive == true) {
+                if (!overrideNavigationHandled) {
+                    overrideNavigationHandled = true
+                    if (navController.currentBackStackEntry?.destination?.route != "dashboard") {
+                        val returnedToDashboard = navController.popBackStack("dashboard", inclusive = false)
+                        if (!returnedToDashboard) {
+                            navController.navigate("dashboard") {
+                                popUpTo(0)
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                }
+            } else {
+                overrideNavigationHandled = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        com.example.motolock.data.RideHistoryRepository.manualOverrideNavigation.collect { status ->
+            SessionState.manualOverrideActive = status.overrideActive
+            SessionState.isMotorUnlocked = status.overrideActive || status.locked == false
+            if (startDest != null && !showSplash &&
+                navController.currentBackStackEntry?.destination?.route != "dashboard") {
+                val returnedToDashboard = navController.popBackStack("dashboard", inclusive = false)
+                if (!returnedToDashboard) {
+                    navController.navigate("dashboard") {
+                        popUpTo(0)
+                        launchSingleTop = true
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        com.example.motolock.data.RideHistoryRepository.alcoholResultNavigation.collect {
+            SessionState.alcoholResultActive = true
+            SessionState.isMotorUnlocked = false
+            if (startDest != null && !showSplash &&
+                navController.currentBackStackEntry?.destination?.route != "dashboard") {
+                val returnedToDashboard = navController.popBackStack("dashboard", inclusive = false)
+                if (!returnedToDashboard) {
+                    navController.navigate("dashboard") {
+                        popUpTo(0)
+                        launchSingleTop = true
+                    }
+                }
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         SupabaseClientManager.client.auth.awaitInitialization()

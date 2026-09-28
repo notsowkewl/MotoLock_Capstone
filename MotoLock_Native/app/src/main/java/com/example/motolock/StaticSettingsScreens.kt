@@ -3,6 +3,7 @@ package com.example.motolock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -219,7 +220,11 @@ fun AboutAppScreen(onBack: () -> Unit) {
                     .shadow(32.dp, RoundedCornerShape(20.dp), spotColor = Color(0xFFED1C24).copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(painterResource(id = R.drawable.ic_launcher_foreground), contentDescription = null, tint = Color.Unspecified, modifier = Modifier.size(54.dp))
+                Image(
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = "MotoLock logo",
+                    modifier = Modifier.size(60.dp)
+                )
             }
             Spacer(modifier = Modifier.height(20.dp))
             Text("About MotoLock", fontSize = 28.sp, fontWeight = FontWeight.Black, color = motoBlack, letterSpacing = (-1).sp)

@@ -1,6 +1,5 @@
 package com.example.motolock
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,7 +20,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,7 +31,6 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun ManageContactsScreen(onBack: () -> Unit, onAddNew: () -> Unit) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val motoRed = Color(0xFFED1C24)
     val motoBlack = Color(0xFF101217)
@@ -45,6 +42,58 @@ fun ManageContactsScreen(onBack: () -> Unit, onAddNew: () -> Unit) {
     var isLoading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var contactToEdit by remember { mutableStateOf<EmergencyContact?>(null) }
+    var contactToDelete by remember { mutableStateOf<EmergencyContact?>(null) }
+    var popupMessage by remember { mutableStateOf<String?>(null) }
+    var deletingContact by remember { mutableStateOf(false) }
+
+    popupMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { popupMessage = null },
+            title = { Text("Emergency Contacts", fontWeight = FontWeight.Bold) },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { popupMessage = null }) { Text("OK", color = motoRed) } }
+        )
+    }
+
+    contactToDelete?.let { contact ->
+        AlertDialog(
+            onDismissRequest = { if (!deletingContact) contactToDelete = null },
+            title = { Text("Delete contact?", fontWeight = FontWeight.Bold) },
+            text = { Text("Remove ${contact.name} from your emergency contacts?") },
+            confirmButton = {
+                TextButton(enabled = !deletingContact, onClick = {
+                    val contactId = contact.id
+                    if (contactId.isNullOrBlank()) {
+                        popupMessage = "This contact has no saved ID and cannot be deleted. Refresh the list and try again."
+                        contactToDelete = null
+                        return@TextButton
+                    }
+                    deletingContact = true
+                    scope.launch {
+                        try {
+                            val userId = com.example.motolock.data.RiderAccount.userId()
+                            val deleted = SupabaseClientManager.client.postgrest["emergency_contacts"].delete {
+                                filter { eq("id", contactId); eq("user_id", userId) }
+                                select()
+                            }
+                            val remaining = SupabaseClientManager.client.postgrest["emergency_contacts"]
+                                .select { filter { eq("user_id", userId) } }
+                                .decodeList<EmergencyContact>()
+                            contacts = remaining
+                            popupMessage = if (deleted.data.isBlank() || deleted.data == "[]" || remaining.any { it.id == contactId })
+                                "The contact was not deleted. Check your account permissions and try again."
+                            else "Contact deleted successfully."
+                            contactToDelete = null
+                        } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
+                            popupMessage = "Could not delete contact. Check your connection and try again."
+                        } finally { deletingContact = false }
+                    }
+                }) { Text(if (deletingContact) "Deleting…" else "Delete", color = motoRed) }
+            },
+            dismissButton = { TextButton(enabled = !deletingContact, onClick = { contactToDelete = null }) { Text("Cancel") } }
+        )
+    }
 
     fun loadContacts() {
         scope.launch {
@@ -144,7 +193,7 @@ fun ManageContactsScreen(onBack: () -> Unit, onAddNew: () -> Unit) {
                         Button(
                             onClick = {
                                 if (editName.isBlank() || editPhone.isBlank()) {
-                                    Toast.makeText(context, "Fields cannot be empty", Toast.LENGTH_SHORT).show()
+                                    popupMessage = "Name and phone number cannot be empty."
                                     return@Button
                                 }
                                 isSaving = true
@@ -158,7 +207,7 @@ fun ManageContactsScreen(onBack: () -> Unit, onAddNew: () -> Unit) {
                                         contactToEdit = null
                                     } catch (e: Exception) {
                                         e.printStackTrace()
-                                        Toast.makeText(context, "Failed to update", Toast.LENGTH_SHORT).show()
+                                        popupMessage = "Could not update contact. Check your connection and try again."
                                     } finally {
                                         isSaving = false
                                     }
@@ -224,15 +273,7 @@ fun ManageContactsScreen(onBack: () -> Unit, onAddNew: () -> Unit) {
                             IconButton(onClick = { contactToEdit = contact }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF737987), modifier = Modifier.size(20.dp))
                             }
-                            IconButton(onClick = {
-                                scope.launch {
-                                    try {
-                                        SupabaseClientManager.client.postgrest["emergency_contacts"].delete { filter { eq("id", contact.id ?: "") } }
-                                        loadContacts()
-                                        Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
-                                    } catch (e: Exception) { Toast.makeText(context, "Error deleting", Toast.LENGTH_SHORT).show() }
-                                }
-                            }) {
+                            IconButton(onClick = { contactToDelete = contact }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete", tint = motoRed, modifier = Modifier.size(20.dp))
                             }
                         }

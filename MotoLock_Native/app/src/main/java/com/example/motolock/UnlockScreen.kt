@@ -152,7 +152,7 @@ private fun ConnectedUnlockScreen(
 
     val alcoholSamples = remember { com.example.motolock.data.AlcoholSampleWindow() }
 
-    fun handleAlcoholDetected(detectedLevel: Float? = sessionService.motorStatus.value?.alcoholPercent) {
+    fun handleAlcoholDetected(detectedLevel: Float? = alcoholSamples.maximum ?: sessionService.motorStatus.value?.alcoholPercent) {
         if (currentStep == UnlockStep.ALCOHOL_DETECTED) return
         pendingHistoryWrites++
         alcoholFailed = true
@@ -165,12 +165,13 @@ private fun ConnectedUnlockScreen(
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     alcoholStatus = "Alcohol detected. Lock confirmation unavailable."
                 }
-                // A lock acknowledgement failure must not discard the alcohol result.
-                com.example.motolock.data.RideHistoryRepository.recordAlcoholDetected(context, detectedLevel)
+                try { sessionService.showAlcoholResult(detectedLevel) } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 e.printStackTrace()
-                Toast.makeText(context, "Alcohol detected, but history could not be saved. Check your connection.", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Alcohol detected. Check your connection.", Toast.LENGTH_LONG).show()
             } finally {
                 pendingHistoryWrites--
             }
@@ -179,7 +180,17 @@ private fun ConnectedUnlockScreen(
 
     val liveMotorStatus by sessionService.motorStatus.collectAsState()
     LaunchedEffect(liveMotorStatus) {
-        if (currentStep == UnlockStep.ALCOHOL_CHECK) alcoholSamples.observe(liveMotorStatus, android.os.SystemClock.elapsedRealtime())
+        val now = android.os.SystemClock.elapsedRealtime()
+        val motorDetectedAlcohol = AlcoholCheckPolicy.state(liveMotorStatus, now) == State.DETECTED
+        if (motorDetectedAlcohol && currentStep != UnlockStep.ALCOHOL_DETECTED) {
+            alcoholSamples.observe(liveMotorStatus, now)
+            handleAlcoholDetected(alcoholSamples.maximum ?: liveMotorStatus?.alcoholPercent)
+            return@LaunchedEffect
+        }
+        if (currentStep == UnlockStep.ALCOHOL_CHECK) {
+            alcoholSamples.observe(liveMotorStatus, now)
+            alcoholSamples.reportDetected(liveMotorStatus, now)
+        }
         if (currentStep == UnlockStep.SUCCESS &&
             AlcoholCheckPolicy.state(liveMotorStatus, android.os.SystemClock.elapsedRealtime()) == State.DETECTED) {
             handleAlcoholDetected()
@@ -457,7 +468,6 @@ private fun ConnectedUnlockScreen(
                                                 }
 
                                                 alcoholSamples.reset()
-                                                var lockRequested = false
                                                 run {
                                                         try {
                                                             sessionService.setAlcoholCheckPhase(true)
@@ -474,40 +484,32 @@ private fun ConnectedUnlockScreen(
                                                     val now = android.os.SystemClock.elapsedRealtime()
                                                     val sensorState = AlcoholCheckPolicy.state(sessionService.motorStatus.value, now)
                                                     if (alcoholSamples.startedAt == null &&
-                                                        (sensorState == State.READY || sensorState == State.DETECTED)) {
+                    (sensorState == State.READY || sensorState == State.DETECTED)) {
                                                         alcoholSamples.start(now, sessionService.motorStatus.value)
                                                     }
                                                     alcoholSamples.observe(sessionService.motorStatus.value, now)
-                                                    if ((sensorState == State.DETECTED || alcoholSamples.detected) && !lockRequested) {
-                                                        lockRequested = true
-                                                        alcoholFailed = true
-                                                        SessionState.isMotorUnlocked = false
-                                                        coroutineScope.launch {
-                                                            try { sessionService.sendLockCommand() } catch (e: Exception) {
-                                                                if (e is kotlinx.coroutines.CancellationException) throw e
-                                                            }
-                                                        }
+                                                    if (sensorState == State.DETECTED || alcoholSamples.detected) {
+                                                        handleAlcoholDetected(alcoholSamples.maximum ?: sessionService.motorStatus.value?.alcoholPercent)
+                                                        return@launch
                                                     }
-                                                    if (!lockRequested && sensorState != State.READY) {
-                                                        alcoholSamples.reset()
+                                                    if (sensorState != State.READY) {
                                                         alcoholStatus = when (sensorState) {
                                                             State.WARMING -> "MQ3 warming up. Please wait."
                                                             State.STABILIZING -> "MQ3 stabilizing. Keep sensor in clean air."
                                                             State.NOT_WORN -> "Wear your helmet before the alcohol check."
                                                             else -> "Waiting for fresh helmet sensor data..."
                                                         }
+                                                        if (alcoholSamples.startedAt != null) {
+                                                            alcoholStatus += " Timer paused; will resume after sensor is ready."
+                                                        }
                                                         kotlinx.coroutines.delay(200)
                                                         continue
                                                     }
                                                     val remaining = alcoholSamples.remaining(now)
                                                     if (remaining > 0) {
-                                                        alcoholStatus = (if (lockRequested) "Alcohol detected. Recording peak... (" else "Blow into sensor... (") + ((remaining + 999) / 1000) + " s)"
+                                                        alcoholStatus = "Blow into sensor... (" + ((remaining + 999) / 1000) + " s)"
                                                         kotlinx.coroutines.delay(200)
                                                         continue
-                                                    }
-                                                    if (lockRequested || alcoholSamples.detected) {
-                                                        handleAlcoholDetected(alcoholSamples.maximum)
-                                                        return@launch
                                                     }
                                                     alcoholStatus = "Analyzing sample..."
                                                     try {
@@ -669,10 +671,6 @@ fun StepIndicator(step: Int, current: Int, label: String, icon: androidx.compose
         Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = labelColor)
     }
 }
-
-
-
-
 
 
 

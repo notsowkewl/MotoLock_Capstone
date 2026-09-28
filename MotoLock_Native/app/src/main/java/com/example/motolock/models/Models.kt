@@ -73,6 +73,8 @@ data class RideHistory(
     @SerialName("gps_end_lat") val endLat: Double? = null,
     @SerialName("gps_end_lng") val endLon: Double? = null,
     val status: String = "unknown",
+    @SerialName("event_type") val eventType: String? = null,
+    @SerialName("event_id") val eventId: String? = null,
     @SerialName("start_time") val startTime: String? = null,
     @SerialName("end_time") val endTime: String? = null
 )

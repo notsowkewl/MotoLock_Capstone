@@ -1,9 +1,9 @@
 package com.example.motolock
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,7 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,13 +34,92 @@ fun RegisteredMotorcyclesScreen(onBack: () -> Unit, onAddNew: () -> Unit, onEdit
     val motoRed = Color(0xFFED1C24)
     val motoBlack = Color(0xFF101217)
     val lineCol = Color(0xFFE8EBF0)
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var motorcycles by remember { mutableStateOf<List<com.example.motolock.models.Motorcycle>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var motoToEdit by remember { mutableStateOf<com.example.motolock.models.Motorcycle?>(null) }
+    var motoToDelete by remember { mutableStateOf<com.example.motolock.models.Motorcycle?>(null) }
+    var popupMessage by remember { mutableStateOf<String?>(null) }
+    var isDeleting by remember { mutableStateOf(false) }
+
+    popupMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { popupMessage = null },
+            title = { Text("Motorcycle Info", fontWeight = FontWeight.Bold) },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { popupMessage = null }) { Text("OK", color = motoRed) } }
+        )
+    }
+
+    motoToDelete?.let { motorcycle ->
+        Dialog(
+            onDismissRequest = { if (!isDeleting) motoToDelete = null },
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White, RoundedCornerShape(24.dp))
+                    .border(1.dp, lineCol, RoundedCornerShape(24.dp))
+                    .padding(24.dp)
+            ) {
+                Text("Delete motorcycle?", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = motoBlack)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Remove ${motorcycle.brand.orEmpty()} ${motorcycle.model.orEmpty()} from your motorcycles?",
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    color = Color(0xFF737987)
+                )
+                Spacer(Modifier.height(24.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(enabled = !isDeleting, onClick = { motoToDelete = null }) {
+                        Text("Cancel", color = Color(0xFF737987), fontWeight = FontWeight.SemiBold)
+                    }
+                    Button(
+                        enabled = !isDeleting,
+                        onClick = deleteClick@{
+                            val id = motorcycle.id
+                            if (id.isNullOrBlank()) {
+                                popupMessage = "This motorcycle has no saved ID and cannot be deleted. Refresh the list and try again."
+                                motoToDelete = null
+                                return@deleteClick
+                            }
+                            isDeleting = true
+                            scope.launch {
+                                try {
+                                    val userId = com.example.motolock.data.RiderAccount.userId()
+                                    val deleted = SupabaseClientManager.client.postgrest["motorcycles"].delete {
+                                        filter { eq("id", id); eq("user_id", userId) }
+                                        select()
+                                    }
+                                    motorcycles = SupabaseClientManager.client.postgrest["motorcycles"]
+                                        .select { filter { eq("user_id", userId) } }
+                                        .decodeList<com.example.motolock.models.Motorcycle>()
+                                    popupMessage = if (deleted.data.isBlank() || deleted.data == "[]" || motorcycles.any { it.id == id })
+                                        "The motorcycle was not deleted. Check your account permissions and try again."
+                                    else "Motorcycle deleted successfully."
+                                    motoToDelete = null
+                                } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
+                                    popupMessage = "Could not delete motorcycle. Check your connection and try again."
+                                } finally { isDeleting = false }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = motoRed, contentColor = Color.White),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(if (isDeleting) "Deleting…" else "Delete", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
 
     fun loadMotorcycles() {
         isLoading = true
@@ -103,21 +182,28 @@ fun RegisteredMotorcyclesScreen(onBack: () -> Unit, onAddNew: () -> Unit, onEdit
                 TextButton(
                     onClick = {
                         if (editBrand.isBlank() || editModel.isBlank()) {
-                            Toast.makeText(context, "Brand and Model cannot be empty", Toast.LENGTH_SHORT).show()
+                            popupMessage = "Brand and model cannot be empty."
                             return@TextButton
                         }
                         isSaving = true
                         scope.launch {
                             try {
                                 val updated = motoToEdit!!.copy(brand = editBrand, model = editModel, plateNumber = editPlate)
+                                val id = requireNotNull(motoToEdit!!.id) { "Motorcycle ID is missing." }
+                                val userId = com.example.motolock.data.RiderAccount.userId()
                                 SupabaseClientManager.client.postgrest["motorcycles"].update(updated) {
-                                    filter { eq("id", motoToEdit!!.id ?: "") }
+                                    filter { eq("id", id); eq("user_id", userId) }
+                                    select()
                                 }
+                                val verified = SupabaseClientManager.client.postgrest["motorcycles"]
+                                    .select { filter { eq("id", id); eq("user_id", userId) } }
+                                    .decodeSingleOrNull<com.example.motolock.models.Motorcycle>()
+                                check(verified != null) { "Motorcycle update was not saved." }
+                                motorcycles = motorcycles.map { if (it.id == id) verified else it }
                                 motoToEdit = null
-                                loadMotorcycles()
-                                Toast.makeText(context, "Motorcycle updated", Toast.LENGTH_SHORT).show()
+                                popupMessage = "Motorcycle updated successfully."
                             } catch (e: Exception) {
-                                Toast.makeText(context, "Update failed", Toast.LENGTH_SHORT).show()
+                                popupMessage = "Could not update motorcycle. Check your connection and account permissions, then try again."
                                 isSaving = false
                             }
                         }
@@ -177,15 +263,7 @@ fun RegisteredMotorcyclesScreen(onBack: () -> Unit, onAddNew: () -> Unit, onEdit
                             IconButton(onClick = { onEdit(moto.id ?: "") }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF737987), modifier = Modifier.size(20.dp))
                             }
-                            IconButton(onClick = {
-                                scope.launch {
-                                    try {
-                                        SupabaseClientManager.client.postgrest["motorcycles"].delete { filter { eq("id", moto.id ?: "") } }
-                                        loadMotorcycles()
-                                        Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
-                                    } catch (e: Exception) { Toast.makeText(context, "Error deleting", Toast.LENGTH_SHORT).show() }
-                                }
-                            }) {
+                            IconButton(onClick = { motoToDelete = moto }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete", tint = motoRed, modifier = Modifier.size(20.dp))
                             }
                         }

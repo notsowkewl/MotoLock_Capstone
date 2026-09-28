@@ -2,7 +2,6 @@ package com.example.motolock
 
 import android.content.Intent
 import android.provider.ContactsContract
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -60,6 +59,7 @@ fun EmergencyContactsScreen(onBack: () -> Unit) {
     var isPhoneError by remember { mutableStateOf(false) }
     var relationship by remember { mutableStateOf("Friend") }
     var isLoading by remember { mutableStateOf(false) }
+    var popupMessage by remember { mutableStateOf<String?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -72,6 +72,21 @@ fun EmergencyContactsScreen(onBack: () -> Unit) {
     val bgBrush = Brush.linearGradient(
         colors = listOf(Color(0xFFFFFFFF), Color(0xFFFBFCFF))
     )
+
+    popupMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { popupMessage = null },
+            title = { Text("Emergency Contact", fontWeight = FontWeight.Bold) },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val saved = message == "Contact saved successfully."
+                    popupMessage = null
+                    if (saved) onBack()
+                }) { Text("OK", color = motoRed) }
+            }
+        )
+    }
 
     val contactPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -257,7 +272,7 @@ fun EmergencyContactsScreen(onBack: () -> Unit) {
         Button(
             onClick = {
                 if (selectedContactName.isBlank() || selectedContactPhone.isBlank()) {
-                    Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+                    popupMessage = "Please enter the contact name and phone number."
                     return@Button
                 }
                 val validatedPhone = formatAndValidatePhilippinePhone(selectedContactPhone)
@@ -308,12 +323,12 @@ fun EmergencyContactsScreen(onBack: () -> Unit) {
                             )
                             SupabaseClientManager.client.postgrest["emergency_contacts"].insert(contact)
                             
-                            onBack()
+                            popupMessage = "Contact saved successfully."
                         } else {
-                            Toast.makeText(context, "Error: Not logged in", Toast.LENGTH_SHORT).show()
+                            popupMessage = "You are not logged in. Sign in and try again."
                         }
                     } catch (e: Exception) {
-                        Toast.makeText(context, "Failed to save: ${e.message}", Toast.LENGTH_LONG).show()
+                        popupMessage = "Could not save contact. Check your connection and account permissions, then try again."
                     } finally {
                         isLoading = false
                     }

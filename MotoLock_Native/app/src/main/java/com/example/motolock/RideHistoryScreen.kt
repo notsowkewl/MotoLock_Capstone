@@ -10,6 +10,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import com.example.motolock.network.SupabaseClientManager
 import io.github.jan.supabase.gotrue.auth
@@ -30,6 +33,7 @@ fun RideHistoryScreen(onBack: () -> Unit) {
     val motoBlack = Color(0xFF101217)
     val textGray = Color(0xFF737987)
     val coroutineScope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
     var rides by remember { mutableStateOf<List<RideHistory>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf<String?>(null) }
@@ -53,7 +57,14 @@ fun RideHistoryScreen(onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(Unit) { loadRides() }
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            loadRides()
+            com.example.motolock.data.RideHistoryRepository.updates.collect {
+                loadRides()
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -118,14 +129,22 @@ fun RideHistoryScreen(onBack: () -> Unit) {
                         .padding(20.dp)
                 ) {
                     Column {
-                        val statusLabel = when (ride.status) {
+                        val statusLabel = when (ride.eventType) {
+                            "manual_override" -> "Manual override activated"
+                            else -> when (ride.status) {
                             "ongoing", "unlocked" -> "Motorcycle unlocked"
                             "completed" -> "Ride completed"
                             "failed_brac" -> "Alcohol detected"
                             "failed_face" -> "Face verification failed"
                             else -> ride.status.replace('_', ' ').replaceFirstChar { it.uppercase() }
+                            }
                         }
-                        Text("Status: $statusLabel", color = if (ride.status in listOf("ongoing", "unlocked", "completed")) Color(0xFF10B981) else Color(0xFFED1C24), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        val statusColor = when {
+                            ride.eventType == "manual_override" -> Color(0xFFB45309)
+                            ride.status in listOf("ongoing", "unlocked", "completed") -> Color(0xFF10B981)
+                            else -> Color(0xFFED1C24)
+                        }
+                        Text("Status: $statusLabel", color = statusColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Alcohol Level: ${ride.alcoholLevel?.let { "%.3f%%".format(it) } ?: "Not recorded"}", color = motoBlack, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(4.dp))

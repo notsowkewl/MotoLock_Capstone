@@ -48,6 +48,8 @@ import android.telephony.SmsManager
 object SessionState { 
     var isFirstDashboardLoad = true 
     var isMotorUnlocked by mutableStateOf(false)
+    var manualOverrideActive by mutableStateOf(false)
+    var alcoholResultActive by mutableStateOf(false)
     var activeBluetoothService by mutableStateOf<com.example.motolock.data.BluetoothService?>(null)
 }
 
@@ -109,6 +111,39 @@ fun DashboardScreen(
         motorStatus?.helmetDataFresh == true && motorStatus?.testStatus != "HELMET_NOT_FOUND"
     val noStatus = remember { kotlinx.coroutines.flow.MutableStateFlow<com.example.motolock.data.MotorStatus?>(null) }
     val latestMotorStatus by (activeService?.motorStatus ?: noStatus).collectAsState()
+    val manualOverrideWriteError by com.example.motolock.data.RideHistoryRepository.manualOverrideWriteError.collectAsState()
+
+    LaunchedEffect(activeService, hasSavedHardwarePairing) {
+        if (activeService?.isConnected == true || !hasSavedHardwarePairing) return@LaunchedEffect
+        val prefs = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
+        val mac = prefs.getString("esp32_mac", null) ?: return@LaunchedEffect
+        val encryptedSecret = prefs.getString("esp32_secret_enc", null) ?: return@LaunchedEffect
+        val secret = com.example.motolock.data.KeystoreHelper.decryptSecret(encryptedSecret)
+            ?: return@LaunchedEffect
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            return@LaunchedEffect
+        }
+
+        while (SessionState.activeBluetoothService?.isConnected != true) {
+            val service = com.example.motolock.data.BluetoothService(context)
+            val connectedAndAuthenticated = try {
+                service.connectToDevice(mac) && service.authenticateSession(secret)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                false
+            }
+            if (connectedAndAuthenticated) {
+                val current = SessionState.activeBluetoothService
+                if (current == null || !current.isConnected) {
+                    SessionState.activeBluetoothService = service
+                    return@LaunchedEffect
+                }
+            }
+            service.disconnect()
+            kotlinx.coroutines.delay(5000)
+        }
+    }
 
     var hasFaceId           by remember { mutableStateOf(false) }
     var hasEmergencyContact by remember { mutableStateOf(false) }
@@ -121,9 +156,24 @@ fun DashboardScreen(
         val lastSmsSent = remember { mutableStateOf(0L) }
 
     LaunchedEffect(deviceConnected, latestMotorStatus) {
-        if (!deviceConnected || latestMotorStatus?.locked == true) SessionState.isMotorUnlocked = false
+        val status = latestMotorStatus
+        if (status?.overrideActive == true) {
+            SessionState.manualOverrideActive = true
+            SessionState.isMotorUnlocked = true
+        } else {
+            if (status?.overrideStatusAvailable == true) {
+                SessionState.manualOverrideActive = false
+            }
+            if (status?.locked == true) {
+                SessionState.isMotorUnlocked = false
+            } else if (status?.locked == false) {
+                SessionState.isMotorUnlocked = true
+            } else if (!deviceConnected && !SessionState.manualOverrideActive) {
+                SessionState.isMotorUnlocked = false
+            }
+        }
         
-        val status = latestMotorStatus ?: return@LaunchedEffect
+        status ?: return@LaunchedEffect
         val isDrunkMidRide = status.alcoholDetected == true
         val isTampered = status.helmetConnected == false && SessionState.isMotorUnlocked
         
@@ -376,6 +426,39 @@ fun DashboardScreen(
                         iconBg = Color(0xFFE6F4EE),
                         label = "MotoLock Hardware",
                         value = "Motor: Connected\nHelmet: Connected through Motor\nWear sensor: ${latestMotorStatus?.helmetWearLabel() ?: "Unknown"}"
+                    )
+                }
+
+                if (SessionState.alcoholResultActive) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    InfoCard(
+                        icon = Icons.Default.Warning,
+                        iconTint = Color(0xFFB91C1C),
+                        iconBg = Color(0xFFFEE2E2),
+                        label = "Alcohol Detected",
+                        value = "Unlock stopped and the motor was locked. Wait for the sensor result to clear before starting another check."
+                    )
+                }
+
+                if (SessionState.manualOverrideActive || latestMotorStatus?.overrideActive == true) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    InfoCard(
+                        icon = Icons.Default.Warning,
+                        iconTint = Color(0xFFB45309),
+                        iconBg = Color(0xFFFFF4D6),
+                        label = "Manual Override Active",
+                        value = "Motor was enabled using the physical override. Turn off override on the motor when safe."
+                    )
+                }
+
+                if (manualOverrideWriteError != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    InfoCard(
+                        icon = Icons.Default.History,
+                        iconTint = Color(0xFFB91C1C),
+                        iconBg = Color(0xFFFEE2E2),
+                        label = "Ride History Sync",
+                        value = manualOverrideWriteError!!
                     )
                 }
 

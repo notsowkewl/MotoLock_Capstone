@@ -35,7 +35,13 @@ Classic Bluetooth device and is not paired directly through this screen.
    approximately 75 seconds in clean air. Warm-up telemetry cannot unlock.
 2. On an unpaired motor, the OLED shows an 8-digit one-time PIN. It expires and
    rotates every 10 minutes, and locks after five incorrect attempts for that
-   PIN. No motor button or Android Settings pairing is required.
+   PIN. A provisioned motor reuses its NVS credentials after reboot and does not
+   enter pairing mode or require a PIN. No motor button or Android Settings
+   pairing is required for first-time enrollment. Rebooting the motor should
+   retain its NVS pairing record; if a paired motor shows a pairing PIN, its
+   record is missing/unreadable or different firmware was uploaded. Re-pairing
+   by clearing NVS is required only after the app credentials are lost or motor
+   storage has actually been erased.
 3. Open **Pair MotoLock Hardware** in the updated app, select **MotoLock-Motor**,
    then enter the PIN from the motor OLED. The motor accepts it once, only while
    a fresh helmet packet is available. The app provisions a random phone secret;
@@ -61,7 +67,9 @@ Classic Bluetooth device and is not paired directly through this screen.
 Saved phone credentials are reused on reconnect. A different helmet key is
 rejected. Changing ownership or replacing a helmet requires deliberate clearing
 of the motor's pairing NVS and the app's corresponding pairing data; rebooting
-alone does not erase credentials. No automatic factory reset is added.
+alone does not erase credentials. The one-time PIN is only for a motor without
+saved pairing credentials; do not generate a new pairing PIN on every boot of a
+provisioned motor.
 
 ## Runtime behavior
 

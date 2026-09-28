@@ -180,6 +180,7 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
 
         scope.launch {
             var success = false
+            var savedSecret: String? = null
             var btService: com.example.motolock.data.BluetoothService? = null
             try {
                 // Step 1: Connect Bluetooth FIRST - don't proceed if can't connect
@@ -207,7 +208,7 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                     connectionProgress = "Authenticating motor..."
                     val prefs = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
                     val savedEncrypted = if (prefs.getString("esp32_mac", null) == device.address) prefs.getString("esp32_secret_enc", null) else null
-                    val savedSecret = savedEncrypted?.let { com.example.motolock.data.KeystoreHelper.decryptSecret(it) }
+                    savedSecret = savedEncrypted?.let { com.example.motolock.data.KeystoreHelper.decryptSecret(it) }
                     check(savedEncrypted == null || savedSecret != null) { "Could not read saved motor credentials." }
                     val secret = savedSecret ?: run {
                         val bytes = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
@@ -219,7 +220,11 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                     }
                     check(prefs.edit().putBoolean("device_registration_pending", true).commit()) { "Could not save registration state." }
                     // Preserve recovery credentials when pairing is interrupted or its reply is lost.
-                    svc.establishPairing(secret, pin) { connectionProgress = it }
+                    if (savedSecret != null && pin.isNullOrBlank()) {
+                        check(svc.authenticateSession(secret)) { "Motor authentication failed." }
+                    } else {
+                        svc.establishPairing(secret, pin) { connectionProgress = it }
+                    }
                     connectionProgress = "Verifying helmet identity..."
                     val actual = svc.readHelmetIdentity()
                     val saved = com.example.motolock.data.HelmetIdentity.load(context)
@@ -237,11 +242,20 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                 if (e is kotlinx.coroutines.CancellationException) { btService?.disconnect(); throw e }
                 e.printStackTrace()
                 // Keep the live motor link for STATUS updates and a setup retry.
-                pairingError = e.message ?: "Hardware setup did not finish. Retry when ready."
-                if (pairingError == "ERR_PAIR_PIN_EXPIRED" || pairingError == "ERR_PAIR_PIN_LOCKED") {
+                var error = e.message ?: "Hardware setup did not finish. Retry when ready."
+                if (savedSecret != null && error in setOf(
+                        "ERR_NOT_PROVISIONED", "ERR_AUTH_FAILED", "ERR_ALREADY_PROVISIONED"
+                    )) {
+                    error = "The motor no longer has its saved pairing. Closing the app should not require a PIN. Check that motor pairing storage is intact; enter a new OLED PIN only if the motor was intentionally reset."
+                }
+                pairingError = error
+                if (error.startsWith("ERR_") && error !in pairingPinErrors) {
+                    selectedPairingDevice = bluetoothAdapter?.getRemoteDevice(device.address)
+                }
+                if (error == "ERR_PAIR_PIN_EXPIRED" || error == "ERR_PAIR_PIN_LOCKED") {
                     oneTimePin = ""
                 }
-                if (!isHelmetAvailabilityError(pairingError)) {
+                if (!isHelmetAvailabilityError(error)) {
                     withContext(kotlinx.coroutines.Dispatchers.Main) {
                         Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
                     }
@@ -356,7 +370,7 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
             try {
                 val secret = com.example.motolock.data.KeystoreHelper.decryptSecret(encrypted) ?: error("Missing saved secret")
                 if (service.connectToDevice(mac)) {
-                    service.establishPairing(secret) { connectionProgress = it }
+                    check(service.authenticateSession(secret)) { "Motor authentication failed." }
                     val actual = service.readHelmetIdentity()
                     val saved = com.example.motolock.data.HelmetIdentity.load(context)
                     check(saved == null || saved.matches(actual)) { "Helmet identity changed. Re-pair deliberately." }
@@ -376,7 +390,14 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) { service.disconnect(); throw e }
-                pairingError = e.message ?: "Hardware setup did not finish. Retry when ready."
+                var error = e.message ?: "Hardware setup did not finish. Retry when ready."
+                if (error in setOf("ERR_NOT_PROVISIONED", "ERR_AUTH_FAILED", "ERR_ALREADY_PROVISIONED")) {
+                    error = "The motor no longer has its saved pairing. Closing the app should not require a PIN. Check that motor pairing storage is intact; enter a new OLED PIN only if the motor was intentionally reset."
+                }
+                pairingError = error
+                if (error.startsWith("ERR_") && error !in pairingPinErrors) {
+                    selectedPairingDevice = bluetoothAdapter?.getRemoteDevice(mac)
+                }
                 if (pairingError?.let { it in pairingPinErrors } == true) {
                     selectedPairingDevice = bluetoothAdapter?.getRemoteDevice(mac)
                 }

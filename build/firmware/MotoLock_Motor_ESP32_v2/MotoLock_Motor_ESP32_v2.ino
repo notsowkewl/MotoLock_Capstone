@@ -107,6 +107,8 @@ uint32_t appNonceMs = 0;
 bool sessionAuthenticated = false;
 bool appAuthorized = false;
 bool alcoholCheckActive = false; // Display only; never grants relay authorization.
+bool alcoholResultAvailable = false;
+float alcoholResultPeak = 0.0f;
 bool engineLatching = false;
 bool explicitUnlockRequired = false;
 bool pairingPinValid = false;
@@ -257,6 +259,8 @@ void sendAppStatus() {
   status += engineAllowed ? "true" : "false";
   status += ",\"startAuthorized\":";
   status += engineAllowed ? "true" : "false";
+  status += ",\"overrideActive\":";
+  status += overrideActive ? "true" : "false";
   status += ",\"breathTestActive\":false}";
   SerialBT.println(status);
 }
@@ -371,11 +375,30 @@ void handleAppCommand(const char *message) {
     memcpy(requestedChallenge, nonce, sizeof(nonce));
     challengeRequested = true;
     portEXIT_CRITICAL(&packetMux);
+  } else if (command.startsWith("RESULT:ALCOHOL:")) {
+    if (!sessionAuthenticated) { SerialBT.println("ERR_AUTH_REQUIRED"); return; }
+    const String value = command.substring(15);
+    char *end = nullptr;
+    const float peak = strtof(value.c_str(), &end);
+    if (!value.length() || end == value.c_str() || *end != '\0' || !(peak >= 0.0f && peak <= 0.5f)) {
+      SerialBT.println("ERR_INVALID_RESULT"); return;
+    }
+    alcoholResultPeak = peak;
+    alcoholResultAvailable = true;
+    alcoholCheckActive = false;
+    SerialBT.println("OK_RESULT");
   } else if (command == "PHASE:ALCOHOL" || command == "PHASE:FACE") {
     if (!sessionAuthenticated) { SerialBT.println("ERR_AUTH_REQUIRED"); return; }
     alcoholCheckActive = command == "PHASE:ALCOHOL";
+    alcoholResultAvailable = false;
     SerialBT.println("OK_PHASE");
   } else if (command == "LOCK") {
+    if (alcoholCheckActive && helmetPacketFresh() &&
+        estimateAlcoholPercent(latestPacket.mqRaw, latestPacket.cleanAirBaseline) >= ALCOHOL_LIMIT_PERCENT) {
+      alcoholResultPeak = estimateAlcoholPercent(latestPacket.mqRaw, latestPacket.cleanAirBaseline);
+      alcoholResultAvailable = true;
+    }
+    alcoholCheckActive = false;
     appAuthorized = false;
     overrideActive = false;
     engineLatching = false;
@@ -841,17 +864,25 @@ void handleOverrideButton() {
     if (now - lastReleaseTime > 400) {
       if (clickCount == 3) {
         bool packetFresh = helmetPacketFresh();
-        bool isDrunk = packetFresh && 
-                       (latestPacket.flags & FLAG_SENSOR_OK) && 
-                       (latestPacket.flags & FLAG_WARMED_UP) && 
-                       !(latestPacket.flags & FLAG_ALCOHOL_CLEAR);
+        bool sensorReady = packetFresh && latestPacket.version == 2 &&
+                           (latestPacket.flags & FLAG_SENSOR_OK) &&
+                           (latestPacket.flags & FLAG_WARMED_UP) &&
+                           !(latestPacket.flags & FLAG_STABILIZING);
+        float alcoholPercent = estimateAlcoholPercent(
+            latestPacket.mqRaw, latestPacket.cleanAirBaseline);
+        bool isDrunk = sensorReady &&
+                       (!(latestPacket.flags & FLAG_ALCOHOL_CLEAR) ||
+                        alcoholPercent >= ALCOHOL_LIMIT_PERCENT);
         
         if (isDrunk) {
           Serial.println("OVERRIDE REJECTED: ALCOHOL DETECTED");
           sendAlertWithCooldown("override rejected (alcohol positive)");
+        } else if (!sensorReady) {
+          Serial.println("OVERRIDE REJECTED: SENSOR NOT READY");
         } else {
           Serial.println("3 CLICKS DETECTED: MANUAL OVERRIDE ACTIVATED (STEADY OPEN)");
           overrideActive = true;
+          sendAppStatus();
           // No timer! It stays active until hardware powers off
           sendAlertWithCooldown("manual override activated (3 clicks)");
         }
@@ -950,8 +981,17 @@ void loop() {
 
     // Engine Start Interlock (Latching)
     // Alcohol overrides the latch; recovery requires a new authenticated unlock.
-    const bool alcoholBlocked = packetFresh && sensorOk && warmedUp &&
+  const bool alcoholBlocked = packetFresh && sensorOk && warmedUp &&
         (!alcoholClear || alcoholPercent >= ALCOHOL_LIMIT_PERCENT);
+    const bool overrideSafetyReady = packetFresh && packetVersionOk && warmedUp &&
+        sensorOk && !stabilizing && alcoholClear &&
+        alcoholPercent < ALCOHOL_LIMIT_PERCENT;
+    if (overrideActive && !overrideSafetyReady) {
+        overrideActive = false;
+        engineLatching = false;
+        setEngineAllowed(false);
+        Serial.println("MANUAL OVERRIDE STOPPED: SENSOR NOT SAFE");
+    }
     if (alcoholBlocked) {
         const bool newlyBlocked = !explicitUnlockRequired;
         explicitUnlockRequired = true;
@@ -983,6 +1023,10 @@ void loop() {
       showStatus(pinLine,
                  pairingPinAttempts >= PAIRING_PIN_MAX_ATTEMPTS ? "PIN locked, wait rotate" : "Enter PIN in app",
                  packetFresh ? "Helmet connected" : "Turn helmet on");
+    } else if (alcoholResultAvailable) {
+      char peakLine[32];
+      snprintf(peakLine, sizeof(peakLine), "Peak: %.3f%%", alcoholResultPeak);
+      showStatus("Alcohol detected", engineOutputAllowed ? "Check engine state" : "Engine locked", peakLine);
     } else if (overrideActive) {
       showStatus("OVERRIDE ACTIVE", "Engine enabled", alcoholLine);
     } else if (!packetFresh) {

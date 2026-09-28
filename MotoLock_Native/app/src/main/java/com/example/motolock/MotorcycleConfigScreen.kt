@@ -252,7 +252,7 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit, motoId: Strin
                     errorMessage = null
                     val finalBrand = if (selectedBrand == "Other") manualBrand.trim() else selectedBrand.trim()
                     val finalModel = if (selectedModel == "Other") manualModel.trim() else selectedModel.trim()
-                    val finalPlate = if (plateNumber.trim().isNotEmpty()) plateNumber.trim() else "UNKNOWN"
+                    val finalPlate = plateNumber.trim().takeIf { it.isNotEmpty() }
 
                     if (finalBrand.isEmpty()) { errorMessage = "Please select or enter a brand."; return@Button }
                     if (finalModel.isEmpty()) { errorMessage = "Please select or enter a model."; return@Button }
@@ -260,31 +260,43 @@ fun MotorcycleConfigScreen(onNext: () -> Unit, onBack: () -> Unit, motoId: Strin
                     isSaving = true
                     scope.launch {
                         try {
-                            val authUser = com.example.motolock.network.SupabaseClientManager.client.auth.currentSessionOrNull()?.user
-                            if (authUser != null) {
-                                var userProfile = com.example.motolock.network.SupabaseClientManager.client.postgrest["users"].select { filter { eq("id", authUser.id) } }.decodeSingleOrNull<com.example.motolock.models.User>()
-                                if (userProfile == null && authUser.email != null) {
-                                    userProfile = com.example.motolock.network.SupabaseClientManager.client.postgrest["users"].select { filter { eq("email", authUser.email!!) } }.decodeList<com.example.motolock.models.User>().firstOrNull()
-                                }
-                                val targetUserId = userProfile?.id ?: authUser.id
+                            val userProfile = com.example.motolock.data.RiderAccount.requireProfile()
+                            val targetUserId = userProfile.id
 
-                                val moto = com.example.motolock.models.Motorcycle(
-                                    userId = targetUserId,
-                                    brand = finalBrand,
-                                    model = finalModel,
-                                    year = 2024,
-                                    plateNumber = finalPlate
-                                )
-                                if (motoId != null) {
-                                    com.example.motolock.network.SupabaseClientManager.client.postgrest["motorcycles"].update(moto.copy(id = motoId)) { filter { eq("id", motoId) } }
-                                } else {
-                                    com.example.motolock.network.SupabaseClientManager.client.postgrest["motorcycles"].insert(moto)
+                            val moto = com.example.motolock.models.Motorcycle(
+                                userId = targetUserId,
+                                brand = finalBrand,
+                                model = finalModel,
+                                year = 2024,
+                                plateNumber = finalPlate
+                            )
+                            if (motoId != null) {
+                                com.example.motolock.network.SupabaseClientManager.client.postgrest["motorcycles"].update(moto.copy(id = motoId)) {
+                                    filter { eq("id", motoId); eq("user_id", targetUserId) }
                                 }
-                                onNext()
-                            } else { errorMessage = "You are not logged in." }
+                                val saved = com.example.motolock.network.SupabaseClientManager.client.postgrest["motorcycles"]
+                                    .select { filter { eq("id", motoId); eq("user_id", targetUserId) } }
+                                    .decodeSingleOrNull<com.example.motolock.models.Motorcycle>()
+                                check(saved != null) { "Motorcycle was not updated. Check your account permissions." }
+                            } else {
+                                com.example.motolock.network.SupabaseClientManager.client.postgrest["motorcycles"].insert(moto) {
+                                    select()
+                                }.decodeSingle<com.example.motolock.models.Motorcycle>()
+                            }
+                            onNext()
                         } catch (e: Exception) {
                             e.printStackTrace()
-                            errorMessage = "Failed to save: ${e.message}"
+                            val detail = e.message.orEmpty()
+                                .substringBefore("URL:")
+                                .substringBefore("Headers:")
+                                .replace(Regex("[\\r\\n\\t]+"), " ")
+                                .take(220)
+                            errorMessage = when {
+                                "motorcycles_plate_number_key" in detail || "duplicate key value" in detail.lowercase() ->
+                                    "This plate number is already registered. Enter a different plate number or leave it blank."
+                                detail.isNotBlank() -> "Could not save motorcycle: $detail"
+                                else -> "Could not save motorcycle information. Check your connection and account permissions, then try again."
+                            }
                         } finally {
                             isSaving = false
                         }
@@ -397,4 +409,3 @@ fun SearchableDropdown(
         }
     }
 }
-

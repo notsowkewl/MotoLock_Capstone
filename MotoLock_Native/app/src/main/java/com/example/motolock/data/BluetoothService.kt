@@ -37,7 +37,9 @@ data class MotorStatus(
     val mq3BaselineReady: Boolean? = null,
     val mq3Stabilizing: Boolean? = null,
     val mq3Value: Int? = null,
-    val mq3Baseline: Int? = null
+    val mq3Baseline: Int? = null,
+    val overrideActive: Boolean = false,
+    val overrideStatusAvailable: Boolean = false
 ) {
     val alcoholPercent: Float?
         get() {
@@ -76,7 +78,9 @@ data class MotorStatus(
                 (json["mq3BaselineReady"] as? JsonPrimitive)?.booleanOrNull,
                 (json["mq3Stabilizing"] as? JsonPrimitive)?.booleanOrNull,
                 (json["mq3Value"] as? JsonPrimitive)?.intOrNull,
-                (json["mq3Baseline"] as? JsonPrimitive)?.intOrNull
+                (json["mq3Baseline"] as? JsonPrimitive)?.intOrNull,
+                (json["overrideActive"] as? JsonPrimitive)?.booleanOrNull == true,
+                (json["overrideActive"] as? JsonPrimitive)?.booleanOrNull != null
             )
         }.getOrNull()
     }
@@ -95,6 +99,13 @@ class BluetoothService(context: Context) {
     val connectionState = mutableConnectionState.asStateFlow()
     private val mutableMotorStatus = MutableStateFlow<MotorStatus?>(null)
     val motorStatus = mutableMotorStatus.asStateFlow()
+    private val statusScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile private var alcoholResultActive = false
+    @Volatile private var overrideEventActive = false
+    @Volatile private var overrideWriteInFlight = false
+    @Volatile private var nextOverrideRetryAt = 0L
+    @Volatile private var appUnlockInProgress = false
+    @Volatile private var appUnlockActive = false
     private var receiver: BroadcastReceiver? = null
     private var heartbeatExecutor: java.util.concurrent.ScheduledExecutorService? = null
     @Volatile private var heartbeat: BluetoothHeartbeat? = null
@@ -163,7 +174,76 @@ class BluetoothService(context: Context) {
                     line.setLength(0)
                     synchronized(lock) {
                         if (socket !== owner) return
-                        MotorStatus.parse(text, SystemClock.elapsedRealtime())?.let { mutableMotorStatus.value = it }
+                        MotorStatus.parse(text, SystemClock.elapsedRealtime())?.let { parsedStatus ->
+                            // Only the firmware's explicit 3-click override flag identifies
+                            // a physical override. An unlocked motor alone is not evidence:
+                            // app authorization can remain active after the app restarts.
+                            val status = parsedStatus
+                            mutableMotorStatus.value = status
+                            if (status.overrideActive) {
+                                com.example.motolock.SessionState.manualOverrideActive = true
+                                com.example.motolock.SessionState.isMotorUnlocked = true
+                            } else if (status.overrideStatusAvailable) {
+                                com.example.motolock.SessionState.manualOverrideActive = false
+                            }
+                            if (status.locked == true) {
+                                com.example.motolock.SessionState.isMotorUnlocked = false
+                            } else if (status.locked == false) {
+                                com.example.motolock.SessionState.isMotorUnlocked = true
+                            }
+                            val resultDetected = status.alcoholDetected == true || status.testStatus == "RESULT_FAIL"
+                            if (resultDetected && !alcoholResultActive) {
+                                alcoholResultActive = true
+                                com.example.motolock.SessionState.alcoholResultActive = true
+                                com.example.motolock.SessionState.isMotorUnlocked = false
+                                RideHistoryRepository.notifyAlcoholResultDetected(status)
+                                statusScope.launch {
+                                    try {
+                                        if (isConnected) sendLockCommand()
+                                        RideHistoryRepository.recordAlcoholDetected(appContext, status.alcoholPercent)
+                                    } catch (e: Exception) {
+                                        if (e is CancellationException) throw e
+                                        e.printStackTrace()
+                                    }
+                                }
+                            } else if (!resultDetected && status.alcoholDetected == false && status.testStatus != "RESULT_FAIL") {
+                                alcoholResultActive = false
+                                com.example.motolock.SessionState.alcoholResultActive = false
+                            }
+                            if (status.overrideActive) {
+                                overrideEventActive = true
+                                if (!overrideWriteInFlight &&
+                                    SystemClock.elapsedRealtime() >= nextOverrideRetryAt) {
+                                    val eventId = RideHistoryRepository.claimManualOverride(appContext)
+                                    if (eventId != null) {
+                                        overrideWriteInFlight = true
+                                        RideHistoryRepository.notifyManualOverrideDetected(status)
+                                        statusScope.launch {
+                                            try {
+                                                RideHistoryRepository.recordManualOverride(
+                                                    appContext,
+                                                    status.alcoholPercent,
+                                                    eventId
+                                                )
+                                                RideHistoryRepository.finishManualOverride(appContext, eventId)
+                                            } catch (e: Exception) {
+                                                if (e is CancellationException) throw e
+                                                RideHistoryRepository.retryManualOverride(appContext, eventId)
+                                                nextOverrideRetryAt = SystemClock.elapsedRealtime() + 5000L
+                                                e.printStackTrace()
+                                            } finally {
+                                                overrideWriteInFlight = false
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if (status.locked == true ||
+                                (status.overrideStatusAvailable && !status.overrideActive)) {
+                                overrideEventActive = false
+                                nextOverrideRetryAt = 0L
+                                RideHistoryRepository.clearManualOverride(appContext)
+                            }
+                        }
                         if (heartbeat?.receive(text, SystemClock.elapsedRealtime()) == true) {
                             mutableConnectionState.value = true
                             linkReady?.complete(Unit)
@@ -250,13 +330,29 @@ class BluetoothService(context: Context) {
     }
 
     suspend fun authenticateSession(secret: String): Boolean = authenticate(secret, false)
-    suspend fun sendUnlockCommand(deviceSecret: String): Boolean = authenticate(deviceSecret, true)
+    suspend fun sendUnlockCommand(deviceSecret: String): Boolean {
+        appUnlockInProgress = true
+        return try {
+            authenticate(deviceSecret, true).also { appUnlockActive = it }
+        } finally {
+            appUnlockInProgress = false
+        }
+    }
+    suspend fun showAlcoholResult(peak: Float?) = commands.withLock {
+        if (peak != null) {
+            require(peak.isFinite() && peak in 0f..0.5f)
+            request("RESULT:ALCOHOL:" + peak.toString()) { it == "OK_RESULT" }
+        }
+        Unit
+    }
     suspend fun setAlcoholCheckPhase(active: Boolean) = commands.withLock {
         request(if (active) "PHASE:ALCOHOL" else "PHASE:FACE") { it == "OK_PHASE" }
         Unit
     }
     suspend fun sendLockCommand(): Boolean = commands.withLock {
-        request("LOCK") { it == "OK_LOCKED" } == "OK_LOCKED"
+        (request("LOCK") { it == "OK_LOCKED" } == "OK_LOCKED").also { locked ->
+            if (locked) appUnlockActive = false
+        }
     }
     suspend fun readHelmetIdentity(): HelmetIdentity = commands.withLock {
         var timeouts = 0
