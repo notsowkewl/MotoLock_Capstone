@@ -12,6 +12,7 @@ const riders: Rider[] = [
   { id: 'jenna', full_name: 'Jenna Diaz', email: 'jenna@example.com', phone: '09123456789', role: 'rider', face_enrolled: true,
     motorcycles: [{ id: 1, plate_number: 'CDH976', model: 'Dominar', year: 2024, color: 'Black' }, { id: 2, plate_number: 'UNKNOWN', model: 'Barako II' }],
     contacts: [{ id: 1, name: 'Mama', role: 'Family', phone: '09312345606' }, { id: 2, name: 'Ate Yanna', role: 'Friend', phone_number: '09112345607' }] },
+  { id: 'bea', full_name: 'Bea Reyes', email: 'bea@example.com', role: 'rider', face_enrolled: false },
   { id: 'ana', full_name: 'Ana Reyes', email: 'ana@example.com', role: 'admin', face_enrolled: false },
 ];
 function setup(data = riders) {
@@ -23,6 +24,8 @@ function setup(data = riders) {
 it('shows seven columns without rider mobile numbers and retains motorcycles and contacts', () => {
   setup();
   expect(screen.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Rider Name', 'Email', 'Motorcycle', 'Emergency Contacts', 'Role', 'Face ID Status', 'Actions']);
+  expect(screen.queryByRole('button', { name: 'View rider Ana Reyes' })).toBeNull();
+  expect(screen.getByText('Showing 1–2 of 2 riders')).toBeTruthy();
   expect(screen.getByText('No plate recorded')).toBeTruthy();
   expect(screen.getByText('Mama')).toBeTruthy();
   expect(screen.queryByText('Ate Yanna')).toBeNull();
@@ -42,24 +45,23 @@ it('shows seven columns without rider mobile numbers and retains motorcycles and
   expect(riders[0].motorcycles?.[1].plate_number).toBe('UNKNOWN');
 });
 
-it('filters by email, role and Face ID without changing source data', () => {
+it('shows no role or Face ID filters and searches riders without including administrators', () => {
   setup();
+  expect(screen.queryByLabelText('Role')).toBeNull();
+  expect(screen.queryByLabelText('Face ID Status')).toBeNull();
   fireEvent.change(screen.getByRole('searchbox'), { target: { value: ' JENNA@ ' } });
   expect(screen.getByText('Showing 1–1 of 1 riders')).toBeTruthy();
-  fireEvent.change(screen.getByLabelText('Face ID Status'), { target: { value: 'missing' } });
-  expect(screen.getByText('No matching riders')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-  fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'admin' } });
-  expect(screen.getByRole('button', { name: 'View rider Ana Reyes' })).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  expect(screen.getByText('Showing 1–2 of 2 riders')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'View rider Ana Reyes' })).toBeNull();
 });
 
 it('sorts names and preserves edit, delete-confirmation, and add callbacks', () => {
   const callbacks = setup();
   const names = () => screen.getAllByRole('button', { name: /^View rider/ }).map(button => button.textContent);
-  expect(names()).toEqual(['Ana Reyes', 'Jenna Diaz']);
+  expect(names()).toEqual(['Bea Reyes', 'Jenna Diaz']);
   fireEvent.change(screen.getByLabelText('Sort Order'), { target: { value: 'name-desc' } });
-  expect(names()).toEqual(['Jenna Diaz', 'Ana Reyes']);
+  expect(names()).toEqual(['Jenna Diaz', 'Bea Reyes']);
   const row = screen.getByRole('button', { name: 'View rider Jenna Diaz' }).closest('tr')!;
   fireEvent.click(within(row).getByRole('button', { name: 'Edit' }));
   expect(callbacks.onEdit).toHaveBeenCalledWith(riders[0]);
@@ -79,7 +81,7 @@ it('keeps pagination and resets the page when filtering', () => {
 
 it('handles no contacts, a single contact, and plural additional counts', () => {
   setup([
-    riders[1],
+    { ...riders[2], role: 'rider' },
     { ...riders[0], id: 'single', full_name: 'Single Contact', contacts: riders[0].contacts!.slice(0, 1) },
     { ...riders[0], contacts: [...riders[0].contacts!, { id: 3, name: 'Daniel', role: 'Sibling', phone: '09212345668' }] },
   ]);

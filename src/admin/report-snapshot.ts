@@ -45,7 +45,7 @@ export function createReportSnapshot(type: string, records: ReportRow[], metadat
   return {
     type, title: reportOptions.find(option => option.value === type)?.label || ({ 'alcohol-detection': 'Alcohol Detection Report', 'sobriety-test': 'Sobriety Test Report' } as Record<string, string>)[type] || 'MotoLock Report',
     generatedAt: new Date().toISOString(), ...metadata,
-    headers: rides ? ['Date & Time', 'Rider Details', 'BAC Level', 'Sobriety Status', 'Failure Reason']
+    headers: rides ? ['Date & Time', 'Rider Details', 'BAC Level', 'Sobriety Status', 'Result Details']
       : users ? ['Rider Name', 'Email', 'Role', 'Face ID'] : ['Timestamp', 'Record ID', 'Details'],
     rows: sortedRecords.map(row => {
       if (rides) {
@@ -53,8 +53,14 @@ export function createReportSnapshot(type: string, records: ReportRow[], metadat
         const tested = Number.isFinite(reading) && reading >= 0;
         const configuredThreshold = Number(metadata.alcoholThreshold);
         const threshold = Number.isFinite(configuredThreshold) && configuredThreshold >= 0 ? configuredThreshold : 0.05;
+        const status = (row.status || '').trim().toLowerCase().replace(/[\s-]+/g, '_').replace(/^ride_/, '');
+        const stoppedBeforeSobriety = ['failed_face', 'failed_identity', 'verification_failed', 'failed_helmet', 'helmet_check_failed'].includes(status)
+          || row.face_verified === false || row.helmet_verified === false;
+        const inProgress = !tested && !stoppedBeforeSobriety && ['ongoing', 'in_progress', 'started', 'pending', 'testing', 'verifying'].includes(status);
+        const showSobrietyResult = tested && !stoppedBeforeSobriety;
         return [reportDate(row.created_at), [row.full_name || 'Not Recorded', row.email].filter(Boolean).join('\n'),
-          tested ? `${reading.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 20, useGrouping: false })} BAC` : 'Not Tested', tested ? reading > threshold ? 'Not Sober' : 'Sober' : 'Not Tested',
+          stoppedBeforeSobriety ? '—' : inProgress ? 'In progress' : tested ? `${reading.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 20, useGrouping: false })} BAC` : 'Not Tested',
+          stoppedBeforeSobriety ? '—' : inProgress ? 'In progress' : showSobrietyResult ? reading > threshold ? 'Not Sober' : 'Sober' : 'Not Tested',
           row.failure_reason?.trim() || 'Not Recorded'];
       }
       if (users) return [row.full_name || 'Not Recorded', row.email || 'Not Recorded', row.role || 'Not Recorded', row.face_enrolled ? 'Enrolled' : 'Missing'];

@@ -11,6 +11,14 @@ export const defaultReportFilters: ReportFilters = { search: '', start: '', end:
 const text = (value: unknown): string => typeof value === 'string' ? value.trim() : typeof value === 'number' ? String(value) : '';
 const key = text;
 const normalized = (value: unknown) => text(value).toLowerCase().replace(/[\s-]+/g, '_');
+const ongoingStatuses = ['ongoing', 'in_progress', 'started', 'pending', 'testing', 'verifying'];
+const hasBracResult = (row: ReportRecord) => {
+  const value = row.initial_brac_level ?? row.brac_level ?? row.brac;
+  return value != null && text(value) !== '' && Number.isFinite(Number(value)) && Number(value) >= 0;
+};
+const failedBeforeSobriety = (row: ReportRecord) => ['failed_face', 'failed_identity', 'verification_failed', 'failed_helmet', 'helmet_check_failed'].includes(normalized(row.status))
+  || row.face_verified === false || row.helmet_verified === false;
+const inProgress = (row: ReportRecord) => ongoingStatuses.includes(normalized(row.status)) && !hasBracResult(row) && !failedBeforeSobriety(row);
 export const accountStatusValue = (value: unknown) => normalized(value) === 'inactive' ? 'not_active' : normalized(value);
 export const humanLabel = (value: unknown) => text(value).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Not Recorded';
 const show = (value: unknown) => text(value) || 'Not Recorded';
@@ -18,31 +26,58 @@ function object(value: unknown): ReportRecord {
   if (typeof value === 'string') { try { return object(JSON.parse(value)); } catch { return {}; } }
   return value && typeof value === 'object' && !Array.isArray(value) ? value as ReportRecord : {};
 }
-const measured = (row: ReportRecord) => text(row.initial_brac_level) !== '' && Number.isFinite(Number(row.initial_brac_level)) && Number(row.initial_brac_level) >= 0;
+const measured = (row: ReportRecord) => hasBracResult(row) && !failedBeforeSobriety(row);
 const timestamp = (row: ReportRecord) => text(row.start_time) || text(row.created_at);
-const outcome = (row: ReportRecord) => reportRideStatus({ id: key(row.id), status: text(row.status) });
 const sobrietyFailure = (row: ReportRecord) => ['failed_brac', 'failed_sobriety', 'sobriety_test_failed'].includes(normalized(row.status));
 const lockout = (row: ReportRecord) => row.lockout_triggered === true || row.lockout_triggered === 1 || ['lockout', 'locked_out', 'lockout_triggered'].includes(normalized(row.status));
-const failureReason = (row: ReportRecord, threshold: string) => {
-  const recorded = text(row.failure_reason) || text(row.lockout_reason) || text(row.reason);
-  if (recorded) return recorded;
-  const status = normalized(row.status);
-  if (['passed', 'completed', 'cleared'].includes(status)) return 'Not applicable — no failure recorded.';
-  if (['failed_face', 'failed_identity', 'verification_failed'].includes(status)) return 'Face or identity verification failed; no more specific reason was saved.';
-  if (['failed_helmet', 'helmet_check_failed'].includes(status)) return 'Helmet verification failed; no more specific reason was saved.';
-  if (sobrietyFailure(row)) {
-    return 'Sobriety check failed, but no BrAC reading was saved.';
+const bracFailure = (row: ReportRecord, threshold: string) => {
+  if (!hasBracResult(row) || failedBeforeSobriety(row)) return false;
+  const limit = Number(threshold);
+  return Number(row.initial_brac_level ?? row.brac_level ?? row.brac) > (Number.isFinite(limit) && limit >= 0 ? limit : 0.05);
+};
+const outcome = (row: ReportRecord, threshold: string) => {
+  const savedStatus = reportRideStatus({ id: key(row.id), status: text(row.status) });
+  if (failedBeforeSobriety(row)) return 'Failed';
+  if (savedStatus === 'Failed' && (!hasBracResult(row) || !sobrietyFailure(row))) return savedStatus;
+  if (inProgress(row)) return 'Ongoing';
+  if (hasBracResult(row)) {
+    const value = Number(row.initial_brac_level ?? row.brac_level ?? row.brac);
+    const limit = Number(threshold);
+    return value > (Number.isFinite(limit) && limit >= 0 ? limit : 0.05) ? 'Failed' : 'Passed';
   }
-  if (lockout(row)) return 'A lockout was triggered; its specific cause was not saved.';
-  if (['ongoing', 'in_progress', 'started', 'pending', 'testing', 'verifying'].includes(status)) return 'Not applicable — this test is still in progress.';
-  return 'Failure was recorded, but its specific reason was not saved.';
+  return savedStatus;
+};
+const progressDetail = (row: ReportRecord) => {
+  const stage = normalized(row.current_stage || row.verification_stage || row.test_stage);
+  const stageLabels: Record<string, string> = {
+    bare_face: 'face verification', face: 'face verification', face_verification: 'face verification',
+    put_on_helmet: 'helmet verification', helmet: 'helmet verification', helmet_check: 'helmet verification', helmet_verification: 'helmet verification',
+    alcohol: 'sobriety testing', brac: 'sobriety testing', sobriety: 'sobriety testing', sobriety_test: 'sobriety testing', alcohol_test: 'sobriety testing',
+  };
+  const label = stageLabels[stage] || (stage ? humanLabel(stage).toLowerCase() : '');
+  return label ? `In progress — verifying ${label}.` : 'In progress.';
+};
+const failureReason = (row: ReportRecord, threshold: string) => {
+  const status = normalized(row.status);
+  if (inProgress(row)) return progressDetail(row);
+  const recorded = text(row.failure_reason) || text(row.lockout_reason) || text(row.reason);
+  if (['failed_face', 'failed_identity', 'verification_failed'].includes(status)) return recorded || 'Face or identity verification failed; no more specific reason was saved.';
+  if (['failed_helmet', 'helmet_check_failed'].includes(status)) return recorded || 'Helmet verification failed; no more specific reason was saved.';
+  if (lockout(row)) return text(row.lockout_reason) || recorded || 'A lockout was triggered; its specific cause was not saved.';
+  if (bracFailure(row, threshold) || (sobrietyFailure(row) && !hasBracResult(row))) return text(row.lockout_reason) || 'Lockout triggered after the failed sobriety check.';
+  if (['failed', 'completed_with_issues', 'restricted'].includes(status)) return recorded || 'Failure was recorded, but its specific reason was not saved.';
+  if (hasBracResult(row)) {
+    const limitValue = Number(threshold);
+    const limit = Number.isFinite(limitValue) && limitValue >= 0 ? limitValue : 0.05;
+    return Number(row.initial_brac_level ?? row.brac_level ?? row.brac) > limit
+      ? 'Lockout triggered — the BrAC result exceeded the allowed limit.'
+      : 'Sobriety test completed successfully.';
+  }
+  if (['passed', 'completed', 'cleared'].includes(status)) return 'Safety verification completed successfully.';
+  if (recorded) return recorded;
+  return 'No result details were recorded.';
 };
 const failedViewReason = (row: ReportRecord, threshold: string) => {
-  const readingValue = row.initial_brac_level ?? row.brac_level ?? row.brac;
-  const reading = readingValue == null || text(readingValue) === '' ? NaN : Number(readingValue);
-  const limitValue = Number(threshold);
-  const limit = Number.isFinite(limitValue) && limitValue >= 0 ? limitValue : 0.05;
-  if (Number.isFinite(reading) && reading >= 0) return reading > limit ? 'Alcohol detected' : '';
   return failureReason(row, threshold);
 };
 export function reportControls(type: string, view: string) {
@@ -83,9 +118,25 @@ export function buildOrganizedReport(type: string, view: string, data: ReportSou
     return (filters.sort === 'oldest' ? 1 : -1) * (x - y);
   });
   // Reuse the existing sobriety classification and its configured threshold.
+  const savedFailureDetail = (row: ReportRecord) => {
+    const direct = text(row.failure_reason) || text(row.reason) || text(row.incident_details);
+    if (direct) return direct;
+    if (!key(row.id)) return '';
+    for (const event of data.events) {
+      const details = object(event.action_details);
+      if (key(details.ride_id) !== key(row.id)) continue;
+      const action = normalized(event.action_type);
+      if (!['failed_face', 'face_verification_failed', 'failed_identity', 'failed_helmet', 'helmet_check_failed'].includes(action)) continue;
+      const recorded = text(details.failure_reason) || text(details.reason) || text(details.message) || text(details.error);
+      if (recorded) return recorded;
+    }
+    return '';
+  };
   const asReportRow = (row: ReportRecord) => ({ id: key(row.id), created_at: timestamp(row), full_name: rider(row.user_id).split('\n')[0],
-    email: text(userMap.get(key(row.user_id))?.email), brac: text(row.initial_brac_level), status: text(row.status),
-    failure_reason: failureReason(row, threshold) });
+    email: text(userMap.get(key(row.user_id))?.email), brac: text(row.initial_brac_level ?? row.brac_level ?? row.brac), status: text(row.status),
+    face_verified: row.face_verified === false ? false : undefined, helmet_verified: row.helmet_verified === false ? false : undefined,
+    current_stage: text(row.current_stage || row.verification_stage || row.test_stage),
+    failure_reason: failureReason({ ...row, failure_reason: savedFailureDetail(row) || row.failure_reason }, threshold) });
   const detailSnapshot = (rows: ReportRecord[]) => createReportSnapshot('sobriety-test', rows.map(asReportRow), { coverage: '', filters: '', alcoholThreshold: threshold, sortOrder: filters.sort });
   const sobrietyCache = new Map<ReportRecord, string>();
   const sober = (row: ReportRecord) => {
@@ -104,7 +155,7 @@ export function buildOrganizedReport(type: string, view: string, data: ReportSou
   const rides = ordered(data.rides.filter(row => riderMatches(row.user_id) && inRange(timestamp(row))
     && (!controls.sobriety || filters.sobriety === 'all' || sober(row) === filters.sobriety)));
   const stat = (label: string, value: number | string) => ({ label, value });
-  const safetyStats = (rows: ReportRecord[]) => [stat('Total Records', rows.length), ...['Sober', 'Not Sober'].map(label => stat(label, rows.filter(row => sober(row) === label).length)), ...['Passed', 'Failed', 'Ongoing'].map(label => stat(label, rows.filter(row => outcome(row) === label).length))];
+  const safetyStats = (rows: ReportRecord[]) => [stat('Total Records', rows.length), ...['Sober', 'Not Sober'].map(label => stat(label, rows.filter(row => sober(row) === label).length)), ...['Passed', 'Failed', 'Ongoing'].map(label => stat(label, rows.filter(row => outcome(row, threshold) === label).length))];
   if (controls.safety) {
     if (view === 'details') {
       const detail = detailSnapshot(rides);
@@ -118,15 +169,16 @@ export function buildOrganizedReport(type: string, view: string, data: ReportSou
         return [{ ...details, id: event.id, user_id: linked?.user_id || details.user_id || event.user_id,
           start_time: event.created_at, status: event.action_type, initial_brac_level: details.initial_brac_level ?? details.brac_level }];
       });
-      const failed = ordered([...data.rides.filter(row => sobrietyFailure(row) || lockout(row)), ...events].filter(row =>
-        // A recorded sobriety-failure status with a within-limit reading is inconsistent;
-        // keep it out of this failed-only view unless an independent lockout was recorded.
-        (lockout(row) || (sobrietyFailure(row) && sober(row) !== 'Sober'))
-        && riderMatches(row.user_id) && inRange(timestamp(row))
-        && (filters.failure === 'all' || (filters.failure === 'sobriety' ? sobrietyFailure(row) : lockout(row)))));
-      snapshot.headers = ['Date & Time', 'Rider Details', 'BAC Level', 'Sobriety Status', 'Failure / Lockout Reason'];
+      const failedCandidates = [...data.rides.filter(row => sobrietyFailure(row) || lockout(row) || bracFailure(row, threshold)), ...events];
+      const failed = ordered(failedCandidates.filter(row => {
+        const failedResult = lockout(row) || bracFailure(row, threshold) || (sobrietyFailure(row) && sober(row) !== 'Sober');
+        const matchesFailureFilter = filters.failure === 'all'
+          || (filters.failure === 'sobriety' ? sobrietyFailure(row) || bracFailure(row, threshold) : lockout(row));
+        return failedResult && riderMatches(row.user_id) && inRange(timestamp(row)) && matchesFailureFilter;
+      }));
+      snapshot.headers = ['Date & Time', 'Rider Details', 'BAC Level', 'Sobriety Status', 'Result Details'];
       snapshot.rows = failed.map(row => { const cells = detailSnapshot([row]).rows[0]; return [...cells.slice(0, 4), failedViewReason(row, threshold)]; });
-      snapshot.summary = [stat('Total Failed Events', failed.length), stat('Sobriety Failures', failed.filter(sobrietyFailure).length), stat('Lockouts', failed.filter(lockout).length), stat('Riders Affected', new Set(failed.map(row => key(row.user_id)).filter(Boolean)).size)];
+      snapshot.summary = [stat('Total Failed Events', failed.length), stat('Sobriety Failures', failed.filter(row => sobrietyFailure(row) || bracFailure(row, threshold)).length), stat('Lockouts', failed.filter(lockout).length), stat('Riders Affected', new Set(failed.map(row => key(row.user_id)).filter(Boolean)).size)];
     } else {
       snapshot.title = 'Sobriety Trends';
       const tests = rides.filter(measured), dated = tests.filter(row => Number.isFinite(Date.parse(timestamp(row))));
@@ -138,14 +190,14 @@ export function buildOrganizedReport(type: string, view: string, data: ReportSou
       }
       const undated = tests.filter(row => !Number.isFinite(Date.parse(timestamp(row))));
       if (undated.length) buckets.set('Not Recorded', undated);
-      const passed = tests.filter(row => outcome(row) === 'Passed').length;
-      const failed = tests.filter(row => outcome(row) === 'Failed').length;
+      const passed = tests.filter(row => outcome(row, threshold) === 'Passed').length;
+      const failed = tests.filter(row => outcome(row, threshold) === 'Failed').length;
       const rate = (p: number, total: number) => total ? `${(p / total * 100).toFixed(1)}%` : 'Not Recorded';
       snapshot.summary = [stat('Total Tests', tests.length), stat('Passed', passed), stat('Failed', failed), stat('Sober', tests.filter(row => sober(row) === 'Sober').length), stat('Not Sober', tests.filter(row => sober(row) === 'Not Sober').length), stat('Pass Rate', rate(passed, tests.length))];
       snapshot.headers = ['Date', 'Total Tests', 'Passed', 'Failed', 'Sober', 'Not Sober', 'Pass Rate'];
       snapshot.chart = [];
       for (const [date, rows] of [...buckets.entries()].sort(([a], [b]) => a === 'Not Recorded' ? 1 : b === 'Not Recorded' ? -1 : filters.sort === 'oldest' ? a.localeCompare(b) : b.localeCompare(a))) {
-        const p = rows.filter(row => outcome(row) === 'Passed').length, f = rows.filter(row => outcome(row) === 'Failed').length;
+        const p = rows.filter(row => outcome(row, threshold) === 'Passed').length, f = rows.filter(row => outcome(row, threshold) === 'Failed').length;
         const s = rows.filter(row => sober(row) === 'Sober').length, n = rows.filter(row => sober(row) === 'Not Sober').length;
         snapshot.rows.push([date, String(rows.length), String(p), String(f), String(s), String(n), rate(p, rows.length)]);
         if (date !== 'Not Recorded') snapshot.chart.push({ date, total: rows.length, sober: s, notSober: n });
@@ -155,7 +207,7 @@ export function buildOrganizedReport(type: string, view: string, data: ReportSou
     snapshot.headers = ['Rider', 'Total Tests', 'Sober Tests', 'Not Sober Tests', 'Passed Rides', 'Failed Rides'];
     const groups = new Map<string, ReportRecord[]>();
     for (const row of rides) { const id = key(row.user_id); if (id) groups.set(id, [...(groups.get(id) || []), row]); }
-    snapshot.rows = [...groups.entries()].map(([id, rows]) => [rider(id), String(rows.filter(measured).length), String(rows.filter(row => sober(row) === 'Sober').length), String(rows.filter(row => sober(row) === 'Not Sober').length), String(rows.filter(row => outcome(row) === 'Passed').length), String(rows.filter(row => outcome(row) === 'Failed').length)]);
+    snapshot.rows = [...groups.entries()].map(([id, rows]) => [rider(id), String(rows.filter(measured).length), String(rows.filter(row => sober(row) === 'Sober').length), String(rows.filter(row => sober(row) === 'Not Sober').length), String(rows.filter(row => outcome(row, threshold) === 'Passed').length), String(rows.filter(row => outcome(row, threshold) === 'Failed').length)]);
   } else if (type === 'rider-reg') {
     // Account creation timestamps are registration history. Current account
     // status and profile updates do not establish a historical registration status.

@@ -16,7 +16,7 @@ interface Tables {
   devices: Device;
   emergency_contacts: Contact;
 }
-interface Session { access_token: string }
+interface Session { access_token: string; user: { id: string; email?: string } }
 interface SupabaseClient {
   from(table: 'system_settings'): {
     select(columns: string): Query<{ setting_key: string; setting_value: string }>;
@@ -38,6 +38,7 @@ interface SupabaseClient {
     }>;
     signOut(options?: { scope?: 'global' | 'local' | 'others' }): Promise<unknown>;
     getSession(): Promise<{ data: { session: Session | null }; error: ServiceError | null }>;
+    onAuthStateChange(callback: (event: string, session: Session | null) => void): { data: { subscription: { unsubscribe(): void } } };
   };
   functions: {
     invoke(name: string, options: { body: Record<string, unknown>; headers?: Record<string, string> }): Promise<Result<{

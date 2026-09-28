@@ -49,12 +49,6 @@ const clearPersistedAdminSession = () => {
   sessionStorage.removeItem('ml_role');
 };
 
-if (import.meta.hot) {
-  import.meta.hot.on('vite:ws:disconnect', () => {
-    window.dispatchEvent(new Event('motolock:dev-server-disconnected'));
-  });
-}
-
 interface SupabaseRecord extends Record<string, unknown> {
   id?: string | number;
   created_at?: string;
@@ -377,6 +371,7 @@ export default function AdminApp() {
   const [adminEmail, setAdminEmail] = useState('');
   const [adminRole, setAdminRole] = useState('admin');
   const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('ml_tab') || 'dashboard');
   useEffect(() => { localStorage.setItem('ml_tab', activeTab); }, [activeTab]);
   const [isLightMode, setIsLightMode] = useState<boolean>(localStorage.getItem('ml_theme') === 'light');
@@ -396,24 +391,51 @@ export default function AdminApp() {
 
   useEffect(() => {
     let active = true;
-    const endSession = () => {
-      clearPersistedAdminSession();
-      setToken('');
-      setAdminEmail('');
-      setAdminRole('admin');
-      void supabaseClient?.auth.signOut({ scope: 'local' }).catch(() => undefined);
-    };
-    const handleDevServerDisconnect = () => endSession();
-    window.addEventListener('motolock:dev-server-disconnected', handleDevServerDisconnect);
+    const authSubscription = supabaseClient?.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if (event === 'SIGNED_OUT') {
+        clearPersistedAdminSession();
+        setToken('');
+        setAdminEmail('');
+        setAdminRole('admin');
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        setToken(session.access_token);
+      }
+    }).data.subscription;
 
-    clearPersistedAdminSession();
-    void supabaseClient?.auth.signOut({ scope: 'local' })
-      .catch(() => undefined)
-      .finally(() => { if (active) setAuthReady(true); });
+    void (async () => {
+      try {
+        if (!supabaseClient) throw new Error('Supabase client is not available.');
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        if (session) {
+          const { profile } = await invokeAdminData<{ profile: Rider }>({ action: 'profile' });
+          if (!['admin', 'superadmin'].includes(profile.role)) {
+            await supabaseClient.auth.signOut({ scope: 'local' });
+            clearPersistedAdminSession();
+          } else if (active) {
+            setToken(session.access_token);
+            setAdminEmail(profile.email || session.user.email || '');
+            setAdminRole(profile.role);
+          }
+        }
+      } catch (error) {
+        const message = errorMessage(error);
+        const invalidSession = /invalid|expired|only administrators|sign in as an administrator/i.test(message);
+        if (invalidSession) {
+          clearPersistedAdminSession();
+          await supabaseClient?.auth.signOut({ scope: 'local' }).catch(() => undefined);
+        } else if (active) {
+          setAuthError('Could not verify the saved admin session. Check your connection and reload to try again.');
+        }
+      } finally {
+        if (active) setAuthReady(true);
+      }
+    })();
 
     return () => {
       active = false;
-      window.removeEventListener('motolock:dev-server-disconnected', handleDevServerDisconnect);
+      authSubscription?.unsubscribe();
     };
   }, []);
 
@@ -649,6 +671,8 @@ export default function AdminApp() {
         setToken(res.token);
         setAdminEmail(loginEmail);
         setAdminRole(res.user.role);
+        setAuthError('');
+        setActiveTab('dashboard');
         triggerAuditLog('Logged In', 'Authentication', loginEmail);
       }
     } catch (err) {
@@ -1280,7 +1304,7 @@ export default function AdminApp() {
   };
 
   if (!authReady) {
-    return <div style={styles.loginContainer}><div style={styles.loginBox}>Ending previous session…</div></div>;
+    return <div style={styles.loginContainer}><div style={styles.loginBox}>Checking admin session…</div></div>;
   }
 
   // If no auth token, display Login Box
@@ -1318,6 +1342,7 @@ export default function AdminApp() {
             </div>
 
             {loginError && <div style={styles.errAlert}>{loginError}</div>}
+            {authError && <div style={styles.errAlert}>{authError}</div>}
 
             <button type="submit" disabled={isLoggingIn} style={styles.primaryButton}>
               {isLoggingIn ? 'Verifying Credentials...' : 'Sign In'}

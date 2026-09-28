@@ -38,13 +38,19 @@ it.each([
 ] as const)('keeps every %s report accessible and exports its existing dataset', async (area, labels, reportIds) => {
   const onExport = vi.fn(async () => {});
   const sources = { ...data, users: [{ ...data.users[0], created_at: '2026-09-01T10:00:00Z' }] };
-  render(<OrganizedReports data={sources} threshold="0.05" styles={{}} onExport={onExport} />);
+  const { container } = render(<OrganizedReports data={sources} threshold="0.05" styles={{}} onExport={onExport} />);
   fireEvent.change(screen.getByLabelText('Report Type'), { target: { value: area } });
   expect(within(screen.getByLabelText('View')).getAllByRole('option').map(option => option.textContent)).toEqual(labels);
   for (const id of reportIds) {
     fireEvent.change(screen.getByLabelText('View'), { target: { value: id } });
     const existing = buildOrganizedReport(id, id, sources, defaultReportFilters, '0.05');
     expect(screen.getByRole('heading', { name: existing.title })).toBeTruthy();
+    const inlineSummary = container.querySelector('.reports-summary-inline');
+    expect(inlineSummary).toBeTruthy();
+    expect(container.querySelector('.reports-summary:not(.reports-summary-inline)')).toBeNull();
+    const metricLabels = [...inlineSummary!.querySelectorAll('.reports-stat span')].map(label => label.textContent);
+    expect(new Set(metricLabels).size).toBe(metricLabels.length);
+    for (const outcome of ['Passed', 'Failed', 'Ongoing']) expect(metricLabels).not.toContain(outcome);
     onExport.mockClear();
     fireEvent.click(screen.getByRole('button', { name: 'Export Excel' }));
     await waitFor(() => expect(onExport).toHaveBeenCalledOnce());
@@ -65,7 +71,12 @@ const data = { ...emptyReportSources,
 
 it('switches safety views, shows contextual filters and exports the displayed view', async () => {
   const onExport = vi.fn(async () => {});
-  render(<OrganizedReports data={data} threshold="0.05" styles={{}} onExport={onExport} />);
+  const { container } = render(<OrganizedReports data={data} threshold="0.05" styles={{}} onExport={onExport} />);
+  const expectInlineSummaryOnly = () => {
+    expect(container.querySelector('.reports-summary-inline')).toBeTruthy();
+    expect(container.querySelector('.reports-summary:not(.reports-summary-inline)')).toBeNull();
+  };
+  expectInlineSummaryOnly();
   expect(screen.getByRole('heading', { name: 'Safety & Sobriety Report' })).toBeTruthy();
   expect(screen.queryByLabelText('Ride Status')).toBeNull();
   expect(screen.queryByLabelText('Ignition State')).toBeNull();
@@ -73,6 +84,7 @@ it('switches safety views, shows contextual filters and exports the displayed vi
   expect(screen.queryByRole('columnheader', { name: 'Ignition State' })).toBeNull();
   expect(screen.queryByRole('columnheader', { name: 'Ride Status' })).toBeNull();
   fireEvent.change(screen.getByLabelText('View'), { target: { value: 'failures' } });
+  expectInlineSummaryOnly();
   expect(screen.queryByLabelText('Ride Status')).toBeNull();
   expect(screen.queryByLabelText('Ignition State')).toBeNull();
   expect(screen.getByLabelText('Failure / Lockout Type')).toBeTruthy();
@@ -81,6 +93,7 @@ it('switches safety views, shows contextual filters and exports the displayed vi
   await waitFor(() => expect(onExport).toHaveBeenCalledOnce());
   expect(onExport.mock.calls[0]).toMatchObject([{ title: 'Failed Tests & Lockouts', view: 'failures', rows: [expect.arrayContaining(['0.08 BAC'])] }, 'excel']);
   fireEvent.change(screen.getByLabelText('View'), { target: { value: 'trends' } });
+  expectInlineSummaryOnly();
   expect(screen.getByRole('heading', { name: 'Sobriety Trends' })).toBeTruthy();
   expect(screen.getByRole('img', { name: 'Number of tests by date, grouped by sobriety result' })).toBeTruthy();
   expect(screen.queryByLabelText('Failure / Lockout Type')).toBeNull();

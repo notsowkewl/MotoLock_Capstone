@@ -86,6 +86,8 @@ export interface ReportRow {
   email?: string;
   brac?: string;
   status?: string;
+  face_verified?: boolean;
+  helmet_verified?: boolean;
   phone?: string;
   role?: string;
   face_enrolled?: boolean;

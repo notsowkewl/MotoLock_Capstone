@@ -17,31 +17,27 @@ export default function RidersPage({ riders, styles, maskPhone, onAdd, onEdit, o
   onDelete: (rider: Rider) => void;
 }) {
   const [search, setSearch] = useState('');
-  const [role, setRole] = useState('all');
-  const [face, setFace] = useState('all');
   const [sort, setSort] = useState('name-asc');
   const [viewId, setViewId] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const [contactsId, setContactsId] = useState<string | null>(null);
   const contactsDialog = useRef<HTMLDialogElement>(null);
-  const contactsRider = riders.find(rider => rider.id === contactsId);
+  const riderRows = riders.filter(rider => rider.role?.trim().toLowerCase() === 'rider');
+  const contactsRider = riderRows.find(rider => rider.id === contactsId);
   useEffect(() => {
     if (contactsRider && contactsDialog.current && !contactsDialog.current.open) contactsDialog.current.showModal();
   }, [contactsRider]);
   const closeContacts = () => { contactsDialog.current?.close(); setContactsId(null); };
-  const selected = riders.find(rider => rider.id === viewId);
+  const selected = riderRows.find(rider => rider.id === viewId);
   useEffect(() => {
     if (selected && dialog.current && !dialog.current.open) dialog.current.showModal();
   }, [selected]);
   const query = search.trim().toLocaleLowerCase();
-  const filtered = riders.filter(rider =>
+  const filtered = riderRows.filter(rider =>
     (!query || rider.full_name.toLocaleLowerCase().includes(query) || rider.email.toLocaleLowerCase().includes(query))
-    && (role === 'all' || rider.role === role)
-    && (face === 'all' || (face === 'registered' ? !!rider.face_enrolled : !rider.face_enrolled))
   ).sort((a, b) => {
     const nameOrder = a.full_name.localeCompare(b.full_name, undefined, { sensitivity: 'base', numeric: true });
     if (sort === 'name-desc') return -nameOrder;
-    if (sort === 'role') return roleLabel(a.role).localeCompare(roleLabel(b.role)) || nameOrder;
     if (sort === 'face') return faceLabel(a).localeCompare(faceLabel(b)) || nameOrder;
     if (sort === 'motorcycle') {
       const model = (rider: Rider) => (rider.motorcycles || []).map(motorcycle => motorcycle.model).sort().join(', ');
@@ -49,7 +45,7 @@ export default function RidersPage({ riders, styles, maskPhone, onAdd, onEdit, o
     }
     return nameOrder;
   });
-  const pagination = useTablePagination(filtered, JSON.stringify([search, role, face, sort]));
+  const pagination = useTablePagination(filtered, JSON.stringify([search, sort]));
   const close = () => { dialog.current?.close(); setViewId(null); };
   const faceBadge = (rider: Rider) => <span className={`rider-face ${rider.face_enrolled ? 'rider-face-registered' : ''}`}><span aria-hidden="true">{rider.face_enrolled ? '✓' : '✕'}</span> {faceLabel(rider)}</span>;
   const motorcycles = (rider: Rider, full = false) => rider.motorcycles?.length ? <div className="rider-items">{rider.motorcycles.map(motorcycle => <div key={motorcycle.id}><span className="rider-plate">{plateLabel(motorcycle.plate_number)}</span> · {motorcycle.model || 'Model not recorded'}{full && (motorcycle.year || motorcycle.color) && <small>{[motorcycle.year, motorcycle.color].filter(Boolean).join(' · ')}</small>}</div>)}</div> : <span className="rider-secondary">None registered</span>;
@@ -59,10 +55,8 @@ export default function RidersPage({ riders, styles, maskPhone, onAdd, onEdit, o
     <div style={styles.card}>
       <div className="riders-filters">
         <label className="riders-search">Search<input type="search" style={styles.input} placeholder="Search rider name or email..." value={search} onChange={event => setSearch(event.target.value)} /></label>
-        <label>Role<select style={styles.input} value={role} onChange={event => setRole(event.target.value)}><option value="all">All Roles</option><option value="rider">Riders</option><option value="admin">Administrators</option><option value="superadmin">Super Administrators</option></select></label>
-        <label>Face ID Status<select style={styles.input} value={face} onChange={event => setFace(event.target.value)}><option value="all">All Face ID</option><option value="registered">Registered</option><option value="missing">Missing</option></select></label>
-        <label>Sort Order<select style={styles.input} value={sort} onChange={event => setSort(event.target.value)}><option value="name-asc">Rider Name: A–Z</option><option value="name-desc">Rider Name: Z–A</option><option value="motorcycle">Motorcycle: Model A–Z</option><option value="role">Role: A–Z</option><option value="face">Face ID Status: A–Z</option></select></label>
-        <button style={styles.actionBtn} onClick={() => { setSearch(''); setRole('all'); setFace('all'); setSort('name-asc'); }}>Clear filters</button>
+        <label>Sort Order<select style={styles.input} value={sort} onChange={event => setSort(event.target.value)}><option value="name-asc">Rider Name: A–Z</option><option value="name-desc">Rider Name: Z–A</option><option value="motorcycle">Motorcycle: Model A–Z</option><option value="face">Face ID Status: A–Z</option></select></label>
+        <button style={styles.actionBtn} onClick={() => { setSearch(''); setSort('name-asc'); }}>Clear filters</button>
         <button style={{ ...styles.actionBtn, background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }} onClick={onAdd}>Add User</button>
       </div>
       <div className="riders-table-scroll" tabIndex={0} role="region" aria-label="Riders table"><table style={styles.table}>

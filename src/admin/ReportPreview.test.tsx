@@ -14,7 +14,7 @@ it('shows sobriety and failure reason without session or ignition status columns
   expect(screen.getByRole('heading', { name: 'Alcohol Detection Report' })).toBeTruthy();
   const summary = container.querySelector('.reports-summary')!;
   expect([...summary.querySelectorAll('.reports-stat')].map(card => card.textContent)).toEqual([
-    'Total Records2', 'Sober1', 'Not Sober1',
+    '2Total Records', '1Sober', '1Not Sober',
   ]);
   const row = screen.getByText('Rider A').closest('tr')!;
   expect(row.cells[2].textContent).toBe('0.00 BAC');
@@ -26,7 +26,7 @@ it('shows sobriety and failure reason without session or ignition status columns
   expect(screen.queryByText('Unlocked')).toBeNull();
   expect(screen.queryByText(/Failed does not necessarily mean/)).toBeNull();
   rerender(<ReportPreview report={{ ...report, rows: [report.rows[0]] }} exporting={false} onExport={vi.fn()} />);
-  expect(summary.querySelector('.reports-stat')?.textContent).toBe('Total Records1');
+  expect(summary.querySelector('.reports-stat')?.textContent).toBe('1Total Records');
 });
 
 it('summarizes the full filtered snapshot and exposes both export formats', () => {
