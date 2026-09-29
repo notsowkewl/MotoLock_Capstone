@@ -32,20 +32,21 @@ object RideHistoryRepository {
     private const val OVERRIDE_CLAIM_TIMEOUT_MS = 30_000L
 
     @Synchronized
-    fun claimManualOverride(context: Context): String? {
+    fun claimManualOverride(context: Context, firmwareEventId: String): String? {
         val prefs = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
-        if (prefs.getBoolean(OVERRIDE_SAVED_KEY, false)) return null
+        if (prefs.getBoolean(OVERRIDE_SAVED_KEY, false) &&
+            prefs.getString(OVERRIDE_EVENT_ID_KEY, null) == firmwareEventId) return null
         val pendingSince = prefs.getLong(OVERRIDE_PENDING_SINCE_KEY, 0L)
         val now = System.currentTimeMillis()
-        if (pendingSince != 0L && now - pendingSince < OVERRIDE_CLAIM_TIMEOUT_MS) return null
+        if (pendingSince != 0L && now - pendingSince < OVERRIDE_CLAIM_TIMEOUT_MS &&
+            prefs.getString(OVERRIDE_EVENT_ID_KEY, null) == firmwareEventId) return null
 
-        val eventId = prefs.getString(OVERRIDE_EVENT_ID_KEY, null)
-            ?: java.util.UUID.randomUUID().toString()
         val claimed = prefs.edit()
-            .putString(OVERRIDE_EVENT_ID_KEY, eventId)
+            .putString(OVERRIDE_EVENT_ID_KEY, firmwareEventId)
+            .putBoolean(OVERRIDE_SAVED_KEY, false)
             .putLong(OVERRIDE_PENDING_SINCE_KEY, now)
             .commit()
-        return eventId.takeIf { claimed }
+        return firmwareEventId.takeIf { claimed }
     }
 
     @Synchronized
@@ -85,6 +86,10 @@ object RideHistoryRepository {
         alcoholResultNavigationChannel.trySend(status)
     }
 
+    fun setManualOverrideSyncError(message: String?) {
+        manualOverrideWriteError.value = message
+    }
+
     suspend fun recordUnlock(context: Context, alcoholLevel: Float?) {
         recordResult(context, alcoholLevel, "ongoing")
     }
@@ -102,7 +107,12 @@ object RideHistoryRepository {
         )
     }
 
-    suspend fun recordManualOverride(context: Context, alcoholLevel: Float?, eventId: String) {
+    suspend fun recordManualOverride(
+        context: Context,
+        alcoholLevel: Float?,
+        eventId: String,
+        eventTimestamp: String? = null
+    ) {
         // The ride_history schema requires initial_brac_level and accepts ongoing as a status.
         // event_type carries the physical override event without relying on a status enum value.
         try {
@@ -114,7 +124,14 @@ object RideHistoryRepository {
                 updates.tryEmit(Unit)
                 return
             }
-            recordResult(context, alcoholLevel ?: 0f, "ongoing", "manual_override", eventId)
+            recordResult(
+                context,
+                alcoholLevel ?: 0f,
+                "ongoing",
+                "manual_override",
+                eventId = eventId,
+                eventTimestamp = eventTimestamp
+            )
             manualOverrideWriteError.value = null
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -129,7 +146,8 @@ object RideHistoryRepository {
         status: String,
         eventType: String? = null,
         eventId: String? = null,
-        failureReason: String? = null
+        failureReason: String? = null,
+        eventTimestamp: String? = null
     ) {
         val userId = RiderAccount.userId()
         val mac = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
@@ -148,7 +166,9 @@ object RideHistoryRepository {
                 eventType = eventType,
                 eventId = eventId,
                 failureReason = failureReason,
-                startTime = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.US)
+                startTime = eventTimestamp?.takeIf {
+                    it.matches(Regex("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z"))
+                } ?: java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.US)
                     .format(java.util.Date()),
                 startLat = location?.latitude,
                 startLon = location?.longitude

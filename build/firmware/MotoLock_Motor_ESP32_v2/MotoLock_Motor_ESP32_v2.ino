@@ -7,7 +7,7 @@
   using a SIM7600G-H carrier/development board.
 
   V2 hardware notes:
-  - All GPIO assignments are unchanged from the original MotoLock code.
+  - Existing GPIO assignments are unchanged; GPIO 34 is newly used for conditioned engine RPM input.
   - The LM2596 module now has a built-in 7-segment voltage display. It is a
     power converter only, so it does not use or require an ESP32 GPIO.
   - No logic-level converter is used for the relay control line. GPIO 25 must
@@ -15,6 +15,10 @@
     to accept a 3.3 V ESP32 signal. Never drive a relay coil from GPIO 25.
   - Set the LM2596 output to 5.00 V and verify it with a multimeter before
     connecting the ESP32, OLED, relay module, GPS, or modem carrier.
+  - Keep the receiver on fused constant battery power while override timing is
+    active. GPIO 34 must receive conditioned 0/3.3 V tach pulses through an
+    automotive-rated isolated input, with a defined LOW idle level. GPIO 34 has
+    no internal pull resistor. Never connect a coil or raw 12 V signal directly.
   - SIM7600 support is temporarily disabled because the carrier/development
     board is not yet available. Change SIM7600_ENABLED to true later.
 */
@@ -38,6 +42,7 @@ constexpr uint8_t MODEM_RX_PIN = 26;     // ESP32 RX <- SIM7600 TX
 constexpr uint8_t MODEM_TX_PIN = 27;     // ESP32 TX -> SIM7600 RX
 constexpr uint8_t RELAY_PIN = 25;        // Direct to 3.3V-compatible relay IN/driver
 constexpr uint8_t OVERRIDE_BUTTON_PIN = 32;
+constexpr uint8_t ENGINE_RPM_PIN = 34;    // Isolated 0/3.3 V RPM pulses; input-only GPIO
 constexpr uint8_t GREEN_LED_PIN = 2;
 constexpr uint8_t RED_LED_PIN = 4;
 
@@ -52,10 +57,13 @@ constexpr size_t APP_FRAME_MAX = 256;
 constexpr uint8_t PAIRING_PIN_LENGTH = 8;
 constexpr uint32_t PAIRING_PIN_TTL_MS = 10UL * 60UL * 1000UL;
 constexpr uint8_t PAIRING_PIN_MAX_ATTEMPTS = 5;
+constexpr uint8_t OVERRIDE_AUDIT_QUEUE_CAPACITY = 8;
 // Optional filter for installations with multiple helmets; this is not authentication.
 const char EXPECTED_HELMET_ADDRESS[] = "";
 constexpr uint32_t OVERRIDE_HOLD_MS = 5000;
 constexpr uint32_t OVERRIDE_DURATION_MS = 120000;
+constexpr uint32_t OVERRIDE_ENGINE_STOP_DETECT_MS = 5000;
+constexpr uint32_t OVERRIDE_ENGINE_OFF_TIMEOUT_MS = 60UL * 60UL * 1000UL;
 constexpr uint32_t ALERT_COOLDOWN_MS = 10UL * 60UL * 1000UL;
 constexpr uint16_t MQ3_ALCOHOL_DEADBAND_RAW = 35;
 constexpr float ALCOHOL_LIMIT_PERCENT = 0.050f;
@@ -147,6 +155,129 @@ uint32_t lastPacketMs = 0;
 uint32_t overrideEndsMs = 0;
 uint32_t lastAlertMs = 0;
 uint32_t lastAppStatusMs = 0;
+volatile uint32_t lastEnginePulseUs = 0;
+uint32_t overrideEngineOffSinceMs = 0;
+String overrideFeedback;
+uint32_t overrideFeedbackUntilMs = 0;
+
+void feedGps();
+void sendAppStatus();
+void setEngineAllowed(bool allowed);
+
+void IRAM_ATTR onEngineRpmPulse() {
+  lastEnginePulseUs = micros();
+}
+
+bool engineIsRunning() {
+  uint32_t lastPulse;
+  noInterrupts();
+  lastPulse = lastEnginePulseUs;
+  interrupts();
+  return lastPulse != 0 && (uint32_t)(micros() - lastPulse) <
+      OVERRIDE_ENGINE_STOP_DETECT_MS * 1000UL;
+}
+
+void updateManualOverrideTimeout() {
+  if (!overrideActive) {
+    overrideEngineOffSinceMs = 0;
+    return;
+  }
+
+  const uint32_t now = millis();
+  if (engineIsRunning()) {
+    // RPM pulses at idle count as running, so stoplights do not consume the timer.
+    overrideEngineOffSinceMs = 0;
+    return;
+  }
+
+  if (overrideEngineOffSinceMs == 0) {
+    overrideEngineOffSinceMs = now;
+    return;
+  }
+
+  if (now - overrideEngineOffSinceMs < OVERRIDE_ENGINE_OFF_TIMEOUT_MS) return;
+
+  overrideActive = false;
+  overrideEngineOffSinceMs = 0;
+  engineLatching = false;
+  explicitUnlockRequired = true;
+  appAuthorized = false;
+  setEngineAllowed(false);
+  overrideFeedback = "Override expired|Engine off for 1 hour";
+  overrideFeedbackUntilMs = now + 5000;
+  Serial.println("MANUAL OVERRIDE EXPIRED: ENGINE OFF FOR ONE HOUR");
+  sendAppStatus();
+}
+
+uint8_t overrideAuditHead() {
+  return (pairingStore.getUShort("ov_state", 0) & 0xff) % OVERRIDE_AUDIT_QUEUE_CAPACITY;
+}
+
+uint8_t overrideAuditCount() {
+  return (pairingStore.getUShort("ov_state", 0) >> 8) & 0xff;
+}
+
+String overrideAuditKey(uint8_t index) {
+  return String("ov_") + String(index % OVERRIDE_AUDIT_QUEUE_CAPACITY);
+}
+
+String oldestOverrideAuditId() {
+  const uint8_t count = overrideAuditCount();
+  if (!count) return "";
+  const String entry = pairingStore.getString(overrideAuditKey(overrideAuditHead()).c_str(), "");
+  const int separator = entry.indexOf('|');
+  return separator < 0 ? "" : entry.substring(0, separator);
+}
+
+String oldestOverrideAuditTime() {
+  const uint8_t count = overrideAuditCount();
+  if (!count) return "";
+  const String entry = pairingStore.getString(overrideAuditKey(overrideAuditHead()).c_str(), "");
+  const int separator = entry.indexOf('|');
+  return separator < 0 ? "" : entry.substring(separator + 1);
+}
+
+String currentUtcTimestamp() {
+  feedGps();
+  if (!gps.date.isValid() || !gps.time.isValid()) return "";
+  char value[25];
+  snprintf(value, sizeof(value), "%04d-%02d-%02dT%02d:%02d:%02dZ",
+           gps.date.year(), gps.date.month(), gps.date.day(),
+           gps.time.hour(), gps.time.minute(), gps.time.second());
+  return String(value);
+}
+
+String enqueueOverrideAudit() {
+  const uint8_t count = overrideAuditCount();
+  if (count >= OVERRIDE_AUDIT_QUEUE_CAPACITY) return "";
+  const uint8_t slot = (overrideAuditHead() + count) % OVERRIDE_AUDIT_QUEUE_CAPACITY;
+  uint32_t randomId = 0;
+  esp_fill_random(&randomId, sizeof(randomId));
+  const String eventId = String((uint32_t)(ESP.getEfuseMac() >> 32), HEX) +
+                         String((uint32_t)ESP.getEfuseMac(), HEX) + "-" + String(randomId, HEX);
+  const String timestamp = currentUtcTimestamp();
+  const String entry = eventId + "|" + timestamp;
+  const String key = overrideAuditKey(slot);
+  if (pairingStore.putString(key.c_str(), entry) != entry.length()) return "";
+  const uint16_t nextState = static_cast<uint16_t>(((count + 1) << 8) | overrideAuditHead());
+  if (pairingStore.putUShort("ov_state", nextState) == 0) {
+    pairingStore.remove(key.c_str());
+    return "";
+  }
+  return eventId;
+}
+
+bool acknowledgeOverrideAudit(const String &eventId) {
+  if (!eventId.length() || oldestOverrideAuditId() != eventId) return false;
+  const uint8_t head = overrideAuditHead();
+  const String key = overrideAuditKey(head);
+  const uint8_t nextHead = (head + 1) % OVERRIDE_AUDIT_QUEUE_CAPACITY;
+  const uint8_t nextCount = overrideAuditCount() - 1;
+  const uint16_t nextState = static_cast<uint16_t>((nextCount << 8) | nextHead);
+  if (pairingStore.putUShort("ov_state", nextState) == 0) return false;
+  pairingStore.remove(key.c_str());
+  return true;
+}
 
 void generatePairingPin() {
   uint32_t randomValue = 0;
@@ -261,6 +392,11 @@ void sendAppStatus() {
   status += engineAllowed ? "true" : "false";
   status += ",\"overrideActive\":";
   status += overrideActive ? "true" : "false";
+  const String pendingOverrideId = oldestOverrideAuditId();
+  status += ",\"pendingOverrideEventId\":\"" + pendingOverrideId + "\"";
+  const String pendingOverrideTime = oldestOverrideAuditTime();
+  status += ",\"pendingOverrideTimestamp\":";
+  status += pendingOverrideTime.length() ? "\"" + pendingOverrideTime + "\"" : "null";
   status += ",\"breathTestActive\":false}";
   SerialBT.println(status);
 }
@@ -401,11 +537,16 @@ void handleAppCommand(const char *message) {
     alcoholCheckActive = false;
     appAuthorized = false;
     overrideActive = false;
+    overrideEngineOffSinceMs = 0;
     engineLatching = false;
     explicitUnlockRequired = true;
     setEngineAllowed(false);
     sendAuthToHelmet();
     SerialBT.println("OK_LOCKED");
+  } else if (command.startsWith("ACK_OVERRIDE:")) {
+    if (!sessionAuthenticated) { SerialBT.println("ERR_AUTH_REQUIRED"); return; }
+    if (acknowledgeOverrideAudit(command.substring(13))) SerialBT.println("OK_OVERRIDE_ACK");
+    else SerialBT.println("ERR_OVERRIDE_ACK_FAILED");
   } else {
     SerialBT.println("ERR_UNSUPPORTED_COMMAND");
   }
@@ -838,6 +979,10 @@ void handleOverrideButton() {
         } else {
           Serial.println("3 SEC HOLD DETECTED: RESET OVERRIDE");
           overrideActive = false;
+          overrideEngineOffSinceMs = 0;
+          engineLatching = false;
+          explicitUnlockRequired = true;
+          setEngineAllowed(false);
         }
         clickCount = 0;
         lastReleaseTime = 0;
@@ -864,26 +1009,51 @@ void handleOverrideButton() {
     if (now - lastReleaseTime > 400) {
       if (clickCount == 3) {
         bool packetFresh = helmetPacketFresh();
-        bool sensorReady = packetFresh && latestPacket.version == 2 &&
+        const bool helmetPresent = packetFresh && latestPacket.version == 2 &&
+                           (latestPacket.flags & FLAG_WORN);
+        const bool sensorReady = packetFresh && latestPacket.version == 2 &&
                            (latestPacket.flags & FLAG_SENSOR_OK) &&
                            (latestPacket.flags & FLAG_WARMED_UP) &&
                            !(latestPacket.flags & FLAG_STABILIZING);
         float alcoholPercent = estimateAlcoholPercent(
             latestPacket.mqRaw, latestPacket.cleanAirBaseline);
-        bool isDrunk = sensorReady &&
+        const bool isDrunk = sensorReady &&
                        (!(latestPacket.flags & FLAG_ALCOHOL_CLEAR) ||
                         alcoholPercent >= ALCOHOL_LIMIT_PERCENT);
         
         if (isDrunk) {
           Serial.println("OVERRIDE REJECTED: ALCOHOL DETECTED");
+          overrideFeedback = "Override rejected|Alcohol detected";
+          overrideFeedbackUntilMs = now + 4000;
           sendAlertWithCooldown("override rejected (alcohol positive)");
-        } else if (!sensorReady) {
-          Serial.println("OVERRIDE REJECTED: SENSOR NOT READY");
+        } else if (overrideActive) {
+          Serial.println("MANUAL OVERRIDE IS ALREADY ACTIVE");
+        } else if (!helmetPresent) {
+          Serial.println("OVERRIDE REJECTED: HELMET NOT WORN OR NOT CONNECTED");
+          overrideFeedback = "Override rejected|Wear paired helmet";
+          overrideFeedbackUntilMs = now + 4000;
+        } else if (!sensorReady || !(latestPacket.flags & FLAG_ALCOHOL_CLEAR)) {
+          Serial.println("OVERRIDE REJECTED: ALCOHOL SENSOR NOT READY");
+          overrideFeedback = "Override rejected|Sensor not ready";
+          overrideFeedbackUntilMs = now + 4000;
         } else {
+          const String auditEventId = enqueueOverrideAudit();
+          if (!auditEventId.length()) {
+            Serial.println("OVERRIDE REJECTED: AUDIT STORAGE FULL OR UNAVAILABLE");
+            overrideFeedback = "Override rejected|Audit storage full";
+            overrideFeedbackUntilMs = now + 4000;
+            clickCount = 0;
+            lastReleaseTime = 0;
+            return;
+          }
           Serial.println("3 CLICKS DETECTED: MANUAL OVERRIDE ACTIVATED (STEADY OPEN)");
           overrideActive = true;
+          overrideEngineOffSinceMs = 0;
+          explicitUnlockRequired = false;
+          engineLatching = true;
+          setEngineAllowed(true);
           sendAppStatus();
-          // No timer! It stays active until hardware powers off
+          // Remains active through brief traffic stops; updateManualOverrideTimeout handles one hour engine-off.
           sendAlertWithCooldown("manual override activated (3 clicks)");
         }
       } else if (clickCount == 1) {
@@ -905,6 +1075,9 @@ void setup() {
   pinMode(GREEN_LED_PIN, OUTPUT);
   pinMode(RED_LED_PIN, OUTPUT);
   pinMode(OVERRIDE_BUTTON_PIN, INPUT_PULLUP);
+  // Feed this pin only from a tach output through an automotive-rated isolator/conditioner.
+  pinMode(ENGINE_RPM_PIN, INPUT);
+  attachInterrupt(digitalPinToInterrupt(ENGINE_RPM_PIN), onEngineRpmPulse, RISING);
   setEngineAllowed(false);
   if (!pairingStore.begin("motolock", false)) {
     Serial.println("Pairing storage failed.");
@@ -950,13 +1123,13 @@ void setup() {
 void loop() {
   feedGps();
   refreshPairingPin();
-  handleOverrideButton();
   portENTER_CRITICAL(&packetMux);
   latestPacket = pendingPacket;
   helmetConnected = bleLinkConnected;
   havePacket = receivedPacket;
   lastPacketMs = receivedPacketMs;
   portEXIT_CRITICAL(&packetMux);
+  handleOverrideButton();
 
   const bool packetFresh = helmetPacketFresh();
   const bool packetVersionOk = latestPacket.version == 2;
@@ -981,17 +1154,10 @@ void loop() {
 
     // Engine Start Interlock (Latching)
     // Alcohol overrides the latch; recovery requires a new authenticated unlock.
-  const bool alcoholBlocked = packetFresh && sensorOk && warmedUp &&
+  // Once emergency override is active, helmet loss alone must not relock the bike.
+  // A confirmed positive alcohol reading remains an unconditional lockout.
+  const bool alcoholBlocked = packetFresh && packetVersionOk && sensorOk && warmedUp && !stabilizing &&
         (!alcoholClear || alcoholPercent >= ALCOHOL_LIMIT_PERCENT);
-    const bool overrideSafetyReady = packetFresh && packetVersionOk && warmedUp &&
-        sensorOk && !stabilizing && alcoholClear &&
-        alcoholPercent < ALCOHOL_LIMIT_PERCENT;
-    if (overrideActive && !overrideSafetyReady) {
-        overrideActive = false;
-        engineLatching = false;
-        setEngineAllowed(false);
-        Serial.println("MANUAL OVERRIDE STOPPED: SENSOR NOT SAFE");
-    }
     if (alcoholBlocked) {
         const bool newlyBlocked = !explicitUnlockRequired;
         explicitUnlockRequired = true;
@@ -1003,6 +1169,7 @@ void loop() {
     } else if (!explicitUnlockRequired && ((normalPermission && appAuthorized) || overrideActive)) {
         engineLatching = true;
     }
+    updateManualOverrideTimeout();
     setEngineAllowed(engineLatching);
   handleAppBluetooth();
 
@@ -1017,7 +1184,12 @@ void loop() {
       snprintf(alcoholLine, sizeof(alcoholLine), "Alcohol: --");
     }
 
-    if (!deviceSecret.length()) {
+    if (millis() < overrideFeedbackUntilMs) {
+      const int separator = overrideFeedback.indexOf('|');
+      const String first = separator < 0 ? overrideFeedback : overrideFeedback.substring(0, separator);
+      const String second = separator < 0 ? "" : overrideFeedback.substring(separator + 1);
+      showStatus(first.c_str(), second.c_str(), alcoholLine);
+    } else if (!deviceSecret.length()) {
       char pinLine[24];
       snprintf(pinLine, sizeof(pinLine), "PAIR PIN: %s", pairingPin.c_str());
       showStatus(pinLine,

@@ -64,6 +64,7 @@ The main ABS Project Box is mounted **under the motorcycle seat** or zip-tied se
 | **Cable Glands & T-Tap Connectors** | Secures wiring and connections. | **Weatherproofing & Non-Destructive Install:** Cable glands create a watertight seal where wires exit the ABS box. T-Tap connectors allow splicing into the motorcycle's ignition wires without severing the stock harness. |
 
 **How to Connect and Place the Receiver Components:**
+**Override engine-off timer wiring requirement:** Use the fused constant battery feed, not switched ACC power, so the motor ESP32 remains powered after the engine stops. Connect a motorcycle tach/RPM output through an automotive-rated opto-isolated signal conditioner that outputs 0/3.3V pulses with a defined LOW idle level to ESP32 GPIO 34 (GPIO 34 has no internal pull resistor). The firmware treats ongoing RPM pulses as engine-running (including traffic idle) and relocks only after one continuous hour without pulses. Never connect an ignition coil or raw 12V signal directly to the ESP32.
 1. **ABS Box & Power Splicing:** Mount the Large IP67 ABS Box securely under the motorcycle seat using Zip Ties. Route a line from the motorcycle’s 12V battery to the box. Splice the positive wire with a T-Tap Connector and immediately attach the **Inline Blade Fuse Holder + 5A Fuse** close to the battery. Pass the wires through the ABS Box using **Cable Glands** to maintain the waterproof seal.
 2. **Voltage Step-Down:** Inside the ABS Box, connect the incoming 12V power to the **LM2596 Buck Converter**. Adjust the buck converter to output a stable 5V. Stick the **Mini Heatsink** on top of the LM2596 chip.
 3. **Core Microcontroller:** Connect the 5V output to the **ESP32 38-Pin Screw Terminal Expansion Board**. Secure the ESP32 onto the expansion board. All jumper wires from sensors/modules will be screwed firmly into these terminals to resist vibration.
@@ -85,7 +86,7 @@ These components are kept securely under the motorcycle seat alongside the main 
 **How to Connect and Place the Manual Override Interface:**
 1. **Secondary Enclosure:** Mount the **0.96" OLED Display**, **IP67 Metal Push Buttons**, and **IP67 LED Indicators** inside the second **Small Waterproof Box** to act as its protector.
 2. **Placement:** Mount this small interface **INSIDE the under-seat storage compartment (U-Box)**. This ensures the rider can easily access it when they open the seat. We will also place the Main ABS Receiver Box securely **INSIDE the U-Box**, mounted neatly in the corner. This simplifies the wiring for the prototype, keeps all electronic components protected from the elements, and prevents the need to remove the motorcycle's side body panels.
-3. **Wiring:** Run the short wires from the display interface directly into the Main ABS Box (since they are right next to each other inside the U-Box). Then, run the power (ACC) and relay wires out of the U-Box down to the ignition switch. No long handlebar wire loom is needed.
+3. **Wiring:** Run the short wires from the display interface directly into the Main ABS Box (since they are right next to each other inside the U-Box). Then, run the constant fused battery feed (required for the timer) and relay wires out of the U-Box down to the ignition switch. No long handlebar wire loom is needed.
 
 ![Manual Override Assembly](C:\Users\Administrator\.gemini\antigravity-ide\brain\dcb1abc0-5493-48fc-923f-1e47cd6f677e\manual_override_assembly_1788596912823.jpg)
 
@@ -132,7 +133,7 @@ The MotoLock hardware does not just disable the electric starter button; the Mot
 Yes, it is universally compatible. The MotoLock system is highly flexible and can be installed on almost any motorcycle (whether it is an automatic scooter, a manual underbone, fuel-injected, or carbureted).
 
 This is because the hardware operates on a very simple, universal electrical principle:  
-**Power:** It takes standard 12V power from the motorcycle's battery or ACC line (stepped down to 5V by your LM2596 buck converter). Every motorcycle has a 12V battery.  
+**Power:** It takes constant 12V power from the motorcycle battery through a fuse (stepped down to 5V by your LM2596 buck converter). The controller needs power after engine shutdown to enforce the one-hour override timeout.
 **Control:** It controls a standard automotive relay. To install it on any motorcycle, the mechanic simply finds the universal "kill switch" wire or the ignition coil wire and splices the MotoLock relay into it. Because it only acts as an electronic switch on a single critical wire, the underlying engine type or brand of the motorcycle does not matter.
 
 **Does the app is highly compatible with the vast majority of Android devices?**  

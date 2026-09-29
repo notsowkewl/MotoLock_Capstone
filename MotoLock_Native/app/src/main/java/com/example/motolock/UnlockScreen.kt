@@ -568,6 +568,30 @@ private fun ConnectedUnlockScreen(
                                         // During alcohol check: monitor rider is still in frame and alone
                                         if (currentStep == UnlockStep.ALCOHOL_CHECK) {
                                             if (alcoholFailed) return@DualAiAnalyzer
+                                            val verificationLost = msg.startsWith("Rider verification expired", ignoreCase = true) ||
+                                                msg.startsWith("Face ID not recognized", ignoreCase = true) ||
+                                                msg.startsWith("Helmet verification lost", ignoreCase = true)
+                                            if (verificationLost) {
+                                                alcoholFailed = true
+                                                CameraDecision.reset()
+                                                statusMessage = "Rider or helmet changed. Verify again before continuing."
+                                                alcoholStatus = "Motor authorization is being revoked."
+                                                coroutineScope.launch {
+                                                    try {
+                                                        check(sessionService.isConnected && sessionService.sendLockCommand()) {
+                                                            "Bluetooth is unavailable."
+                                                        }
+                                                        if (currentStep == UnlockStep.ALCOHOL_CHECK) {
+                                                            currentStep = UnlockStep.FACE_HELMET_CHECK
+                                                            alcoholFailed = false
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        if (e is kotlinx.coroutines.CancellationException) throw e
+                                                        alcoholStatus = "Verification expired, but the motor could not be locked. Reconnect and lock it immediately."
+                                                    }
+                                                }
+                                                return@DualAiAnalyzer
+                                            }
                                             if (msg.contains("Multiple faces", ignoreCase = true)) {
                                                 riderMissingSince = null
                                                 currentStep = UnlockStep.FACE_HELMET_CHECK
@@ -607,7 +631,7 @@ private fun ConnectedUnlockScreen(
                                                             return@launch
                                                         }
                                                     }
-                                                while (currentStep == UnlockStep.ALCOHOL_CHECK && !disposed.get()) {
+                                                while (currentStep == UnlockStep.ALCOHOL_CHECK && !alcoholFailed && !disposed.get()) {
                                                     val now = android.os.SystemClock.elapsedRealtime()
                                                     val sensorState = AlcoholCheckPolicy.state(sessionService.motorStatus.value, now)
                                                     if (alcoholSamples.startedAt == null &&

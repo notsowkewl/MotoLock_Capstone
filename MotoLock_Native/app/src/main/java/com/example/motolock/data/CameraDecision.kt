@@ -37,6 +37,8 @@ object CameraDecision {
         phase = Phase.NEED_HELMET
     }
 
+    fun currentPhase(): Phase = phase
+
     private fun blank(
         helmetDetected: Boolean = false,
         helmetSensorActive: Boolean = false,
@@ -71,10 +73,34 @@ object CameraDecision {
         val irOn = telemetry.sensorActive
         val faceDetected = faceCount == 1
         val faceRecognized = faceDetected && faceMatches
-        // Helmet confirmed if YOLO sees it, or if it was spatially associated, or if the logo sticker is visible
-        val helmetSeen = helmetOnHead || spatiallyAssociatedHelmetWithoutFace || (extractedLogoId != null)
+        val helmetSeen = helmetOnHead || spatiallyAssociatedHelmetWithoutFace
+        val helmetProofValid = telemetry.isConnected && isSequenceValid &&
+            !pairedHelmetDeviceId.isNullOrBlank() && telemetry.deviceId == pairedHelmetDeviceId &&
+            !pairedHelmetVisualId.isNullOrBlank() && telemetry.visualId == pairedHelmetVisualId &&
+            expectedNonce != null && expectedNonce.size == 32 &&
+            helmetPublicKey != null && helmetPublicKey.isNotEmpty() &&
+            HelmetCrypto.verifySignature(telemetry, expectedNonce, helmetPublicKey)
+
+        if (phase != Phase.NEED_HELMET && (!helmetOnHead || !helmetProofValid)) {
+            phase = Phase.NEED_HELMET
+            return blank(
+                helmetDetected = helmetOnHead,
+                helmetSensorActive = helmetProofValid && irOn,
+                faceDetected = faceDetected,
+                msg = "Helmet verification lost. Put on the paired helmet and verify again."
+            )
+        }
 
         // Multiple faces – reject always
+        if (phase == Phase.NEED_CHIN_BAR && faceCount != 1) {
+            phase = Phase.NEED_HELMET
+            return blank(msg = "Rider verification expired. Put on the paired helmet and verify again.")
+        }
+        if (phase == Phase.NEED_CHIN_BAR && faceCount == 1 && !faceMatches) {
+            phase = Phase.NEED_HELMET
+            return blank(msg = "Rider verification expired. Put on the paired helmet and verify again.")
+        }
+
         if (faceCount > 1) {
             return blank(msg = "Multiple faces detected. Only one rider allowed.")
         }
@@ -84,7 +110,7 @@ object CameraDecision {
             // ── PHASE 1 ─────────────────────────────────────────────────────────
             Phase.NEED_HELMET -> {
                 return when {
-                    helmetSeen && irOn -> {
+                    helmetSeen && helmetProofValid && irOn -> {
                         // Helmet confirmed AND chin bar is down. Advance.
                         phase = Phase.NEED_FACE
                         blank(
@@ -93,11 +119,17 @@ object CameraDecision {
                             msg = "Registered helmet detected. Lift your chin bar for Face ID."
                         )
                     }
-                    helmetSeen && !irOn -> {
+                    helmetSeen && helmetProofValid && !irOn -> {
                         // Helmet visible but chin bar isn't down yet
                         blank(
                             helmetDetected = true,
                             msg = "Helmet detected. Close the chin bar, then lift it for Face ID."
+                        )
+                    }
+                    helmetSeen && !helmetProofValid -> {
+                        blank(
+                            helmetDetected = true,
+                            msg = "Waiting for verified paired-helmet sensor data."
                         )
                     }
                     !helmetSeen && irOn -> {
@@ -153,6 +185,16 @@ object CameraDecision {
 
             // ── PHASE 3 ─────────────────────────────────────────────────────────
             Phase.NEED_CHIN_BAR -> {
+                // Losing the verified face ends this verification session. A later face must
+                // start over and independently pass helmet and face checks.
+                if (!faceDetected) {
+                    phase = Phase.NEED_HELMET
+                    return blank(msg = "Rider verification expired. Put on the paired helmet and verify again.")
+                }
+                if (!faceMatches) {
+                    phase = Phase.NEED_HELMET
+                    return blank(msg = "Face ID not recognized. Make sure you are the registered rider.")
+                }
                 if (!irOn) {
                     // Still waiting for chin bar to close
                     return blank(

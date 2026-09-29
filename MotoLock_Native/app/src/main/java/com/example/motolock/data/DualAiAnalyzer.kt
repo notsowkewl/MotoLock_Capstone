@@ -37,6 +37,7 @@ class DualAiAnalyzer(
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var stopped = false
     @Volatile private var lowLight = false
+    @Volatile private var finalAuthenticationReported = false
     
     private var lastAnalyzed = 0L
 
@@ -68,10 +69,15 @@ class DualAiAnalyzer(
         // If the state machine says fully authenticated -> fire immediately, no debounce needed
         // (CameraDecision is already a forward-only machine)
         if (state.finalAuthenticationState) {
-            stopped = true
-            main.post { onResult(true, state.message) }
+            if (!finalAuthenticationReported) {
+                finalAuthenticationReported = true
+                main.post { onResult(true, state.message) }
+            }
             return
         }
+
+        val wasAuthenticated = finalAuthenticationReported
+        finalAuthenticationReported = false
 
         history.add(TimedState(now, state))
         history.removeAll { now - it.time > REQUIRED_STABLE_MS + 500L }
@@ -79,7 +85,9 @@ class DualAiAnalyzer(
         // Always show the immediate message to prevent UI lag/flickering between states
         val displayMessage = state.message.ifBlank { "Verifying..." }
 
-        main.post { onResult(false, displayMessage) }
+        main.post { onResult(false, if (wasAuthenticated)
+            "Rider verification expired. Put on the paired helmet and verify again."
+        else displayMessage) }
     }
 
     @android.annotation.SuppressLint("UnsafeOptInUsageError")
@@ -149,7 +157,7 @@ class DualAiAnalyzer(
                     }
 
                     if (detectedHelmetBox != null) lastHelmetDetectTime = now
-                    val helmetVisuallyConfirmed = detectedHelmetBox != null || (now - lastHelmetDetectTime < 2000)
+            val helmetVisuallyConfirmed = detectedHelmetBox != null
 
                     if (!spatiallyAssociated) {
                         lastRecognizedFaceRect = null 
@@ -170,32 +178,16 @@ class DualAiAnalyzer(
             
             bitmap = FaceData.uprightBitmap(proxy)
             
-            var matches = false
-            val prevRect = lastRecognizedFaceRect
-            val timeSinceLastEmbed = now - lastFaceEmbedTime
-            
-            if (prevRect != null && now - lastFaceMatchTime < 2000 && timeSinceLastEmbed < 1000) {
-                val overlap = max(0, min(face.boundingBox.right, prevRect.right) - max(face.boundingBox.left, prevRect.left))
-                if (overlap > face.boundingBox.width() * 0.7f) {
-                    matches = true 
-                }
-            }
-            
-            if (!matches) {
-                val faceModel = faceNetInterpreter ?: return reportFallback(false, "Face model not loaded")
-                val stored = registeredEmbedding ?: return reportFallback(false, "No valid saved Face ID. Register your face again.")
-                matches = FaceData.matches(FaceData.embed(bitmap, face.boundingBox, faceModel), stored)
-                
-                if (matches) {
-                    lastRecognizedFaceRect = face.boundingBox
-                    lastFaceMatchTime = now
-                    lastFaceEmbedTime = now
-                } else {
-                    lastRecognizedFaceRect = null
-                }
-            } else {
-                lastFaceMatchTime = now
+            val faceModel = faceNetInterpreter ?: return reportFallback(false, "Face model not loaded")
+            val stored = registeredEmbedding ?: return reportFallback(false, "No valid saved Face ID. Register your face again.")
+            val matches = FaceData.matches(FaceData.embed(bitmap, face.boundingBox, faceModel), stored)
+
+            if (matches) {
                 lastRecognizedFaceRect = face.boundingBox
+                lastFaceMatchTime = now
+                lastFaceEmbedTime = now
+            } else {
+                lastRecognizedFaceRect = null
             }
 
             main.post { if (!stopped) onRiderPresenceChanged(matches) }
@@ -210,7 +202,8 @@ class DualAiAnalyzer(
             }
             
             if (detectedHelmetBox != null) lastHelmetDetectTime = now
-            val helmetVisuallyConfirmed = detectedHelmetBox != null || (now - lastHelmetDetectTime < 2000)
+            // Stale detections from the previous frame must never preserve authorization.
+            val helmetVisuallyConfirmed = detectedHelmetBox != null
             
             report(CameraDecision.evaluate(1, matches, helmetVisuallyConfirmed, telemetry, pairedHelmetDeviceId, pairedHelmetVisualId, currentNonce, helmetPublicKey, extractedLogoId, isSequenceValid))
             

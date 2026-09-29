@@ -39,7 +39,9 @@ data class MotorStatus(
     val mq3Value: Int? = null,
     val mq3Baseline: Int? = null,
     val overrideActive: Boolean = false,
-    val overrideStatusAvailable: Boolean = false
+    val overrideStatusAvailable: Boolean = false,
+    val pendingOverrideEventId: String? = null,
+    val pendingOverrideTimestamp: String? = null
 ) {
     val alcoholPercent: Float?
         get() {
@@ -80,7 +82,9 @@ data class MotorStatus(
                 (json["mq3Value"] as? JsonPrimitive)?.intOrNull,
                 (json["mq3Baseline"] as? JsonPrimitive)?.intOrNull,
                 (json["overrideActive"] as? JsonPrimitive)?.booleanOrNull == true,
-                (json["overrideActive"] as? JsonPrimitive)?.booleanOrNull != null
+                (json["overrideActive"] as? JsonPrimitive)?.booleanOrNull != null,
+                (json["pendingOverrideEventId"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() },
+                (json["pendingOverrideTimestamp"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
             )
         }.getOrNull()
     }
@@ -101,7 +105,6 @@ class BluetoothService(context: Context) {
     val motorStatus = mutableMotorStatus.asStateFlow()
     private val statusScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var alcoholResultActive = false
-    @Volatile private var overrideEventActive = false
     @Volatile private var overrideWriteInFlight = false
     @Volatile private var nextOverrideRetryAt = 0L
     @Volatile private var appUnlockInProgress = false
@@ -210,36 +213,44 @@ class BluetoothService(context: Context) {
                                 alcoholResultActive = false
                                 com.example.motolock.SessionState.alcoholResultActive = false
                             }
-                            if (status.overrideActive) {
-                                overrideEventActive = true
-                                if (!overrideWriteInFlight &&
-                                    SystemClock.elapsedRealtime() >= nextOverrideRetryAt) {
-                                    val eventId = RideHistoryRepository.claimManualOverride(appContext)
-                                    if (eventId != null) {
-                                        overrideWriteInFlight = true
-                                        RideHistoryRepository.notifyManualOverrideDetected(status)
-                                        statusScope.launch {
-                                            try {
-                                                RideHistoryRepository.recordManualOverride(
-                                                    appContext,
-                                                    status.alcoholPercent,
-                                                    eventId
-                                                )
-                                                RideHistoryRepository.finishManualOverride(appContext, eventId)
-                                            } catch (e: Exception) {
-                                                if (e is CancellationException) throw e
-                                                RideHistoryRepository.retryManualOverride(appContext, eventId)
-                                                nextOverrideRetryAt = SystemClock.elapsedRealtime() + 5000L
-                                                e.printStackTrace()
-                                            } finally {
-                                                overrideWriteInFlight = false
+                            val pendingOverrideId = status.pendingOverrideEventId
+                            if (pendingOverrideId != null && !overrideWriteInFlight &&
+                                SystemClock.elapsedRealtime() >= nextOverrideRetryAt) {
+                                val eventId = RideHistoryRepository.claimManualOverride(appContext, pendingOverrideId)
+                                if (eventId != null) {
+                                    overrideWriteInFlight = true
+                                    if (status.overrideActive) RideHistoryRepository.notifyManualOverrideDetected(status)
+                                    statusScope.launch {
+                                        try {
+                                            RideHistoryRepository.recordManualOverride(
+                                                appContext,
+                                                status.alcoholPercent,
+                                                eventId,
+                                                status.pendingOverrideTimestamp
+                                            )
+                                            check(acknowledgeManualOverride(eventId)) {
+                                                "Could not acknowledge the saved manual override on the motor."
                                             }
+                                            RideHistoryRepository.finishManualOverride(appContext, eventId)
+                                            RideHistoryRepository.setManualOverrideSyncError(null)
+                                            nextOverrideRetryAt = 0L
+                                        } catch (e: Exception) {
+                                            if (e is CancellationException) throw e
+                                            RideHistoryRepository.retryManualOverride(appContext, eventId)
+                                            if (e.message?.contains("acknowledge the saved manual override") == true) {
+                                                RideHistoryRepository.setManualOverrideSyncError(
+                                                    "Override saved. The motor still has a pending audit copy; it will retry synchronization."
+                                                )
+                                            }
+                                            nextOverrideRetryAt = SystemClock.elapsedRealtime() + 5000L
+                                            e.printStackTrace()
+                                        } finally {
+                                            overrideWriteInFlight = false
                                         }
                                     }
                                 }
-                            } else if (status.locked == true ||
-                                (status.overrideStatusAvailable && !status.overrideActive)) {
-                                overrideEventActive = false
+                            } else if (pendingOverrideId == null && (status.locked == true ||
+                                (status.overrideStatusAvailable && !status.overrideActive))) {
                                 nextOverrideRetryAt = 0L
                                 RideHistoryRepository.clearManualOverride(appContext)
                             }
@@ -330,6 +341,10 @@ class BluetoothService(context: Context) {
     }
 
     suspend fun authenticateSession(secret: String): Boolean = authenticate(secret, false)
+    suspend fun acknowledgeManualOverride(eventId: String): Boolean = commands.withLock {
+        require(eventId.matches(Regex("[0-9a-fA-F-]{8,64}")))
+        request("ACK_OVERRIDE:$eventId") { it == "OK_OVERRIDE_ACK" } == "OK_OVERRIDE_ACK"
+    }
     suspend fun sendUnlockCommand(deviceSecret: String): Boolean {
         appUnlockInProgress = true
         return try {
