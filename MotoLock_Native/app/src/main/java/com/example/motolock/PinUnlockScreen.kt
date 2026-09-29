@@ -19,12 +19,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.motolock.models.Pin
 import com.example.motolock.network.SupabaseClientManager
 import io.github.jan.supabase.gotrue.auth
-import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.launch
 
 @Composable
@@ -33,6 +33,14 @@ fun PinUnlockScreen(onUnlockSuccess: () -> Unit, onLogout: () -> Unit) {
     var isChecking by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var failedAttempts by remember { mutableIntStateOf(0) }
+    var showPinRecovery by remember { mutableStateOf(false) }
+    var recoveryEmail by remember { mutableStateOf("") }
+    var recoveryCode by remember { mutableStateOf("") }
+    var recoveryPin by remember { mutableStateOf("") }
+    var recoveryConfirmPin by remember { mutableStateOf("") }
+    var recoveryCodeSent by remember { mutableStateOf(false) }
+    var recoveryLoading by remember { mutableStateOf(false) }
+    var recoveryError by remember { mutableStateOf<String?>(null) }
     
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -131,35 +139,17 @@ fun PinUnlockScreen(onUnlockSuccess: () -> Unit, onLogout: () -> Unit) {
                                                 try {
                                                     val authUser = SupabaseClientManager.client.auth.currentSessionOrNull()?.user
                                                     if (authUser != null) {
-                                                        var finalUserId = authUser.id
-                                                        var userProfile = SupabaseClientManager.client.postgrest["users"]
-                                                            .select { filter { eq("id", authUser.id) } }
-                                                            .decodeSingleOrNull<com.example.motolock.models.User>()
-
-                                                        if (userProfile == null && authUser.email != null) {
-                                                            userProfile = SupabaseClientManager.client.postgrest["users"]
-                                                                .select { filter { eq("email", authUser.email!!) } }
-                                                                .decodeList<com.example.motolock.models.User>().firstOrNull()
-                                                        }
-                                                        if (userProfile != null) {
-                                                            finalUserId = userProfile.id
-                                                        }
-                                                        
-                                                        val savedPins = SupabaseClientManager.client.postgrest["pins"]
-                                                            .select { filter { eq("user_id", finalUserId) } }
-                                                            .decodeList<Pin>()
-                                                            
-                                                        if (savedPins.isEmpty()) {
+                                                        val hasPin = com.example.motolock.data.RiderPinRepository.hasPin()
+                                                        if (!hasPin) {
+                                                            onUnlockSuccess()
+                                                        } else if (com.example.motolock.data.RiderPinRepository.verifyPin(pin)) {
                                                             onUnlockSuccess()
                                                         } else {
-                                                            if (savedPins.any { it.pin == pin }) {
-                                                                onUnlockSuccess()
-                                                            } else {
                                                                 failedAttempts++
                                                                 if (failedAttempts >= 5) {
                                                                     // Lockout: Save flag to SharedPreferences, then sign out
                                                                     val prefs = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
-                                                                    prefs.edit().putBoolean("reset_pin_for_$finalUserId", true).apply()
+                                                                    prefs.edit().putBoolean("reset_pin_for_${authUser.id}", true).apply()
                                                                     
                                                                     try {
                                                                         SupabaseClientManager.client.auth.signOut()
@@ -170,7 +160,6 @@ fun PinUnlockScreen(onUnlockSuccess: () -> Unit, onLogout: () -> Unit) {
                                                                     pin = ""
                                                                     isChecking = false
                                                                 }
-                                                            }
                                                         }
                                                     } else {
                                                         errorMessage = "Session expired."
@@ -216,6 +205,104 @@ fun PinUnlockScreen(onUnlockSuccess: () -> Unit, onLogout: () -> Unit) {
         }) {
             Text("Logout", color = motoRed, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
+        TextButton(onClick = {
+            recoveryEmail = SupabaseClientManager.client.auth.currentSessionOrNull()?.user?.email.orEmpty()
+            recoveryError = null
+            showPinRecovery = true
+        }) {
+            Text("Forgot PIN? Recover by email", color = Color(0xFF737987), fontSize = 14.sp)
+        }
+    }
+
+    if (showPinRecovery) {
+        AlertDialog(
+            onDismissRequest = { if (!recoveryLoading) showPinRecovery = false },
+            title = { Text(if (recoveryCodeSent) "Reset rider PIN" else "Recover rider PIN") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("We will send a recovery code if this email belongs to a MotoLock account.", fontSize = 13.sp)
+                    OutlinedTextField(
+                        value = recoveryEmail,
+                        onValueChange = { recoveryEmail = it },
+                        label = { Text("Email") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                    )
+                    if (recoveryCodeSent) {
+                        OutlinedTextField(
+                            value = recoveryCode,
+                            onValueChange = { recoveryCode = it.filter(Char::isDigit).take(6) },
+                            label = { Text("6-digit recovery code") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        OutlinedTextField(
+                            value = recoveryPin,
+                            onValueChange = { recoveryPin = it.filter(Char::isDigit).take(4) },
+                            label = { Text("New 4-digit PIN") },
+                            singleLine = true,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                        )
+                        OutlinedTextField(
+                            value = recoveryConfirmPin,
+                            onValueChange = { recoveryConfirmPin = it.filter(Char::isDigit).take(4) },
+                            label = { Text("Confirm new PIN") },
+                            singleLine = true,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                        )
+                    }
+                    if (recoveryError != null) Text(recoveryError!!, color = motoRed, fontSize = 12.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !recoveryLoading, onClick = {
+                    if (!recoveryCodeSent && recoveryEmail.isBlank()) {
+                        recoveryError = "Enter your email address."
+                        return@TextButton
+                    }
+                    if (recoveryCodeSent) {
+                        if (recoveryCode.length != 6 || recoveryPin.length != 4 || recoveryConfirmPin.length != 4) {
+                            recoveryError = "Enter the 6-digit code and both 4-digit PIN fields."
+                            return@TextButton
+                        }
+                        if (recoveryPin != recoveryConfirmPin) {
+                            recoveryError = "The PINs do not match."
+                            return@TextButton
+                        }
+                    }
+                    recoveryLoading = true
+                    recoveryError = null
+                    coroutineScope.launch {
+                        try {
+                            if (!recoveryCodeSent) {
+                                com.example.motolock.data.PinRecoveryRepository.requestCode(recoveryEmail)
+                                recoveryCodeSent = true
+                                recoveryError = "If the account is registered, a recovery code has been sent."
+                            } else {
+                                com.example.motolock.data.PinRecoveryRepository.complete(recoveryEmail, recoveryCode, recoveryPin)
+                                showPinRecovery = false
+                                recoveryCodeSent = false
+                                failedAttempts = 0
+                                pin = ""
+                                errorMessage = "PIN reset. Sign in with your new PIN."
+                            }
+                        } catch (e: Exception) {
+                            recoveryError = e.message ?: "PIN recovery failed. Request a new code and try again."
+                        } finally {
+                            recoveryLoading = false
+                        }
+                    }
+                }) {
+                    if (recoveryLoading) CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                    else Text(if (recoveryCodeSent) "Reset PIN" else "Send Code", color = motoRed)
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !recoveryLoading, onClick = { showPinRecovery = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 

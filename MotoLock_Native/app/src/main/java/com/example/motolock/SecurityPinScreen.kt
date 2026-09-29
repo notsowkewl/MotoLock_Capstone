@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.motolock.network.SupabaseClientManager
 import io.github.jan.supabase.gotrue.auth
-import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.launch
 
 @Composable
@@ -111,26 +110,15 @@ fun SecurityPinScreen(onBack: () -> Unit) {
                 scope.launch {
                     try {
                         val session = SupabaseClientManager.client.auth.currentSessionOrNull()
-                        val userId = session?.user?.let { com.example.motolock.data.RiderAccount.userId() }
-                        if (userId != null) {
-                            // Fetch existing PIN
-                            val existingPins = SupabaseClientManager.client.postgrest["pins"]
-                                .select { filter { eq("user_id", userId) } }
-                                .decodeList<com.example.motolock.models.Pin>()
-                            
-                            if (existingPins.isNotEmpty()) {
-                                if (existingPins.first().pin != currentPin) {
+                        if (session?.user != null) {
+                            if (com.example.motolock.data.RiderPinRepository.hasPin()) {
+                                if (!com.example.motolock.data.RiderPinRepository.changePin(currentPin, newPin)) {
                                     message = "Current PIN is incorrect."
                                     isLoading = false
                                     return@launch
                                 }
-                                // Update PIN
-                                SupabaseClientManager.client.postgrest["pins"]
-                                    .update({ set("pin", newPin) }) { filter { eq("user_id", userId) } }
                             } else {
-                                // No PIN exists, just insert
-                                val pinObj = com.example.motolock.models.Pin(userId = userId, pin = newPin)
-                                SupabaseClientManager.client.postgrest["pins"].insert(pinObj)
+                                com.example.motolock.data.RiderPinRepository.createPin(newPin)
                             }
                             message = "Success: PIN updated."
                             currentPin = ""; newPin = ""; confirmPin = ""

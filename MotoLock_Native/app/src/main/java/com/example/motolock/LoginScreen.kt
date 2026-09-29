@@ -36,13 +36,14 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.motolock.network.SupabaseClientManager
-import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.builtin.Email
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import io.github.jan.supabase.gotrue.providers.Google
 import io.github.jan.supabase.gotrue.SessionStatus
+import io.github.jan.supabase.gotrue.auth
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotClick: () -> Unit) {
@@ -64,25 +65,17 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
             if (status is SessionStatus.Authenticated) {
                 val user = SupabaseClientManager.client.auth.currentSessionOrNull()?.user
                 if (user != null) {
+                    if (user.emailConfirmedAt == null) {
+                        SupabaseClientManager.client.auth.signOut()
+                        emailError = "Please verify your email before logging in. Check your inbox for the verification link."
+                        return@collect
+                    }
+                    if (com.example.motolock.data.AuthRecovery.pending) {
+                        return@collect
+                    }
                     coroutineScope.launch {
                         try {
-                            var finalUserId = user.id
-                            val profile = SupabaseClientManager.client.postgrest["users"]
-                                .select { filter { eq("id", user.id) } }
-                                .decodeList<com.example.motolock.models.User>().firstOrNull()
-                                ?: (user.email?.let {
-                                    SupabaseClientManager.client.postgrest["users"]
-                                        .select { filter { eq("email", it) } }
-                                        .decodeList<com.example.motolock.models.User>().firstOrNull()
-                                })
-                            if (profile != null) finalUserId = profile.id
-                            
-                            val prefs = context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE)
-                            if (prefs.getBoolean("reset_pin_for_$finalUserId", false)) {
-                                SupabaseClientManager.client.postgrest["pins"]
-                                    .delete { filter { eq("user_id", finalUserId) } }
-                                prefs.edit().remove("reset_pin_for_$finalUserId").apply()
-                            }
+                            // PIN access is handled through owner-scoped security RPCs.
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
@@ -266,16 +259,8 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
                         isLoading = true
                         coroutineScope.launch {
                             try {
-                                val userProfile = SupabaseClientManager.client.postgrest["users"]
-                                    .select { filter { eq("email", email.trim()) } }
-                                    .decodeList<com.example.motolock.models.User>()
-                                    
-                                if (userProfile.isEmpty()) {
-                                    emailError = "This email is not registered in MotoLock."
-                                } else {
-                                    SupabaseClientManager.client.auth.resetPasswordForEmail(email.trim())
-                                    showEmailSentDialog = true
-                                }
+                                SupabaseClientManager.client.auth.resetPasswordForEmail(email.trim())
+                                showEmailSentDialog = true
                             } catch (e: Exception) {
                                 Toast.makeText(context, "Failed to send reset link", Toast.LENGTH_LONG).show()
                             } finally {
@@ -322,7 +307,15 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
                                     this.email = email.trim()
                                     this.password = password
                                 }
+                            val signedInUser = SupabaseClientManager.client.auth.currentSessionOrNull()?.user
+                            if (signedInUser?.emailConfirmedAt == null) {
+                                SupabaseClientManager.client.auth.signOut()
+                                emailError = "Please verify your email before logging in. Check your inbox for the verification link."
+                            }
                             } catch (e: Exception) {
+                                if (e.message?.contains("email not confirmed", ignoreCase = true) == true || e.message?.contains("email_not_confirmed", ignoreCase = true) == true) {
+                                    emailError = "Please verify your email before logging in. Check your inbox for the verification link."
+                                } else {
                                 if (e.message?.contains("credentials") == true || e.message?.contains("invalid") == true) {
                                     failedAttempts++
                                     if (failedAttempts >= 5) {
@@ -334,6 +327,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onSignUpClick: () -> Unit, onForgotC
                                     }
                                 } else {
                                     Toast.makeText(context, "Login Failed: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
                                 }
                             } finally {
                                 isLoading = false

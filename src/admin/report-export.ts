@@ -43,13 +43,13 @@ export function buildReportPdf(report: ReportSnapshot) {
     styles: { font: 'helvetica', fontSize: 9, cellPadding: 3.5, textColor: ink, overflow: 'linebreak', valign: 'middle' },
     headStyles: { fillColor: ink, textColor: '#ffffff', fontStyle: 'bold', cellPadding: 4 },
     alternateRowStyles: { fillColor: '#f1f4f8' },
-    didParseCell: (data: any) => {
+    didParseCell: data => {
       if (data.section === 'body') {
         const color = reportCellColor(String(data.cell.raw));
         if (color) { data.cell.styles.textColor = color; data.cell.styles.fontStyle = 'bold'; }
       }
     },
-    willDrawPage: (data: any) => { if (data.pageNumber > 1) heading(); },
+    willDrawPage: data => { if (data.pageNumber > 1) heading(); },
   });
   if (!report.rows.length) {
     doc.setFontSize(10).setTextColor('#596579').text('No matching records for the selected filters.', 18, y + 24);
@@ -97,7 +97,7 @@ export function buildReportWorkbook(report: ReportSnapshot) {
   } else sheet.getRow(6).height = 10;
   sheet.getRow(7).values = report.headers;
   sheet.getRow(7).height = 28;
-  sheet.getRow(7).eachCell((cell: any) => {
+  sheet.getRow(7).eachCell(cell => {
     cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF202938' } };
     cell.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
@@ -109,7 +109,7 @@ export function buildReportWorkbook(report: ReportSnapshot) {
   report.rows.forEach((values, index) => {
     const row = sheet.addRow(values);
     let lines = 1;
-    row.eachCell((cell: any, column: any) => {
+    row.eachCell((cell, column) => {
       const color = reportCellColor(String(cell.value));
       cell.font = { name: 'Calibri', size: 11, bold: !!color, color: { argb: color ? 'FF' + color.slice(1).toUpperCase() : 'FF202938' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: index % 2 ? 'FFF1F4F8' : 'FFFFFFFF' } };

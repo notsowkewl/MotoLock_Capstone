@@ -119,9 +119,9 @@ fun RiderProfileScreen(onBack: () -> Unit) {
                 CircularProgressIndicator(color = motoRed)
             }
         } else {
-            Text("Username", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = motoBlack)
+            Text("Name", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = motoBlack)
             Spacer(modifier = Modifier.height(6.dp))
-            ProfileField(value = username, onValueChange = { username = it }, placeholder = "Enter username")
+            ProfileField(value = username, onValueChange = { username = it }, placeholder = "Enter name")
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -193,11 +193,16 @@ fun RiderProfileScreen(onBack: () -> Unit) {
                                 val currentSessionEmail = session.user?.email
                                 
                                 // Update username
-                                val profileId = com.example.motolock.data.RiderAccount.userId()
+                                val profileId = userId
                                 SupabaseClientManager.client.postgrest["users"]
                                     .update({
                                         set("name", username)
                                     }) { filter { eq("id", profileId) } }
+                                val refreshedProfile = SupabaseClientManager.client.postgrest["users"]
+                                    .select { filter { eq("id", profileId) } }
+                                    .decodeSingleOrNull<com.example.motolock.models.User>()
+                                    ?: error("Profile could not be reloaded after saving.")
+                                username = refreshedProfile.name
                                 
                                 // Handle email change
                                 if (isEmailEditable && email.isNotBlank() && email != currentSessionEmail) {

@@ -21,8 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.motolock.models.Pin
-import com.example.motolock.models.User
 import com.example.motolock.network.SupabaseClientManager
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.postgrest
@@ -182,25 +180,7 @@ fun PinSetupScreen(onBack: () -> Unit, onComplete: () -> Unit) {
                                                         try {
                                                             val authUser = SupabaseClientManager.client.auth.currentSessionOrNull()?.user
                                                             if (authUser != null) {
-                                                                var finalUserId = authUser.id
-                                                                var userProfile = SupabaseClientManager.client.postgrest["users"]
-                                                                    .select { filter { eq("id", authUser.id) } }
-                                                                    .decodeSingleOrNull<com.example.motolock.models.User>()
-
-                                                                if (userProfile == null && authUser.email != null) {
-                                                                    userProfile = SupabaseClientManager.client.postgrest["users"]
-                                                                        .select { filter { eq("email", authUser.email!!) } }
-                                                                        .decodeList<com.example.motolock.models.User>().firstOrNull()
-                                                                }
-
-                                                                if (userProfile != null) {
-                                                                    finalUserId = userProfile.id
-                                                                }
-                                                                val pinData = Pin(userId = finalUserId, pin = confirmPin)
-                                                                val response = SupabaseClientManager.client.postgrest["pins"].insert(pinData) { select() }
-                                                                if (response.data.isBlank() || response.data == "[]") {
-                                                                    throw Exception("Save failed: No data returned. RLS might be blocking it.")
-                                                                }
+                                                                com.example.motolock.data.RiderPinRepository.createPin(confirmPin)
                                                                 onComplete()
                                                             } else {
                                                                 errorMessage = "Session expired. Please log in again."

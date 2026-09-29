@@ -1,14 +1,14 @@
 import type { IdentityMetadata } from './identity-status';
 
 export interface Motorcycle {
-  id: number;
-  plate_number: string;
+  id: number | string;
+  plate_number: string | null;
   model: string;
   year?: string | number;
   color?: string;
 }
 export interface Contact {
-  id: number;
+  id: number | string;
   name: string;
   phone?: string;
   phone_number?: string;
@@ -115,5 +115,5 @@ export type ApiResponses = {
   '/admin/motorcycles': Success & { motorcycle: Motorcycle };
   '/admin/contacts': Success & { contact: Contact };
 } & {
-  [endpoint: `/admin/users/${string}` | `/admin/motorcycles/${number}` | `/admin/contacts/${number}`]: Success;
+  [endpoint: `/admin/users/${string}` | `/admin/motorcycles/${number | string}` | `/admin/contacts/${number | string}`]: Success;
 };

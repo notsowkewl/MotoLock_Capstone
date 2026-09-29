@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -76,12 +77,13 @@ class MainActivity : ComponentActivity() {
             uri.getQueryParameter(name) ?: fragmentParams.getQueryParameter(name)
         val error = errorParam("error")
         val errorCode = errorParam("error_code")
+        val isRecovery = uri.getQueryParameter("type") == "recovery" || fragmentParams.getQueryParameter("type") == "recovery"
         if (error != null || errorCode != null) {
             val description = errorParam("error_description")
                 ?.replace(Regex("[\r\n\t]+"), " ")
                 ?.take(500)
             android.app.AlertDialog.Builder(this)
-                .setTitle("Google sign-in failed")
+                .setTitle(if (isRecovery) "Password recovery link could not be used" else "Google sign-in failed")
                 .setMessage(listOfNotNull(errorCode ?: error, description).joinToString("\n\n"))
                 .setPositiveButton("OK", null)
                 .show()
@@ -89,13 +91,14 @@ class MainActivity : ComponentActivity() {
         }
         val code = uri.getQueryParameter("code")
         if (code.isNullOrBlank()) {
-            Toast.makeText(this, "Google sign-in did not return a valid login code.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, if (isRecovery) "This recovery link is invalid or expired. Request another reset link." else "Google sign-in did not return a valid login code.", Toast.LENGTH_LONG).show()
             return
         }
         lifecycleScope.launch {
             try {
                 SupabaseClientManager.client.auth.awaitInitialization()
                 SupabaseClientManager.client.auth.exchangeCodeForSession(code)
+                if (isRecovery) com.example.motolock.data.AuthRecovery.pending = true
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -103,11 +106,13 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
 }
 
 @Composable
 fun MotoLockApp() {
     val navController = rememberNavController()
+    val recoveryPending by com.example.motolock.data.AuthRecovery.pendingFlow.collectAsState(initial = false)
     var startDest by remember { mutableStateOf<String?>(null) }
     var showSplash by remember { mutableStateOf(true) }
     var overrideNavigationHandled by remember { mutableStateOf(false) }
@@ -142,6 +147,7 @@ fun MotoLockApp() {
         com.example.motolock.data.RideHistoryRepository.manualOverrideNavigation.collect { status ->
             SessionState.manualOverrideActive = status.overrideActive
             SessionState.isMotorUnlocked = status.overrideActive || status.locked == false
+            if (status.overrideActive) SessionState.showManualOverrideConfirmation = true
             if (startDest != null && !showSplash &&
                 navController.currentBackStackEntry?.destination?.route != "dashboard") {
                 val returnedToDashboard = navController.popBackStack("dashboard", inclusive = false)
@@ -152,6 +158,12 @@ fun MotoLockApp() {
                     }
                 }
             }
+        }
+    }
+
+    LaunchedEffect(recoveryPending, startDest, showSplash, currentRoute) {
+        if (recoveryPending && startDest != null && !showSplash && currentRoute != "recovery_password") {
+            navController.navigate("recovery_password") { launchSingleTop = true }
         }
     }
 
@@ -174,7 +186,9 @@ fun MotoLockApp() {
 
     LaunchedEffect(Unit) {
         SupabaseClientManager.client.auth.awaitInitialization()
-        startDest = if (SupabaseClientManager.client.auth.currentSessionOrNull() != null) {
+        startDest = if (com.example.motolock.data.AuthRecovery.pending) {
+            "recovery_password"
+        } else if (SupabaseClientManager.client.auth.currentSessionOrNull() != null) {
             "pin_unlock"
         } else {
             "login"
@@ -244,9 +258,15 @@ fun MotoLockApp() {
     ) { innerPadding ->
         NavHost(
             navController = navController, 
-            startDestination = startDest!!,
+            startDestination = if (recoveryPending) "recovery_password" else startDest!!,
             modifier = Modifier.padding(innerPadding)
         ) {
+            composable("recovery_password") {
+                ChangePasswordScreen(onBack = {
+                    com.example.motolock.data.AuthRecovery.pending = false
+                    navController.navigate("login") { popUpTo(0) }
+                })
+            }
             composable("pin_unlock") {
                 PinUnlockScreen(
                     onUnlockSuccess = {

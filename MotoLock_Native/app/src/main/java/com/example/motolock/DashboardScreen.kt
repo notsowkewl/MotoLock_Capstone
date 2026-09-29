@@ -49,6 +49,7 @@ object SessionState {
     var isFirstDashboardLoad = true 
     var isMotorUnlocked by mutableStateOf(false)
     var manualOverrideActive by mutableStateOf(false)
+    var showManualOverrideConfirmation by mutableStateOf(false)
     var alcoholResultActive by mutableStateOf(false)
     var activeBluetoothService by mutableStateOf<com.example.motolock.data.BluetoothService?>(null)
 }
@@ -231,9 +232,7 @@ fun DashboardScreen(
                             .decodeList<JsonObject>().isNotEmpty()
                     }
                     val pinDef = async {
-                        SupabaseClientManager.client.postgrest["pins"]
-                            .select { filter { eq("user_id", finalUserId) } }
-                            .decodeList<JsonObject>().isNotEmpty()
+                        com.example.motolock.data.RiderPinRepository.hasPin()
                     }
 
                     val moto = motoDef.await()
@@ -446,7 +445,7 @@ fun DashboardScreen(
                         icon = Icons.Default.Warning,
                         iconTint = Color(0xFFB45309),
                         iconBg = Color(0xFFFFF4D6),
-                        label = "Manual Override Active",
+                        label = "Manual Override Activated",
                         value = "Motor was enabled using the physical override. Turn off override on the motor when safe."
                     )
                 }
@@ -500,6 +499,19 @@ fun DashboardScreen(
                 }
             }
         }
+
+    if (SessionState.showManualOverrideConfirmation) {
+        AlertDialog(
+            onDismissRequest = { SessionState.showManualOverrideConfirmation = false },
+            title = { Text("Manual Override Activated", fontWeight = FontWeight.Bold) },
+            text = { Text("The motorcycle engine was enabled using the physical override. You are back at the Dashboard.") },
+            confirmButton = {
+                TextButton(onClick = { SessionState.showManualOverrideConfirmation = false }) {
+                    Text("Return to Dashboard", color = motoRed)
+                }
+            }
+        )
+    }
 
     // Setup Incomplete Modal
     if (showSetupModal && !isLoading) {

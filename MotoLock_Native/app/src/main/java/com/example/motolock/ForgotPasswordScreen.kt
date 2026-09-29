@@ -1,6 +1,5 @@
 ﻿package com.example.motolock
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,9 +30,10 @@ import kotlinx.coroutines.launch
 fun ForgotPasswordScreen(onBack: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var sent by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
 
     val motoRed = Color(0xFFED1C24)
     val motoBlack = Color(0xFF101217)
@@ -76,7 +76,7 @@ fun ForgotPasswordScreen(onBack: () -> Unit) {
             Text("Reset Password", fontSize = 28.sp, fontWeight = FontWeight.Black, color = motoBlack, letterSpacing = (-0.04).sp)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "Enter your email and we'll send you a link to reset your password.",
+                if (sent) "If an account can be recovered, a secure reset link has been sent. Open it on this device to choose a new password." else "Enter your email and we'll send you a link to reset your password.",
                 fontSize = 13.sp, color = textGray, lineHeight = 18.sp
             )
         }
@@ -103,20 +103,22 @@ fun ForgotPasswordScreen(onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        if (message != null) Text(message!!, color = motoRed, fontSize = 12.sp)
+
         Button(
+            enabled = !isLoading && !sent,
             onClick = {
                 if (email.isBlank()) {
-                    Toast.makeText(context, "Please enter your email", Toast.LENGTH_SHORT).show()
+                    message = "Please enter your email."
                     return@Button
                 }
                 isLoading = true
                 coroutineScope.launch {
                     try {
                         SupabaseClientManager.client.auth.resetPasswordForEmail(email)
-                        Toast.makeText(context, "Reset link sent! Check your inbox.", Toast.LENGTH_LONG).show()
-                        onBack()
+                        sent = true
                     } catch (e: Exception) {
-                        Toast.makeText(context, "Failed to send link: ${e.message}", Toast.LENGTH_LONG).show()
+                        message = e.message?.take(180) ?: "Could not send reset link. Try again."
                     } finally {
                         isLoading = false
                     }
@@ -145,6 +147,10 @@ fun ForgotPasswordScreen(onBack: () -> Unit) {
                     Text("Send Reset Link", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
                 }
             }
+        }
+        if (sent) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Open the link from your email on this phone. The app will open the password recovery screen.", color = textGray, fontSize = 13.sp)
         }
     }
 }
