@@ -1072,7 +1072,7 @@ export default function AdminApp() {
 
   // Delete User Trigger
   const handleDeleteUser = (id: string, email: string, name: string) => {
-    showCustomConfirm('Delete Rider?', `Are you sure you want to delete ${name}? This action cannot be undone.`, async () => {
+    showCustomConfirm('Delete Rider?', `Delete ${name} and permanently remove their motorcycle, linked devices, ride history, emergency contacts, PIN records, and audit log entries? This action cannot be undone.`, async () => {
       try {
         const { data: sessionData } = await supabaseClient.auth.getSession();
         const session = sessionData.session;

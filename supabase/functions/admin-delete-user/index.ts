@@ -47,14 +47,16 @@ Deno.serve(async (request) => {
       return Response.json({ error: 'Administrator accounts cannot be deleted from this screen.' }, { status: 403, headers: corsHeaders })
     }
 
-    // The profile is removed first because this project links its public users
-    // table to auth.users. Existing foreign-key rules handle linked rider data.
-    const { error: profileDeleteError } = await adminClient.from('users').delete().eq('id', userId)
-    if (profileDeleteError) return Response.json({ error: profileDeleteError.message }, { status: 400, headers: corsHeaders })
+    // Purge rider-owned rows, including the motorcycle and dependent history,
+    // atomically so a database failure cannot leave a partial deletion.
+    const { error: dataDeleteError } = await adminClient.rpc('admin_delete_rider_data', { target_user_id: userId })
+    if (dataDeleteError) {
+      return Response.json({ error: `Could not delete the rider and linked data: ${dataDeleteError.message}` }, { status: 400, headers: corsHeaders })
+    }
 
     const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(userId)
     if (authDeleteError) {
-      return Response.json({ error: `Profile deleted, but the Auth account could not be deleted: ${authDeleteError.message}` }, { status: 500, headers: corsHeaders })
+      return Response.json({ error: `Rider profile and linked data were deleted, but the Auth account could not be deleted: ${authDeleteError.message}` }, { status: 500, headers: corsHeaders })
     }
 
     return Response.json({ success: true }, { headers: corsHeaders })

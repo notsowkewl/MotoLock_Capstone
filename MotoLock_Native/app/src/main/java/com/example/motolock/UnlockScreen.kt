@@ -70,7 +70,8 @@ private enum class UnlockStep {
     FACE_HELMET_CHECK,
     ALCOHOL_CHECK,
     SUCCESS,
-    ALCOHOL_DETECTED
+    ALCOHOL_DETECTED,
+    CAMERA_PRESENCE_FAILED
 }
 
 @Composable
@@ -179,6 +180,8 @@ private fun ConnectedUnlockScreen(
     var pendingHistoryWrites by remember { mutableStateOf(0) }
     val savingRide = pendingHistoryWrites > 0
     var alcoholStatus by remember { mutableStateOf("Reading sensor...") }
+    var riderMissingSince by remember { mutableStateOf<Long?>(null) }
+    val cameraLossReason = "Rider not detected by camera during sobriety test."
     val disposed = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
 
     val alcoholSamples = remember { com.example.motolock.data.AlcoholSampleWindow() }
@@ -206,6 +209,53 @@ private fun ConnectedUnlockScreen(
             } finally {
                 pendingHistoryWrites--
             }
+        }
+    }
+
+    fun handleRiderLostDuringSobrietyCheck() {
+        if (currentStep != UnlockStep.ALCOHOL_CHECK || alcoholFailed) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        val latestStatus = sessionService.motorStatus.value
+        if (AlcoholCheckPolicy.state(latestStatus, now) == State.DETECTED) {
+            handleAlcoholDetected(alcoholSamples.maximum ?: latestStatus?.alcoholPercent)
+            return
+        }
+        alcoholFailed = true
+        pendingHistoryWrites++
+        statusMessage = cameraLossReason
+        currentStep = UnlockStep.CAMERA_PRESENCE_FAILED
+        SessionState.isMotorUnlocked = false
+        coroutineScope.launch {
+            try {
+                try { sessionService.sendLockCommand() } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    e.printStackTrace()
+                }
+                try { sessionService.setAlcoholCheckPhase(false) } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    e.printStackTrace()
+                }
+                try {
+                    com.example.motolock.data.RideHistoryRepository
+                        .recordRiderLostDuringSobrietyCheck(context, alcoholSamples.maximum)
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    e.printStackTrace()
+                    Toast.makeText(context, "The motorcycle is locked, but the failed check could not be saved.", Toast.LENGTH_LONG).show()
+                }
+            } finally {
+                pendingHistoryWrites--
+            }
+        }
+    }
+
+    LaunchedEffect(riderMissingSince, currentStep) {
+        val missingSince = riderMissingSince ?: return@LaunchedEffect
+        if (currentStep != UnlockStep.ALCOHOL_CHECK) return@LaunchedEffect
+        val remaining = 3_000L - (android.os.SystemClock.elapsedRealtime() - missingSince)
+        if (remaining > 0) delay(remaining)
+        if (riderMissingSince == missingSince && currentStep == UnlockStep.ALCOHOL_CHECK) {
+            handleRiderLostDuringSobrietyCheck()
         }
     }
 
@@ -302,7 +352,8 @@ private fun ConnectedUnlockScreen(
                 // Alcohol entry requires an acknowledged phase update before prompting.
             }
         }
-        if (currentStep == UnlockStep.SUCCESS || currentStep == UnlockStep.ALCOHOL_DETECTED) {
+        if (currentStep == UnlockStep.SUCCESS || currentStep == UnlockStep.ALCOHOL_DETECTED ||
+            currentStep == UnlockStep.CAMERA_PRESENCE_FAILED) {
             cameraAnalysis?.clearAnalyzer()
             activeAnalyzer?.stop()
             cameraAnalysis?.let { cameraProvider?.unbind(it) }
@@ -349,11 +400,15 @@ private fun ConnectedUnlockScreen(
         }
     }
 
-    if (currentStep == UnlockStep.SUCCESS || currentStep == UnlockStep.ALCOHOL_DETECTED) {
+    if (currentStep == UnlockStep.SUCCESS || currentStep == UnlockStep.ALCOHOL_DETECTED ||
+        currentStep == UnlockStep.CAMERA_PRESENCE_FAILED) {
         AlcoholResultScreen(
             success = currentStep == UnlockStep.SUCCESS,
             motorLocked = liveMotorStatus?.locked == true,
             message = if (currentStep == UnlockStep.ALCOHOL_DETECTED) alcoholStatus else statusMessage,
+            failureTitle = if (currentStep == UnlockStep.CAMERA_PRESENCE_FAILED) "Verification failed" else null,
+            failureDescription = if (currentStep == UnlockStep.CAMERA_PRESENCE_FAILED)
+                "The motorcycle remains locked. Start a new check to retry Face ID." else null,
             savingRide = savingRide,
             onReturnToDashboard = onComplete
         )
@@ -461,6 +516,12 @@ private fun ConnectedUnlockScreen(
                                         pairedHelmetVisualId = helmetIdentity?.visualId,
                                         helmetPublicKey = helmetIdentity?.publicKey,
                                         logoIdentityDetector = com.example.motolock.data.IntegratedLogoDetector(),
+                                        onRiderPresenceChanged = { riderPresent ->
+                                            if (currentStep == UnlockStep.ALCOHOL_CHECK) {
+                                                riderMissingSince = if (riderPresent) null
+                                                else riderMissingSince ?: android.os.SystemClock.elapsedRealtime()
+                                            }
+                                        },
                                         onLowLightChanged = { lowLight ->
                                             lowLightDetected = lowLight
                                             activeCamera?.let { camera ->
@@ -508,6 +569,7 @@ private fun ConnectedUnlockScreen(
                                         if (currentStep == UnlockStep.ALCOHOL_CHECK) {
                                             if (alcoholFailed) return@DualAiAnalyzer
                                             if (msg.contains("Multiple faces", ignoreCase = true)) {
+                                                riderMissingSince = null
                                                 currentStep = UnlockStep.FACE_HELMET_CHECK
                                                 CameraDecision.reset()
                                                 alcoholStatus = "Reading sensor..."
@@ -519,6 +581,7 @@ private fun ConnectedUnlockScreen(
                                         if (currentStep != UnlockStep.FACE_HELMET_CHECK) return@DualAiAnalyzer
                                         isFaceAndHelmetDetected = success
                                         if (success) {
+                                            riderMissingSince = null
                                             currentStep = UnlockStep.ALCOHOL_CHECK
                                             statusMessage = "Authorizing motorcycle..."
                                             coroutineScope.launch {
@@ -742,9 +805,6 @@ fun StepIndicator(step: Int, current: Int, label: String, icon: androidx.compose
         Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = labelColor)
     }
 }
-
-
-
 
 
 

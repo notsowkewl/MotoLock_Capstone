@@ -26,6 +26,8 @@ internal fun AlcoholResultScreen(
     success: Boolean,
     motorLocked: Boolean,
     message: String,
+    failureTitle: String? = null,
+    failureDescription: String? = null,
     savingRide: Boolean = false,
     onReturnToDashboard: () -> Unit
 ) {
@@ -38,20 +40,24 @@ internal fun AlcoholResultScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Image(
-            painter = painterResource(if (success) R.drawable.safe else R.drawable.lasing),
+            painter = painterResource(when {
+                success -> R.drawable.safe
+                failureTitle != null -> R.drawable.logo
+                else -> R.drawable.lasing
+            }),
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier.size(160.dp)
         )
         Spacer(Modifier.height(28.dp))
-        Text(if (success) "Safe ride!" else "Alcohol detected",
+        Text(if (success) "Safe ride!" else failureTitle ?: "Alcohol detected",
             fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
             color = Color(0xFF101217))
         Spacer(Modifier.height(12.dp))
         Text(
             if (success) {
                 if (motorLocked) "Checks passed. The motorcycle is currently locked." else "Checks passed. Motorcycle unlocked."
-            } else if (motorLocked) "Motorcycle locked. Do not ride after drinking." else message,
+            } else failureDescription ?: if (motorLocked) "Motorcycle locked. Do not ride after drinking." else message,
             fontSize = 16.sp, textAlign = TextAlign.Center, color = Color(0xFF737987)
         )
         Spacer(Modifier.height(36.dp))

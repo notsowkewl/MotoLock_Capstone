@@ -8407,6 +8407,8 @@
           }),
         });
 
+        if (!result?.contact) throw new Error('The emergency contact was not returned after saving. Please try again.');
+
         emergencyContacts.push(result.contact);
 
         setupStatus.hasEmergencyContact = true;
@@ -9248,9 +9250,12 @@
 
     function renderEmergencyContacts() {
       const list = document.getElementById('emergency-contact-list');
+      if (!list) return;
 
       list.innerHTML = emergencyContacts.map((contact, index) => {
-        const roleClass = contact.role === 'Primary Contact' ? 'primary' : 'secondary';
+        if (!contact) return '';
+        const role = contact.role || 'Emergency Contact';
+        const roleClass = role === 'Primary Contact' ? 'primary' : 'secondary';
 
         return `
       <div class="emergency-contact-card">
@@ -9265,7 +9270,7 @@
           </div>
 
           <span class="role-badge ${roleClass}">
-            ${contact.role}
+            ${role}
           </span>
         </div>
 
@@ -9329,6 +9334,8 @@
             body: JSON.stringify({ name, phone, role }),
           }
         );
+
+        if (!result?.contact) throw new Error('The emergency contact was not returned after saving. Please try again.');
 
         if (existingContact) {
           emergencyContacts[editIndex] = result.contact;
@@ -9885,9 +9892,39 @@
       if (!setupStatus.hasPin) return 'createPin';
       if (!setupStatus.hasEmergencyContact) return 'addContact';
       if (!setupStatus.hasMotorcycle) return 'motorcycleRegister';
-      if (!setupStatus.hasConnectedDevice) return 'connectDevice';
-
+      // Hardware may not be installed yet. It can be paired later from the
+      // device screen; it must not send an otherwise configured rider through
+      // onboarding again every time they log in.
       return 'dashboard';
+    }
+
+    async function refreshRiderSetupStatus() {
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error('Could not identify your rider profile. Please sign in again.');
+
+      const [profileResult, pinResult, contactResult, motorcycleResult] = await Promise.all([
+        supabaseClient.from('users').select('face_descriptor, helmet_descriptor').eq('id', userId).maybeSingle(),
+        supabaseClient.from('pins').select('id').eq('user_id', userId).limit(1),
+        supabaseClient.from('emergency_contacts').select('id').eq('user_id', userId).limit(1),
+        supabaseClient.from('motorcycles').select('id').eq('user_id', userId).limit(1),
+      ]);
+
+      const failedQuery = [profileResult, pinResult, contactResult, motorcycleResult]
+        .find(result => result.error);
+      if (failedQuery) {
+        console.error('Unable to load saved rider setup status:', failedQuery.error);
+        throw new Error('Could not check your saved setup. Please refresh and sign in again.');
+      }
+
+      const faceDescriptor = profileResult.data?.face_descriptor || profileResult.data?.helmet_descriptor;
+      setupStatus = {
+        hasFaceId: Array.isArray(faceDescriptor) && faceDescriptor.length > 0,
+        hasPin: (pinResult.data || []).length > 0,
+        hasEmergencyContact: (contactResult.data || []).length > 0,
+        hasMotorcycle: (motorcycleResult.data || []).length > 0,
+        hasConnectedDevice: localStorage.getItem('motolock_device_connected') === '1',
+      };
+      return setupStatus;
     }
 
     let nextMissingSetupStep = null;
@@ -9941,6 +9978,7 @@
           hasMotorcycle: false,
           hasConnectedDevice: false
         };
+        await refreshRiderSetupStatus();
         dashboardRideState = 'lockedDefault';
 
         if (loadCooldownState()) {
@@ -10820,6 +10858,37 @@
           return { success: true };
         }
 
+        // ---- SECURITY PIN ----
+        const pinUserId = getUserId();
+        if (path === '/setup/pin') {
+          const pin = String(body?.pin || '');
+          if (!/^\d{4}$/.test(pin)) throw new Error('PIN must contain exactly 4 digits.');
+          const { data: existingPins, error: lookupError } = await supabaseClient
+            .from('pins').select('id').eq('user_id', pinUserId).limit(1);
+          if (lookupError) throw lookupError;
+
+          if (existingPins?.length) {
+            const { error } = await supabaseClient.from('pins')
+              .update({ pin, updated_at: new Date().toISOString() })
+              .eq('id', existingPins[0].id).eq('user_id', pinUserId);
+            if (error) throw error;
+          } else {
+            const { error } = await supabaseClient.from('pins').insert({ user_id: pinUserId, pin });
+            if (error) throw error;
+          }
+          return { success: true };
+        }
+
+        if (path === '/setup/pin/verify') {
+          const { data, error } = await supabaseClient
+            .from('pins').select('pin').eq('user_id', pinUserId);
+          if (error) throw error;
+          if (!(data || []).some(row => row.pin === String(body?.pin || ''))) {
+            throw new Error('Incorrect PIN. Please try again.');
+          }
+          return { success: true };
+        }
+
         if (path.includes('/verification/liveness')) {
           const { error } = await supabaseClient.from('ride_history').insert({
             user_id: getUserId(), status: body.verified ? 'passed' : 'failed', brac_level: 0
@@ -10882,6 +10951,81 @@
           }
 
           throw new Error('Unsupported motorcycle request.');
+        }
+
+        // ---- EMERGENCY CONTACTS ----
+        // Keep the browser rider app on the same Supabase table the admin
+        // dashboard reads. The old generic fallback returned no contact row,
+        // which caused the UI to append undefined and then fail on contact.role.
+        const contactMatch = path.match(/^\/contacts(?:\/([^/]+))?$/);
+        if (contactMatch) {
+          const contactId = contactMatch[1];
+          const userId = getUserId();
+          if (!userId || userId === '00000000-0000-0000-0000-000000000001') {
+            throw new Error('Please sign in again before managing emergency contacts.');
+          }
+
+          const mapContact = (contact) => ({
+            id: contact.id,
+            name: contact.name,
+            phone: contact.phone_number,
+            role: contact.relationship,
+            isPrimary: Boolean(contact.is_primary),
+          });
+
+          if (method === 'GET') {
+            const { data, error } = await supabaseClient
+              .from('emergency_contacts')
+              .select('id, user_id, name, phone_number, relationship, is_primary, created_at')
+              .eq('user_id', userId)
+              .order('created_at', { ascending: true });
+            if (error) throw error;
+            return { success: true, contacts: (data || []).map(mapContact) };
+          }
+
+          if (method === 'POST') {
+            const { data, error } = await supabaseClient
+              .from('emergency_contacts')
+              .insert({
+                user_id: userId,
+                name: String(body?.name || '').trim(),
+                phone_number: String(body?.phone || '').trim(),
+                relationship: String(body?.role || 'Primary Contact').trim(),
+                is_primary: false,
+              })
+              .select('id, user_id, name, phone_number, relationship, is_primary, created_at')
+              .single();
+            if (error) throw error;
+            return { success: true, contact: mapContact(data) };
+          }
+
+          if (method === 'PUT' && contactId) {
+            const { data, error } = await supabaseClient
+              .from('emergency_contacts')
+              .update({
+                name: String(body?.name || '').trim(),
+                phone_number: String(body?.phone || '').trim(),
+                relationship: String(body?.role || 'Primary Contact').trim(),
+              })
+              .eq('id', contactId)
+              .eq('user_id', userId)
+              .select('id, user_id, name, phone_number, relationship, is_primary, created_at')
+              .single();
+            if (error) throw error;
+            return { success: true, contact: mapContact(data) };
+          }
+
+          if (method === 'DELETE' && contactId) {
+            const { error } = await supabaseClient
+              .from('emergency_contacts')
+              .delete()
+              .eq('id', contactId)
+              .eq('user_id', userId);
+            if (error) throw error;
+            return { success: true };
+          }
+
+          throw new Error('Unsupported emergency contact request.');
         }
 
         // ---- ADMIN DASHBOARD ----

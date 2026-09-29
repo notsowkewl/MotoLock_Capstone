@@ -93,6 +93,15 @@ object RideHistoryRepository {
         recordResult(context, alcoholLevel, "failed_brac")
     }
 
+    suspend fun recordRiderLostDuringSobrietyCheck(context: Context, alcoholLevel: Float?) {
+        recordResult(
+            context,
+            alcoholLevel,
+            "failed_face",
+            failureReason = "Rider not detected by camera during sobriety test."
+        )
+    }
+
     suspend fun recordManualOverride(context: Context, alcoholLevel: Float?, eventId: String) {
         // The ride_history schema requires initial_brac_level and accepts ongoing as a status.
         // event_type carries the physical override event without relying on a status enum value.
@@ -119,7 +128,8 @@ object RideHistoryRepository {
         alcoholLevel: Float?,
         status: String,
         eventType: String? = null,
-        eventId: String? = null
+        eventId: String? = null,
+        failureReason: String? = null
     ) {
         val userId = RiderAccount.userId()
         val mac = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
@@ -137,6 +147,7 @@ object RideHistoryRepository {
                 status = status,
                 eventType = eventType,
                 eventId = eventId,
+                failureReason = failureReason,
                 startTime = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.US)
                     .format(java.util.Date()),
                 startLat = location?.latitude,

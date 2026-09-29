@@ -27,6 +27,7 @@ class DualAiAnalyzer(
     private val helmetPublicKey: ByteArray?,
     private val logoIdentityDetector: LogoIdentityDetector,
     private val onLowLightChanged: (Boolean) -> Unit = {},
+    private val onRiderPresenceChanged: (Boolean) -> Unit = {},
     private val onResult: (Boolean, String) -> Unit
 ) : ImageAnalysis.Analyzer, AutoCloseable {
     
@@ -130,6 +131,7 @@ class DualAiAnalyzer(
             val validFaces = faces.filter { it.boundingBox.width() >= proxy.width * 0.15f && it.boundingBox.height() >= proxy.height * 0.15f }
             
             if (validFaces.size != 1) {
+                main.post { if (!stopped) onRiderPresenceChanged(false) }
                 if (validFaces.size == 0) {
                     val helmetModel = helmetInterpreter ?: return reportFallback(false, "Helmet model not loaded")
                     bitmap = FaceData.uprightBitmap(proxy)
@@ -195,6 +197,8 @@ class DualAiAnalyzer(
                 lastFaceMatchTime = now
                 lastRecognizedFaceRect = face.boundingBox
             }
+
+            main.post { if (!stopped) onRiderPresenceChanged(matches) }
             
             val helmetModel = helmetInterpreter ?: return reportFallback(false, "Helmet model not loaded")
             val detectedHelmetBox = helmetOnHead(bitmap, face.boundingBox, helmetModel)
@@ -292,7 +296,5 @@ class DualAiAnalyzer(
     fun stop() { stopped = true }
     override fun close() { stop(); detector.close(); telemetryManager.close() }
 }
-
-
 
 
