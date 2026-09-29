@@ -10,7 +10,7 @@ const shortId = (id: Device['id']) => `DEV-${String(id).slice(0, 8).toUpperCase(
 const ignition = (device: Device) => {
   // A missing lock reading must not be presented as ready.
   const locked: unknown = device.is_locked;
-  return locked === true || locked === 1 ? 'Ignition Locked' : locked === false || locked === 0 ? 'Ignition Ready' : 'Not Recorded';
+  return locked === true || locked === 1 ? 'Ignition Locked' : locked === false || locked === 0 ? 'Ignition Ready' : 'Awaiting Hardware';
 };
 
 export default function DevicesPage({ devices, styles, onOpenAlerts }: {
@@ -45,13 +45,13 @@ export default function DevicesPage({ devices, styles, onOpenAlerts }: {
         ['Devices', devices.length],
         ['Ignition Ready', devices.filter(device => ignition(device) === 'Ignition Ready').length],
         ['Ignition Locked', devices.filter(device => ignition(device) === 'Ignition Locked').length],
-        ...(devices.some(device => ignition(device) === 'Not Recorded') ? [['Not Recorded', devices.filter(device => ignition(device) === 'Not Recorded').length]] : []),
+        ...(devices.some(device => ignition(device) === 'Awaiting Hardware') ? [['Awaiting Hardware', devices.filter(device => ignition(device) === 'Awaiting Hardware').length]] : []),
       ].map(([label, count]) => <div key={label}><span>{label}</span><strong>{Number(count).toLocaleString()}</strong></div>)}
     </div>
     <div style={styles.card}>
       <div className="devices-filters">
         <label>Search<input type="search" placeholder="Search Device ID..." value={search} onChange={event => setSearch(event.target.value)} style={styles.input} /></label>
-        <label>Ignition Status<select value={status} onChange={event => setStatus(event.target.value)} style={styles.input}><option value="all">All Status</option><option>Ignition Ready</option><option>Ignition Locked</option><option>Not Recorded</option></select></label>
+        <label>Ignition Status<select value={status} onChange={event => setStatus(event.target.value)} style={styles.input}><option value="all">All Status</option><option>Ignition Ready</option><option>Ignition Locked</option><option>Awaiting Hardware</option></select></label>
         <button style={styles.actionBtn} onClick={() => { setSearch(''); setStatus('all'); }}>Clear filters</button>
       </div>
       <div className="devices-table-scroll"><table style={styles.table}>

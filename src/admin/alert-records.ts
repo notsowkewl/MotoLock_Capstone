@@ -24,6 +24,13 @@ const normalize = (value: unknown) => text(value).toLowerCase().replace(/[\s-]+/
 const time = (value: string) => Number.isFinite(Date.parse(value)) ? Date.parse(value) : -Infinity;
 export const alertTime = (value?: string) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'Not Recorded';
 
+function incidentSeverity(recorded: unknown, status: string, trigger: string, reading: number, limit: number): string {
+  if (text(recorded)) return text(recorded);
+  if (trigger === 'Alcohol Above Limit' || status === 'failed_brac' || (Number.isFinite(reading) && reading > limit)) return 'High';
+  if (trigger === 'Identity Verification Failed' || ['failed_face', 'failed_identity', 'verification_failed'].includes(status)) return 'Medium';
+  return '';
+}
+
 function object(value: unknown): AlertRow {
   if (typeof value === 'string') {
     try { return object(JSON.parse(value)); } catch { return {}; }
@@ -64,7 +71,7 @@ export function buildIncidents(rides: AlertRow[], users: AlertRow[], events: Ale
     incidents.set(id, {
       id, timestamp: text(ride.start_time) || text(ride.created_at),
       rider: text(user?.name) || text(user?.full_name), email: text(user?.email),
-      trigger, brac, severity: text(ride.severity) || text(ride.severity_level),
+      trigger, brac, severity: incidentSeverity(ride.severity || ride.severity_level, status, trigger, reading, limit),
       systemAction, originalStatus: text(ride.status),
       details: text(ride.failure_reason) || text(ride.reason) || text(ride.incident_details), status: 'Active',
     });
@@ -72,7 +79,17 @@ export function buildIncidents(rides: AlertRow[], users: AlertRow[], events: Ale
   for (const [id, { event, details }] of resolutions) {
     const snapshot = object(details.incident);
     const original = incidents.get(id);
-    const field = (name: keyof Incident) => typeof snapshot[name] === 'string' ? snapshot[name] as string : text(original?.[name]);
+    const field = (name: keyof Incident) => {
+      const saved = typeof snapshot[name] === 'string' ? text(snapshot[name]) : '';
+      if (name === 'severity') {
+        const trigger = text(snapshot.trigger) || text(original?.trigger);
+        const status = normalize(snapshot.originalStatus || original?.originalStatus);
+        const brac = text(snapshot.brac) || text(original?.brac);
+        const reading = brac ? Number(brac) : NaN;
+        return incidentSeverity(saved || original?.severity, status, trigger, reading, limit);
+      }
+      return typeof snapshot[name] === 'string' ? snapshot[name] as string : text(original?.[name]);
+    };
     const actor = userMap.get(key(event.user_id));
     incidents.set(id, {
       id, timestamp: field('timestamp'), rider: field('rider'), email: field('email'),

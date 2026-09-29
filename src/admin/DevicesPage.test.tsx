@@ -19,7 +19,8 @@ it('shows recorded states, abbreviated IDs, and a navigation-only override flow'
   const onOpenAlerts = vi.fn();
   render(<DevicesPage devices={devices} styles={{}} onOpenAlerts={onOpenAlerts} />);
   expect(screen.getByText('DEV-15A143A0').getAttribute('title')).toBe(devices[0].id);
-  expect(within(screen.getByRole('table')).getByText('Not Recorded')).toBeTruthy();
+  expect(within(screen.getByRole('table')).getByText(/Awaiting Hardware/)).toBeTruthy();
+  expect(within(screen.getByLabelText('Device summary')).getByText('Awaiting Hardware')).toBeTruthy();
   expect(screen.queryByText('Offline')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: `Manage device ${devices[0].id}` }));
   const dialog = screen.getByRole('dialog');
@@ -39,6 +40,9 @@ it('combines full and abbreviated ID search with ignition filtering and clear fi
   expect(screen.getByText('Showing 1-1 of 1 records')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Ignition Status'), { target: { value: 'Ignition Locked' } });
   expect(screen.getByText('No matching devices')).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Ignition Status'), { target: { value: 'Awaiting Hardware' } });
+  expect(screen.getByText('Showing 1-1 of 1 records')).toBeTruthy();
+  expect(within(screen.getByRole('table')).getByText('DEV-UNKNOWN-')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
   expect(screen.getByText('Showing 1-3 of 3 records')).toBeTruthy();
   fireEvent.change(screen.getByRole('searchbox'), { target: { value: '987654321abc' } });

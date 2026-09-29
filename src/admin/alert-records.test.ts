@@ -62,13 +62,15 @@ describe('incident records', () => {
     }
   });
 
-  it('uses recorded failures and readings without inventing severity, action or BrAC', () => {
+  it('derives severity from the recorded failure while preserving unknown action and BrAC', () => {
     const original = incident();
     expect(triggerLabel(original)).toBe('Alcohol Above Limit — 0.05 BAC');
-    expect(original).toMatchObject({ severity: '', systemAction: '', brac: '0.05', status: 'Active' });
+    expect(original).toMatchObject({ severity: 'High', systemAction: '', brac: '0.05', status: 'Active' });
     const failedFace = buildIncidents([{ ...ride, status: 'failed_face', initial_brac_level: null }], users, [], '0.05')[0];
     expect(triggerLabel(failedFace)).toBe('Identity Verification Failed');
-    expect(failedFace.brac).toBe('');
+    expect(failedFace).toMatchObject({ brac: '', severity: 'Medium' });
+    const configuredLimitFailure = buildIncidents([{ ...ride, status: 'ongoing', initial_brac_level: '0.08' }], users, [], '0.07')[0];
+    expect(configuredLimitFailure.severity).toBe('High');
     expect(buildIncidents([{ ...ride, status: 'passed' }], users, [], '0.05')).toEqual([]);
   });
 
