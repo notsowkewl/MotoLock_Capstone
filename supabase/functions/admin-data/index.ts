@@ -109,60 +109,6 @@ Deno.serve(async (request) => {
       return respond({ row: data })
     }
 
-    if (action === 'create-rider-motorcycle') {
-      const userId = typeof payload.userId === 'string' ? payload.userId.trim() : ''
-      const model = typeof payload.model === 'string' ? payload.model.trim() : ''
-      const plateNumber = typeof payload.plateNumber === 'string' ? payload.plateNumber.trim() : ''
-      const color = typeof payload.color === 'string' ? payload.color.trim() : ''
-      const year = Number(payload.year)
-      if (!userId || !model || !color || !Number.isInteger(year) || year < 1900 || year > new Date().getFullYear() + 1) {
-        return respond({ error: 'Rider, model, year, and color are required.' }, 400)
-      }
-      const { data, error } = await adminClient.from('motorcycles').insert({
-        user_id: userId,
-        plate_number: plateNumber || null,
-        brand: model.split(/\s+/)[0],
-        model,
-        year,
-        color,
-      }).select('*').single()
-      if (error) return respond({ error: error.message }, 400)
-      return respond({ success: true, motorcycle: data }, 201)
-    }
-
-    if (action === 'delete-rider-motorcycle') {
-      const motorcycleId = typeof payload.motorcycleId === 'string' ? payload.motorcycleId.trim() : ''
-      if (!motorcycleId) return respond({ error: 'A motorcycle ID is required.' }, 400)
-      const { data, error } = await adminClient.from('motorcycles').delete()
-        .eq('id', motorcycleId).select('id').maybeSingle()
-      if (error) return respond({ error: error.message }, 400)
-      if (!data) return respond({ error: 'Motorcycle not found; nothing was deleted.' }, 404)
-      return respond({ success: true })
-    }
-
-    if (action === 'create-rider-contact') {
-      const userId = typeof payload.userId === 'string' ? payload.userId.trim() : ''
-      const name = typeof payload.name === 'string' ? payload.name.trim() : ''
-      const phone = typeof payload.phone === 'string' ? payload.phone.trim() : ''
-      const relationship = typeof payload.role === 'string' ? payload.role.trim() : ''
-      if (!userId || !name || !phone) return respond({ error: 'Rider, contact name, and phone are required.' }, 400)
-      const { data, error } = await adminClient.from('emergency_contacts').insert({
-        user_id: userId, name, phone_number: phone, relationship: relationship || 'Contact',
-      }).select('*').single()
-      if (error) return respond({ error: error.message }, 400)
-      return respond({ success: true, contact: { ...data, phone: data.phone_number, role: data.relationship } }, 201)
-    }
-
-    if (action === 'delete-rider-contact') {
-      const contactId = typeof payload.contactId === 'string' ? payload.contactId.trim() : ''
-      if (!contactId) return respond({ error: 'A contact ID is required.' }, 400)
-      const { data, error } = await adminClient.from('emergency_contacts').delete()
-        .eq('id', contactId).select('id').maybeSingle()
-      if (error) return respond({ error: error.message }, 400)
-      if (!data) return respond({ error: 'Contact not found; nothing was deleted.' }, 404)
-      return respond({ success: true })
-    }
-
     if (action === 'save-setting') {
       const key = typeof payload.setting_key === 'string' ? payload.setting_key.trim() : ''
       if (!allowedSettings.has(key)) return respond({ error: 'This setting cannot be changed from the admin dashboard.' }, 400)

@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Device } from './types';
-import TablePagination from './TablePagination';
-import { useTablePagination } from './useTablePagination';
+import TablePagination, { useTablePagination } from './TablePagination';
 import './DevicesPage.css';
 import HelmetStickerDialog from './HelmetStickerDialog';
 import { isHelmetVisualId } from '../shared/helmet-marker';

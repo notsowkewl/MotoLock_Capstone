@@ -61,7 +61,7 @@ fun SetupRouterScreen(navController: NavController) {
                     profile.faceDescriptor.toString() == "[]" -> "camera"
                 !hasRows("emergency_contacts") -> "contacts"
                 !hasRows("motorcycles") -> "motorcycle_config"
-                !com.example.motolock.data.RiderPinRepository.hasPin() -> "pin_setup"
+                !hasRows("pins") -> "pin_setup"
                 !hasRows("devices") -> "esp32_pairing"
                 else -> "dashboard"
             }

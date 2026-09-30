@@ -12,8 +12,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use((req, res, next) => {
-  // Keep request diagnostics free of passwords, PINs, reset codes, tokens, and PII.
-  console.info("REQUEST:", req.method);
+  console.log("REQUEST:", req.method, req.url, req.body);
   next();
 });
 

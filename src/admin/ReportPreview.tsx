@@ -1,8 +1,7 @@
 import React from 'react';
 import { reportDate } from './report-snapshot';
 import type { ReportSnapshot } from './report-snapshot';
-import TablePagination from './TablePagination';
-import { useTablePagination } from './useTablePagination';
+import TablePagination, { useTablePagination } from './TablePagination';
 import ReportTrendChart from './ReportTrendChart';
 
 export default function ReportPreview({ report, exporting, onExport }: {

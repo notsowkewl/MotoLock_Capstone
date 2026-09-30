@@ -160,12 +160,3 @@ Compiled sketches and JVM tests do not replace these radio/sensor/relay checks.
 
 API references: [Espressif BluetoothSerial documentation](https://docs.espressif.com/projects/arduino-esp32/en/latest/api/bluetooth.html)
 and [ESP32 3.3.0 BLE client implementation](https://github.com/espressif/arduino-esp32/blob/3.3.0/libraries/BLE/src/BLEClient.cpp).
-# Bluetooth pairing persistence and revocation
-
-Android owns the Bluetooth bond for the ESP32 Classic Bluetooth serial device. MotoLock stores only the paired device address as a reconnect hint; it does not store the one-time PIN or a privileged permanent key. Reinstalling MotoLock normally leaves Android's system Bluetooth bond intact, so the rider should not need to repeat first-time pairing while that bond remains.
-
-The app reconnects only to devices Android reports as already paired. If the phone was unpaired/reset, the ESP32 was factory-reset, or Android removed the bond, use Android Bluetooth settings to pair again and enter the PIN shown by the device. Removing the bond in Android Bluetooth settings revokes that phone's OS-level pairing. Factory-reset the ESP32 only to revoke/reset the device's stored pairing state for all phones.
-
-The app's saved address is not authorization. It is cleared by uninstalling app data and is revalidated against Android's paired-device list before a connection attempt. Firmware must continue to require its normal authentication for commands after SPP connects; Bluetooth bonding alone must not bypass the firmware's safety checks.
-
-A physical reinstall/reconnect/revocation run still needs Android and the ESP32 available; repository behavior alone does not prove those tests.

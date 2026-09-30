@@ -1,7 +1,6 @@
 import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import TablePagination from './TablePagination';
-import { useTablePagination } from './useTablePagination';
+import TablePagination, { useTablePagination } from './TablePagination';
 
 it('pages results and resets for filters and page size, clamping when records disappear', () => {
   const records = Array.from({ length: 26 }, (_, index) => index);

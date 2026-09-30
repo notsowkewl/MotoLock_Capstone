@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Rider } from './types';
-import TablePagination from './TablePagination';
-import { useTablePagination } from './useTablePagination';
+import TablePagination, { useTablePagination } from './TablePagination';
 import './RidersPage.css';
 
 const roleLabel = (role: string) => ({ rider: 'Rider', admin: 'Administrator', superadmin: 'Super Administrator' }[role] || role || 'Not Recorded');
-const plateLabel = (plate: string | null) => !plate?.trim() || plate.trim().toUpperCase() === 'UNKNOWN' ? 'No plate recorded' : plate;
+const plateLabel = (plate: string) => !plate?.trim() || plate.trim().toUpperCase() === 'UNKNOWN' ? 'No plate recorded' : plate;
 const faceLabel = (rider: Rider) => rider.face_enrolled ? 'Registered' : 'Missing';
 
 export default function RidersPage({ riders, styles, maskPhone, onAdd, onEdit, onDelete }: {

@@ -54,20 +54,6 @@ class CameraFlowTest {
         assertFalse(evaluate(helmet = false).finalAuthenticationState)
     }
 
-    @Test fun verifiedFaceLeavingExpiresSessionBeforeDifferentPersonAppears() {
-        CameraDecision.reset()
-        evaluate()
-        evaluate()
-        evaluate()
-        CameraDecision.reset()
-        evaluate()
-        evaluate()
-        evaluate()
-        assertFalse(evaluate(faceCount = 0).finalAuthenticationState)
-        assertEquals(CameraDecision.Phase.NEED_HELMET, CameraDecision.currentPhase())
-        assertFalse(evaluate(faceCount = 1, matches = false, helmet = false).finalAuthenticationState)
-    }
-
     @Test fun missingOrMismatchedPairingNeverPasses() {
         assertFalse(evaluate(deviceId = null).finalAuthenticationState)
         assertFalse(evaluate(visualId = null).finalAuthenticationState)

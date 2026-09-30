@@ -1,16 +1,11 @@
 import React from 'react';
 
-declare global {
-  interface Window { openAdminPanel?: () => void }
-}
-
 // Expose openAdminPanel on top-level window for console testing
-window.openAdminPanel = () => {
+(window as any).openAdminPanel = () => {
   const iframe = document.querySelector('iframe') as HTMLIFrameElement;
   if (iframe && iframe.contentWindow) {
-    const iframeWindow = iframe.contentWindow as Window & { openAdminPanel?: () => void };
-    if (typeof iframeWindow.openAdminPanel === 'function') {
-      iframeWindow.openAdminPanel();
+    if (typeof (iframe.contentWindow as any).openAdminPanel === 'function') {
+      (iframe.contentWindow as any).openAdminPanel();
     } else {
       console.warn('Admin panel function is loading inside iframe...');
     }

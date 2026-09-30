@@ -2,9 +2,9 @@ package com.example.motolock.data
 
 import android.content.Context
 
-/** Five wrong recognized faces trigger a persisted, 30-second retry cooldown. */
+/** Three wrong recognized faces trigger a persisted, 30-second retry cooldown. */
 object FaceAttemptCooldown {
-    const val MAX_FAILED_ATTEMPTS = 5
+    const val MAX_FAILED_ATTEMPTS = 3
     const val COOLDOWN_MS = 30_000L
 
     data class Status(

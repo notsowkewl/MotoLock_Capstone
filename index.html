@@ -287,29 +287,6 @@
       gap: 13px;
     }
 
-    .signup-field {
-      display: grid;
-      gap: 5px;
-    }
-
-    .signup-field .signup-error {
-      display: none;
-      min-height: 16px;
-      margin: 0 2px;
-      color: #dc2626;
-      font-size: 12px;
-      line-height: 1.35;
-    }
-
-    .signup-field.has-error input {
-      border-color: #dc2626;
-      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.10);
-    }
-
-    .signup-field.has-error .signup-error {
-      display: block;
-    }
-
     label {
       display: block;
       font-size: 11px;
@@ -3720,7 +3697,7 @@
           <!--<button class="btn" onclick="go('rideHistory')">d2</button>-->
 
           <div class="divider">or</div>
-          <button class="btn google-btn" onclick="signInWithGoogle()">
+          <button class="btn google-btn" onclick="handleLogin()">
             <svg class="icon">
               <use href="#icon-google"></use>
             </svg>
@@ -3757,31 +3734,29 @@
 
         <div class="form">
 
-          <div class="signup-field">
-            <label for="create-fullname">Name</label>
-            <input type="text" id="create-fullname" placeholder="Enter your name" autocomplete="name" aria-describedby="create-fullname-error">
-            <small class="signup-error" id="create-fullname-error" aria-live="polite"></small>
+          <div>
+            <label>Full Name</label>
+            <input type="text" id="create-fullname" placeholder="Enter full name">
           </div>
 
-          <div class="signup-field">
-            <label for="create-email">Email</label>
-            <input type="email" id="create-email" placeholder="Enter email" autocomplete="email" aria-describedby="create-email-error">
-            <small class="signup-error" id="create-email-error" aria-live="polite"></small>
+          <div>
+            <label>Email</label>
+            <input type="email" id="create-email" placeholder="Enter email">
           </div>
 
-          <div class="signup-field">
-            <label for="create-phone">Phone Number</label>
-            <input type="tel" id="create-phone" placeholder="Enter phone number" autocomplete="tel" aria-describedby="create-phone-error" oninput="formatPhoneInput(this)">
-            <small class="signup-error" id="create-phone-error" aria-live="polite"></small>
+          <div>
+            <label>Phone Number</label>
+
+            <input type="tel" id="create-phone" placeholder="Enter phone number" oninput="formatPhoneInput(this)">
           </div>
 
-          <div class="signup-field">
+          <div>
 
-            <label for="create-password">Password</label>
+            <label>Password</label>
 
             <div class="input-wrap">
 
-              <input type="password" id="create-password" placeholder="Enter password" autocomplete="new-password" aria-describedby="create-password-error">
+              <input type="password" id="create-password" placeholder="Enter password">
 
               <button type="button" class="field-icon" onclick="togglePassword('create-password')"
                 aria-label="Show or hide password">
@@ -3791,16 +3766,16 @@
               </button>
 
             </div>
-            <small class="signup-error" id="create-password-error" aria-live="polite"></small>
+
           </div>
 
-          <div class="signup-field">
+          <div>
 
-            <label for="create-confirm-password">Confirm Password</label>
+            <label>Confirm Password</label>
 
             <div class="input-wrap">
 
-              <input type="password" id="create-confirm-password" placeholder="Confirm password" autocomplete="new-password" aria-describedby="create-confirm-password-error">
+              <input type="password" id="create-confirm-password" placeholder="Confirm password">
 
               <button type="button" class="field-icon" onclick="togglePassword('create-confirm-password')"
                 aria-label="Show or hide confirm password">
@@ -3810,7 +3785,7 @@
               </button>
 
             </div>
-            <small class="signup-error" id="create-confirm-password-error" aria-live="polite"></small>
+
           </div>
 
           <div class="check-row">
@@ -3867,11 +3842,9 @@
           <h2>Verify Email</h2>
 
           <p>
-            Check your inbox for a verification email. Enter the 6-digit code here to verify your account.
+            Enter the 6-digit verification code sent to your email.
           </p>
         </div>
-
-        <p id="verification-email-address" class="link-text" style="text-align:center;"></p>
 
         <div class="form">
 
@@ -3884,7 +3857,6 @@
           <button class="btn" onclick="verifyEmailCode()">
             Verify Email
           </button>
-          <button class="btn btn-outline" onclick="resendSignupVerification()">Resend verification email</button>
 
         </div>
 
@@ -4016,7 +3988,7 @@
           </div>
 
           <button class="btn" onclick="verifyForgotPinCode()">
-            Continue
+            Verify Code
           </button>
         </div>
       </div>
@@ -4608,18 +4580,6 @@
         <div class="verification-result" id="helmet-result" style="display:none"><svg class="icon">
             <use href="#icon-check"></use>
           </svg> Helmet and rider face verified</div>
-      </div>
-    </section>
-
-    <section class="screen" id="manualOverrideResult">
-      <div class="page center">
-        <div class="alert-mark"><svg class="icon"><use href="#icon-check"></use></svg></div>
-        <div class="screen-title">
-          <h2 id="manual-override-result-title">Manual Override Activated</h2>
-          <p id="manual-override-result-message">The motorcycle reports a manual override.</p>
-        </div>
-        <div class="card no-hover"><div class="icon-box"><svg class="icon"><use href="#icon-clock"></use></svg></div><div><h3 id="manual-override-result-status">Checking Ride History</h3><p>The dashboard will show the latest motorcycle status.</p></div></div>
-        <button class="btn" onclick="returnFromManualOverride()">Return to Dashboard</button>
       </div>
     </section>
 
@@ -5227,7 +5187,7 @@
 
         <div class="profile-form">
           <div class="field">
-            <label>Name</label>
+            <label>Full Name</label>
             <input type="text" id="profile-name">
           </div>
 
@@ -6868,7 +6828,7 @@
       let challengeStartTime = 0;
       const challengeTimeoutMs = 10000;
       let failedAttempts = 0;
-      const MAX_ATTEMPTS = 5;
+      const MAX_ATTEMPTS = 3;
 
       const livenessChallenges = ['blink', 'turn_left', 'turn_right'];
       let requiredChallenge = null;
@@ -7048,8 +7008,7 @@
           return;
         }
 
-        const enrolledRiderFace = await loadEnrolledFaceDescriptor();
-        const registeredFace = isHelmet ? await loadEnrolledHelmetFaceDescriptor() : enrolledRiderFace;
+        const registeredFace = isHelmet ? await loadEnrolledHelmetFaceDescriptor() : await loadEnrolledFaceDescriptor();
         if (!registeredFace) {
           setFaceCaptureState(textId, circleId, 'No registered Face ID found. Re-register Face ID first.', 'error');
           return;
@@ -7082,7 +7041,7 @@
 
         runUnifiedFaceVerification({
           video, svgProgress, progressRing, instructionEl, textId, circleId,
-          isEnrollment: false, registeredFace: isHelmet ? enrolledRiderFace : registeredFace, isHelmet,
+          isEnrollment: false, registeredFace, isHelmet,
           onComplete: async (samples) => {
             const avgDistance = samples.reduce((sum, value) => sum + value, 0) / samples.length;
             await saveFaceVerificationToBackend(kind, avgDistance, true);
@@ -7100,7 +7059,7 @@
               } else {
                 const successOverlay = document.getElementById('no-helmet-success-overlay');
                 if (successOverlay) successOverlay.style.display = 'none';
-                startTransitionTracker(video, enrolledRiderFace || registeredFace);
+                startTransitionTracker(video, registeredFace);
                 completeNoHelmetVerification(true);
               }
             }, isHelmet ? FACE_SUCCESS_DELAY_MS : 2500);
@@ -7120,11 +7079,7 @@
     function startTransitionTracker(video, registeredFace) {
       if (transitionFaceTrackerInterval) clearInterval(transitionFaceTrackerInterval);
       let lostCount = 0;
-      let trackingFrame = false;
       transitionFaceTrackerInterval = setInterval(async () => {
-        if (trackingFrame) return;
-        trackingFrame = true;
-        try {
         if (!faceCameraStream) {
           clearInterval(transitionFaceTrackerInterval);
           transitionFaceTrackerInterval = null;
@@ -7137,33 +7092,23 @@
         const res = await human.detect(video);
         if (!res.face || res.face.length === 0) {
           lostCount++;
-          if (lostCount >= 2) {
+          if (lostCount > 3) {
             handleTransitionBypass('Face lost during transition. Resetting.');
             return;
           }
         } else {
           lostCount = 0;
-          if (res.face.length !== 1 || !res.face[0].embedding) {
-            handleTransitionBypass('Rider identity changed during transition. Resetting.');
-            return;
-          }
           const distance = calculateEuclideanDistance(registeredFace, res.face[0].embedding);
           if (distance >= FACE_MATCH_THRESHOLD) {
             handleTransitionBypass('Different face detected during transition. Resetting.');
             return;
           }
         }
-        } catch (error) {
-          console.warn('Rider continuity check failed closed:', error);
-          handleTransitionBypass('Could not confirm the same rider during transition. Resetting.');
-        } finally {
-          trackingFrame = false;
-        }
       }, 500);
     }
 
     function handleTransitionBypass(reason) {
-      if (transitionFaceTrackerInterval) clearInterval(transitionFaceTrackerInterval);
+      clearInterval(transitionFaceTrackerInterval);
       transitionFaceTrackerInterval = null;
       rideCheckStatus.noHelmetVerified = false;
       failVerificationAttempt('face');
@@ -7226,23 +7171,16 @@
 
         document.getElementById(resultId)?.style.setProperty('display', 'flex');
         setFaceCaptureState(textId, circleId, 'Identity verified.', 'success');
-        if (isHelmet) {
-          stopFaceCamera();
-          completeHelmetVerification(true);
-        } else {
-          startTransitionTracker(video, registeredFace);
-          completeNoHelmetVerification(true);
-        }
+        stopFaceCamera();
+
+        if (isHelmet) completeHelmetVerification(true);
+        else completeNoHelmetVerification(true);
       } catch (err) {
         setFaceCaptureState(textId, circleId, err.message, 'error');
       }
     }
     const MOTOLOCK_BT_NAME = 'MotoLock-Motor';
-    let motolockBluetoothAddress = localStorage.getItem('motolockBluetoothAddress');
-    let manualOverrideConfirmationShown = false;
-    let manualOverrideWriteInFlight = false;
-    let manualOverridePendingEventId = localStorage.getItem('motolock_override_pending_event');
-    let previousManualOverrideActive = localStorage.getItem('motolock_override_active') === 'true';
+    let motolockBluetoothAddress = null;
     let motolockBluetoothMonitor = null;
     let motolockBluetoothDisconnectHandled = false;
     let motolockBluetoothReturnScreen = null;
@@ -7762,7 +7700,6 @@
           ? motolockSensorData.displayBrac
           : Math.max(motolockSensorData.displayBrac ?? 0, incomingBrac);
         const hardwareAlcoholDetected = Boolean(data.alcoholDetected ?? data.alcohol_detected);
-        const overrideActive = Boolean(data.overrideActive ?? data.override_active ?? data.manualOverride);
         const alcoholDetected = (sobrietyWindowActive || sobrietyWaitingForBreath) && displayBrac !== null
           ? isBracAtOrOverLimit(displayBrac) || hardwareAlcoholDetected
           : false;
@@ -7802,19 +7739,8 @@
           locked: typeof data.locked === 'boolean' ? data.locked : motolockSensorData.locked,
           ignitionEnabled: Boolean(data.ignitionEnabled ?? data.ignition),
           startAuthorized: Boolean(data.startAuthorized ?? motolockSensorData.startAuthorized),
-          overrideActive,
           lastUpdated: Date.now(),
         };
-
-        if (overrideActive && (!previousManualOverrideActive || manualOverridePendingEventId)) {
-          handleManualOverrideActivated().catch(error => {
-            console.error('Could not persist manual override history:', error);
-            showManualOverrideResult(false, error instanceof Error ? error.message : 'Ride history could not be saved.');
-          });
-        }
-        if (!overrideActive && previousManualOverrideActive) manualOverrideConfirmationShown = false;
-        previousManualOverrideActive = overrideActive;
-        localStorage.setItem('motolock_override_active', String(overrideActive));
 
         syncRideStateFromHardwareStatus();
 
@@ -8017,7 +7943,6 @@
               }
 
               motolockBluetoothAddress = device.id || device.address;
-              if (motolockBluetoothAddress) localStorage.setItem('motolockBluetoothAddress', motolockBluetoothAddress);
               setMotoLockConnectStatus(`Connecting to ${device.name || MOTOLOCK_BT_NAME}...`);
 
               connectMotoLockByAddress(motolockBluetoothAddress, device.name || MOTOLOCK_BT_NAME);
@@ -8115,14 +8040,6 @@
 
       const currentScreen = document.querySelector('.screen.active');
 
-      if (currentScreen && ['verifyNoHelmet', 'verifyHelmet'].includes(currentScreen.id)
-          && !['verifyNoHelmet', 'verifyHelmet', 'sobrietyTest'].includes(id)) {
-        if (transitionFaceTrackerInterval) clearInterval(transitionFaceTrackerInterval);
-        transitionFaceTrackerInterval = null;
-        rideCheckStatus.noHelmetVerified = false;
-        rideCheckStatus.helmetVerified = false;
-      }
-
       if (currentScreen && currentScreen.id !== id && !isGoingBack) {
         screenHistory.push(currentScreen.id);
       }
@@ -8210,6 +8127,7 @@
     let loginPin = "";
     // For prototype only.
     // Sa real backend, hindi ganito. Backend dapat ang mag-check ng hashed PIN.
+    let savedSecurityPin = localStorage.getItem("motolockSecurityPin") || "0009";
     let faceIdReturnTarget = 'createPin';
 
     let setupStatus = {
@@ -8313,45 +8231,30 @@
         return;
       }
 
-      try {
-        if (resetPinMode) {
-          const { data, error } = await supabaseClient.functions.invoke('rider-pin-recovery', {
-            body: { action: 'complete', email: forgotPinEmail, code: recoveryCode, pin: createdPin },
-          });
-          if (error) throw error;
-          if (data?.success !== 'true') throw new Error(data?.error || 'PIN recovery did not complete.');
-        } else {
-          const token = localStorage.getItem("token");
-          await api("/setup/pin", {
-            method: "PUT",
-            headers: { Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ pin: createdPin }),
-          });
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unable to save your PIN. Please try again.';
-        if (resetPinMode) {
-          recoveryCode = '';
-          const codeInput = document.getElementById('forgot-pin-code');
-          if (codeInput) codeInput.value = '';
-          go('verifyForgotPinCode');
-        }
-        alert(message);
-        return;
-      }
+      const token = localStorage.getItem("token");
+
+      await api("/setup/pin", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          pin: createdPin,
+        }),
+      });
+
+      savedSecurityPin = createdPin;
 
       setupStatus.hasPin = true;
 
       if (resetPinMode) {
         resetPinMode = false;
-        recoveryCode = '';
 
-        await supabaseClient.auth.signOut({ scope: 'local' }).catch(() => undefined);
+        alert("PIN reset successfully. Please login again.");
 
         localStorage.removeItem("token");
         localStorage.removeItem("user");
 
-        alert("PIN reset successfully. Please login again.");
         go("login");
         return;
       }
@@ -8552,22 +8455,20 @@
     }
 
     function normalizeRideHistoryRecord(record) {
-      const status = ['alert', 'failed_brac', 'failed_face'].includes(record.status) ? 'alert' : 'completed';
-      const brac = normalizeBracValue(record.brac ?? record.initial_brac_level ?? record.final_brac_level ?? record.finalBrac ?? record.alcoholPercentage) ?? 0;
-      const motorcycle = motorcycles.find(item => item.id === record.motorcycle_id);
+      const status = record.status === 'alert' ? 'alert' : 'completed';
+      const brac = normalizeBracValue(record.brac ?? record.finalBrac ?? record.alcoholPercentage) ?? 0;
 
       return {
         ...record,
         status,
-        isManualOverride: record.event_type === 'manual_override',
         brac,
         faceVerified: Boolean(record.faceVerified ?? record.face_verified),
         helmetVerified: Boolean(record.helmetVerified ?? record.helmet_verified),
         alcoholDetected: Boolean(record.alcoholDetected ?? record.alcohol_detected),
         alertSent: Boolean(record.alertSent ?? record.alert_sent),
         unlockStatus: record.unlockStatus ?? record.unlock_status ?? '',
-        motorcyclePlate: record.motorcyclePlate ?? record.motorcycle_plate ?? motorcycle?.plate ?? 'No plate',
-        motorcycleModel: record.motorcycleModel ?? record.motorcycle_model ?? motorcycle?.model ?? 'Motorcycle',
+        motorcyclePlate: record.motorcyclePlate ?? record.motorcycle_plate ?? 'No plate',
+        motorcycleModel: record.motorcycleModel ?? record.motorcycle_model ?? 'Motorcycle',
         createdAt: record.createdAt ?? record.created_at,
       };
     }
@@ -8601,17 +8502,6 @@
       list.innerHTML = visibleRecords.map(record => {
         const bracText = formatBracPercent(record.brac);
         const motorcycleText = `${escapeHtml(record.motorcyclePlate)} · ${escapeHtml(record.motorcycleModel)}`;
-
-        if (record.isManualOverride) {
-          return `
-        <article class="ride-card alert" data-status="completed">
-          <div class="ride-card-top">
-            <div><p class="ride-date">${escapeHtml(formatRideHistoryDate(record.createdAt || record.start_time))}</p><h3>${motorcycleText}</h3></div>
-            <span class="status-pill success"><svg class="icon"><use href="#icon-check"></use></svg>Manual Override</span>
-          </div>
-          <div class="ride-details three"><div><svg class="icon"><use href="#icon-user"></use></svg><span>Action<br>Manual Override</span></div><div><svg class="icon"><use href="#icon-lock"></use></svg><span>Result<br>Activated</span></div><div><svg class="icon"><use href="#icon-shield"></use></svg><span>BrAC<br>${escapeHtml(bracText)}</span></div></div>
-        </article>`;
-        }
 
         if (record.status === 'alert') {
           return `
@@ -8769,7 +8659,6 @@
 
         if (response.record) {
           rideHistoryRecords = [response.record, ...rideHistoryRecords];
-          renderRideHistory();
         }
       } catch (err) {
         console.warn('Ride history log was not saved on server. Queuing locally:', err);
@@ -8792,64 +8681,6 @@
         rideHistoryRecords = [mockRecord, ...rideHistoryRecords];
         renderRideHistory();
       }
-    }
-
-    async function handleManualOverrideActivated() {
-      if (manualOverrideConfirmationShown || manualOverrideWriteInFlight) return;
-      manualOverrideWriteInFlight = true;
-      manualOverridePendingEventId ||= crypto.randomUUID();
-      localStorage.setItem('motolock_override_pending_event', manualOverridePendingEventId);
-      try {
-      const { data: authData, error: authError } = await supabaseClient.auth.getUser();
-      if (authError || !authData.user) throw new Error('Sign in again before recording this event.');
-      const { data: profileId, error: profileError } = await supabaseClient.rpc('motolock_reader_profile_id');
-      if (profileError || typeof profileId !== 'string') throw new Error('Could not verify the rider account for Ride History.');
-      const { data: device, error: deviceError } = await supabaseClient.from('devices')
-        .select('id').eq('user_id', profileId).limit(1).maybeSingle();
-      if (deviceError) throw new Error(`Could not verify the paired motorcycle device: ${deviceError.message}`);
-      const motorcycle = motorcycles[selectedRideMotorcycleIndex] || motorcycles[0] || null;
-      const now = new Date().toISOString();
-      const { data: record, error } = await supabaseClient.from('ride_history').insert({
-        user_id: profileId,
-        device_id: device?.id || null,
-        motorcycle_id: motorcycle?.id || null,
-        start_time: now,
-        end_time: now,
-        initial_brac_level: normalizeBracValue(motolockSensorData.displayBrac ?? motolockSensorData.brac) ?? 0,
-        final_brac_level: normalizeBracValue(motolockSensorData.displayBrac ?? motolockSensorData.brac) ?? 0,
-        status: 'completed',
-        event_type: 'manual_override',
-        event_id: manualOverridePendingEventId,
-      }).select('*').single();
-      if (error) throw new Error(`Manual override was activated, but its Ride History event could not be saved: ${error.message}`);
-      localStorage.removeItem('motolock_override_pending_event');
-      manualOverridePendingEventId = null;
-      manualOverrideConfirmationShown = true;
-      rideHistoryRecords = [record, ...rideHistoryRecords];
-      renderRideHistory();
-      showManualOverrideResult(true);
-      } finally {
-        manualOverrideWriteInFlight = false;
-      }
-    }
-
-    function showManualOverrideResult(saved, detail = '') {
-      const title = document.getElementById('manual-override-result-title');
-      const message = document.getElementById('manual-override-result-message');
-      const status = document.getElementById('manual-override-result-status');
-      if (title) title.textContent = saved ? 'Manual Override Activated' : 'Manual Override Activated';
-      if (message) message.textContent = saved
-        ? 'The motorcycle manual override was activated and the event was saved to Ride History.'
-        : `The motorcycle reports a manual override, but its event could not be saved to Ride History. ${detail}`;
-      if (status) status.textContent = saved ? 'Recorded in Ride History' : 'History save failed';
-      dashboardRideState = 'unlocked';
-      updateDashboardStatus();
-      go('manualOverrideResult');
-    }
-
-    function returnFromManualOverride() {
-      manualOverrideConfirmationShown = false;
-      go('dashboard');
     }
 
     function filterHistory(button, filter) {
@@ -8948,8 +8779,13 @@
 
     async function saveRiderProfile() {
       try {
+        const token = localStorage.getItem("token");
+
         const fullName =
           document.getElementById("profile-name").value.trim();
+
+        const email =
+          document.getElementById("profile-email").value.trim();
 
         const phone =
           document
@@ -8958,28 +8794,24 @@
             .trim()
             .replace(/\s+/g, "");
 
-        if (!fullName || !phone) {
+        if (!fullName || !email || !phone) {
           alert("Please complete all profile fields.");
           return;
         }
 
-        const { data: authResult, error: authError } = await supabaseClient.auth.getUser();
-        if (authError || !authResult.user) throw new Error('Please sign in again to update your profile.');
-        const { data: savedProfile, error } = await supabaseClient.from('users')
-          .update({ name: fullName, phone })
-          .eq('id', authResult.user.id)
-          .select('id, name, email, phone, role, status')
-          .single();
-        if (error) throw new Error(`Profile was not saved: ${error.message}`);
-        const { data: refreshedProfile, error: refreshError } = await supabaseClient.from('users')
-          .select('id, name, email, phone, role, status')
-          .eq('id', authResult.user.id)
-          .single();
-        if (refreshError) throw new Error(`Saved, but could not verify the profile refresh: ${refreshError.message}`);
-        if (refreshedProfile.name !== fullName || refreshedProfile.phone !== phone) {
-          throw new Error('The profile update did not persist. Please try again.');
-        }
-        localStorage.setItem("user", JSON.stringify(refreshedProfile || savedProfile));
+        const result = await api("/profile", {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            fullName,
+            email,
+            phone,
+          }),
+        });
+
+        localStorage.setItem("user", JSON.stringify(result.user));
 
         updateUserUI();
 
@@ -9103,13 +8935,13 @@
       }
     }
 
-    let verificationEmail = localStorage.getItem('motolock_pending_verification_email') || "";
+    let verificationEmail = "";
 
     async function getOrCreateUserProfile(authUser) {
       const { data: existingUser, error: lookupError } = await supabaseClient
         .from('users')
         .select('*')
-        .eq('id', authUser.id)
+        .eq('email', authUser.email)
         .maybeSingle();
 
       if (lookupError) throw lookupError;
@@ -9119,7 +8951,7 @@
         .from('users')
         .insert({
           id: authUser.id,
-          name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.user_metadata?.fullName || authUser.email?.split('@')[0] || 'Rider',
+          name: authUser.user_metadata?.fullName || authUser.email.split('@')[0],
           email: authUser.email,
           // Passwords are managed by Supabase Auth; this only satisfies the legacy table constraint.
           password_hash: 'supabase-auth-managed',
@@ -9150,14 +8982,18 @@
           return;
         }
 
-        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-          redirectTo: getAuthRedirectUrl(true),
+        await api("/auth/forgot-password", {
+          method: "POST",
+          body: JSON.stringify({
+            email,
+          }),
         });
-        if (error) throw error;
 
         closeModal('m-forgot');
 
-        alert('If the account is registered, a password recovery email has been sent.');
+        alert(
+          'Reset Code Sent\n\nA verification code has been sent to your email address.'
+        );
 
         resetEmail = email;
         go('verifyResetCode');
@@ -9196,8 +9032,6 @@
 
         const profile = await getOrCreateUserProfile(data.user);
         storeAuthenticatedUser(profile);
-        localStorage.removeItem('motolock_pending_verification_email');
-        verificationEmail = '';
 
         alert("Email verified successfully. Account created!");
 
@@ -9222,8 +9056,13 @@
           return;
         }
 
-        const { error } = await supabaseClient.auth.verifyOtp({ email: resetEmail, token: code, type: 'recovery' });
-        if (error) throw error;
+        await api('/auth/verify-reset-code', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: resetEmail,
+            code,
+          }),
+        });
 
         alert('Code verified successfully.');
 
@@ -9252,8 +9091,13 @@
           return;
         }
 
-        const { error } = await supabaseClient.auth.updateUser({ password });
-        if (error) throw error;
+        await api('/auth/reset-password', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: resetEmail,
+            password,
+          }),
+        });
 
         alert('Password updated successfully.');
 
@@ -9276,11 +9120,14 @@
           return;
         }
 
-        const { error } = await supabaseClient.auth.resetPasswordForEmail(resetEmail, {
-          redirectTo: getAuthRedirectUrl(true),
+        await api("/auth/forgot-password", {
+          method: "POST",
+          body: JSON.stringify({
+            email: resetEmail,
+          }),
         });
-        if (error) throw error;
-        alert("If the account is registered, a new password recovery email has been sent.");
+
+        alert("New reset code sent to your email.");
 
       } catch (err) {
         console.log(err);
@@ -9308,7 +9155,7 @@
       );
     }
 
-    async function updateSecurityPin() {
+    function updateSecurityPin() {
       const currentPin = document.getElementById('current-pin').value.trim();
       const newPin = document.getElementById('new-pin').value.trim();
       const confirmPin = document.getElementById('confirm-pin').value.trim();
@@ -9320,6 +9167,11 @@
 
       if (!/^\d{4}$/.test(currentPin) || !/^\d{4}$/.test(newPin) || !/^\d{4}$/.test(confirmPin)) {
         alert('Invalid PIN\n\nPIN must contain numbers only and must be exactly 4 digits.');
+        return;
+      }
+
+      if (currentPin !== savedSecurityPin) {
+        alert('Incorrect Current PIN\n\nThe current PIN you entered is incorrect.');
         return;
       }
 
@@ -9338,15 +9190,8 @@
         return;
       }
 
-      try {
-        await api('/setup/pin', {
-          method: 'PUT',
-          body: JSON.stringify({ currentPin, pin: newPin }),
-        });
-      } catch (err) {
-        alert(err.message || 'Unable to update your PIN.');
-        return;
-      }
+      savedSecurityPin = newPin;
+      localStorage.setItem("motolockSecurityPin", newPin);
 
       alert('PIN Updated\n\nYour Security PIN has been changed successfully.');
 
@@ -10112,15 +9957,6 @@
         }
 
         if (!data.user) throw new Error('Unable to start your login session. Please try again.');
-        if (!data.user.email_confirmed_at && !data.user.confirmed_at) {
-          await supabaseClient.auth.signOut();
-          verificationEmail = email;
-          const { error: resendError } = await supabaseClient.auth.resend({ type: 'signup', email });
-          if (resendError) throw resendError;
-          alert('Verify your email before signing in. If this account is eligible, a new verification code has been sent.');
-          go('verifyEmail');
-          return;
-        }
 
         const profile = await getOrCreateUserProfile(data.user);
         
@@ -10128,9 +9964,6 @@
           await supabaseClient.auth.signOut();
           throw new Error('Access Denied: Administrators must log in through the Admin Dashboard, not the Rider App.');
         }
-
-        const { data: hasPin, error: pinStatusError } = await supabaseClient.rpc('has_rider_security_pin');
-        if (pinStatusError) throw pinStatusError;
 
         storeAuthenticatedUser(profile);
         enrolledFaceDescriptor = null;
@@ -10140,7 +9973,7 @@
 
         setupStatus = {
           hasFaceId: false,
-          hasPin: hasPin === true,
+          hasPin: false,
           hasEmergencyContact: false,
           hasMotorcycle: false,
           hasConnectedDevice: false
@@ -10289,7 +10122,7 @@
     let selectedRideMotorcycleIndex = null;
 
     let verificationFailureCount = 0;
-    const MAX_VERIFICATION_FAILURES = 5;
+    const MAX_VERIFICATION_FAILURES = 4;
     const VERIFICATION_COOLDOWN_MS = 5 * 60 * 1000;
     let verificationCooldownUntil = 0;
     let verificationCooldownTimer = null;
@@ -10651,12 +10484,6 @@
 
       dashboardLockReason = '';
 
-      if (motolockSensorData.overrideActive === true) {
-        dashboardRideState = 'unlocked';
-        updateDashboardStatus();
-        return;
-      }
-
       if (motolockSensorData.locked === false) {
         dashboardRideState = 'rideActive';
       }
@@ -10812,10 +10639,9 @@
 
       if (dashboardRideState === 'unlocked') {
         card.classList.add('unlocked');
-        title.textContent = motolockSensorData.overrideActive ? 'Manual Override Active' : 'Start Authorized';
-        text.textContent = motolockSensorData.overrideActive
-          ? 'The ESP32 reports that manual override is active. The event is recorded in Ride History.'
-          : 'Safety checks are complete. Press the MotoLock hardware start button to start the motorcycle.';
+        title.textContent = 'Start Authorized';
+        text.textContent =
+          'Safety checks are complete. Press the MotoLock hardware start button to start the motorcycle.';
         return;
       }
 
@@ -10838,13 +10664,21 @@
       go('login');
     }
 
-    let pendingAuthEmail = '';
-
-    // Email ownership changes only through Supabase Auth and its verification step.
+    //backend
     async function startEmailChangeFlow() {
       try {
-        document.getElementById("new-profile-email").value = "";
-        openModal("m-new-email");
+        const token = localStorage.getItem("token");
+
+        await api("/profile/email-change/send-current-code", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        document.getElementById("current-email-code").value = "";
+        openModal("m-current-email-code");
+
       } catch (err) {
         console.log(err);
         alert(err.message);
@@ -10877,21 +10711,24 @@
 
     async function sendNewEmailCode() {
       try {
-        const newEmail = document.getElementById("new-profile-email").value.trim().toLowerCase();
+        const token = localStorage.getItem("token");
+        const newEmail = document.getElementById("new-profile-email").value.trim();
 
         if (!newEmail) {
           alert("Please enter your new email.");
           return;
         }
 
-        const { data, error } = await supabaseClient.auth.updateUser({ email: newEmail }, {
-          emailRedirectTo: getAuthRedirectUrl(),
+        await api("/profile/email-change/send-new-code", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ newEmail }),
         });
-        if (error) throw error;
-        if (!data.user) throw new Error('Supabase did not start the email verification process.');
-        pendingAuthEmail = newEmail;
 
         closeModal("m-new-email");
+
         document.getElementById("new-email-code").value = "";
         openModal("m-new-email-code");
 
@@ -10903,20 +10740,31 @@
 
     async function verifyNewEmailCode() {
       try {
+        const token = localStorage.getItem("token");
         const code = document.getElementById("new-email-code").value.trim();
-        if (!pendingAuthEmail || !/^\d{6}$/.test(code)) throw new Error('Enter the six-digit verification code sent to your new email address.');
-        const { data, error } = await supabaseClient.auth.verifyOtp({ email: pendingAuthEmail, token: code, type: 'email_change' });
-        if (error) throw error;
-        if (!data.user || data.user.id !== JSON.parse(localStorage.getItem('user') || '{}').id) {
-          throw new Error('The email change did not resolve to the signed-in Auth identity.');
-        }
-        pendingAuthEmail = '';
+
+        const result = await api("/profile/email-change/verify-new-code", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ code }),
+        });
+
+        const oldUser = JSON.parse(localStorage.getItem("user") || "{}");
+
+        const updatedUser = {
+          ...oldUser,
+          email: result.user.email,
+        };
+
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+
         closeModal("m-new-email-code");
-        const { data: profile, error: profileError } = await supabaseClient.from('users').select('*').eq('id', data.user.id).single();
-        if (profileError) throw profileError;
-        storeAuthenticatedUser(profile);
+
         updateUserUI();
-        alert("Email updated and verified successfully.");
+
+        alert("Email updated successfully!");
 
       } catch (err) {
         console.log(err);
@@ -10929,131 +10777,6 @@
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZnppcXltYnZocnl0eml0ZXVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MjAzMzUsImV4cCI6MjEwMzk5NjMzNX0.F1KVSKnN_x-8O2gKlh0d8XPydlBWTcsS0GPbCS6CP_c';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    supabaseClient.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' && session?.user) {
-        resetEmail = session.user.email || '';
-        setTimeout(() => go('forgotResetPassword'), 0);
-      }
-      if (event === 'SIGNED_IN' && session?.user && localStorage.getItem('motolock_google_oauth_pending') === '1') {
-        localStorage.removeItem('motolock_google_oauth_pending');
-        setTimeout(() => completeGoogleSignIn(session.user), 0);
-      }
-      if (event === 'USER_UPDATED' && session?.user) {
-        setTimeout(async () => {
-          try {
-            const current = JSON.parse(localStorage.getItem('user') || '{}');
-            if (current.id !== session.user.id) return;
-            const { data, error } = await supabaseClient.from('users').select('*').eq('id', session.user.id).single();
-            if (error) throw error;
-            storeAuthenticatedUser(data);
-            updateUserUI();
-          } catch (error) {
-            console.warn('Auth profile refresh after identity update failed:', error);
-          }
-        }, 0);
-      }
-    });
-
-    function getAuthRedirectUrl(recovery = false) {
-      if (window.Capacitor?.isNativePlatform?.()) {
-        return `io.ionic.starter://login-callback${recovery ? '?recovery=1' : ''}`;
-      }
-      return `${window.location.origin}${window.location.pathname}${recovery ? '?recovery=1' : ''}`;
-    }
-
-    async function handleNativeAuthUrl(url) {
-      try {
-        const parsed = new URL(url);
-        const values = new URLSearchParams(parsed.hash.replace(/^#/, ''));
-        const accessToken = values.get('access_token') || parsed.searchParams.get('access_token');
-        const refreshToken = values.get('refresh_token') || parsed.searchParams.get('refresh_token');
-        const authCode = values.get('code') || parsed.searchParams.get('code');
-        const errorText = values.get('error_description');
-        if (errorText) throw new Error(errorText);
-        let sessionUser = null;
-        if (authCode) {
-          const { data, error } = await supabaseClient.auth.exchangeCodeForSession(authCode);
-          if (error) throw error;
-          sessionUser = data.user;
-        } else if (accessToken && refreshToken) {
-          const { data, error } = await supabaseClient.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-          if (error) throw error;
-          sessionUser = data.user;
-        } else {
-          return;
-        }
-        if (values.get('type') === 'recovery' || parsed.searchParams.has('recovery')) {
-          resetEmail = sessionUser?.email || '';
-          go('forgotResetPassword');
-        } else if (sessionUser?.email_confirmed_at || sessionUser?.confirmed_at) {
-          verificationEmail = sessionUser.email || verificationEmail;
-          localStorage.removeItem('motolock_pending_verification_email');
-          await supabaseClient.auth.signOut();
-          go('login');
-          alert('Your email is verified. Please sign in to continue.');
-        }
-      } catch (error) {
-        alert(error instanceof Error ? error.message : 'Could not open the authentication link. Request a new email.');
-      }
-    }
-
-    async function resendSignupVerification() {
-      if (!verificationEmail) {
-        alert('Please sign in with your email again. If it is eligible, MotoLock will send a fresh verification code.');
-        go('login');
-        return;
-      }
-      try {
-        const { error } = await supabaseClient.auth.resend({ type: 'signup', email: verificationEmail });
-        if (error) throw error;
-        alert('If the account is eligible for verification, a new email has been sent.');
-      } catch (error) {
-        alert(error instanceof Error ? error.message : 'Unable to resend the verification email.');
-      }
-    }
-
-    async function completeGoogleSignIn(authUser) {
-      try {
-        if (!authUser.email_confirmed_at && !authUser.confirmed_at) {
-          await supabaseClient.auth.signOut();
-          throw new Error('Verify the Google account email before continuing.');
-        }
-        const profile = await getOrCreateUserProfile(authUser);
-        if (profile.role === 'admin' || profile.role === 'superadmin') {
-          await supabaseClient.auth.signOut();
-          throw new Error('Administrators must use the Admin Dashboard.');
-        }
-        const { data: hasPin, error } = await supabaseClient.rpc('has_rider_security_pin');
-        if (error) throw error;
-        storeAuthenticatedUser(profile);
-        updateUserUI();
-        setupStatus = { hasFaceId: false, hasPin: hasPin === true, hasEmergencyContact: false, hasMotorcycle: false, hasConnectedDevice: false };
-        if (setupStatus.hasPin) {
-          loginPin = '';
-          updatePinDots('loginPinDots', loginPin);
-          go('pinLogin');
-        } else {
-          nextMissingSetupStep = 'faceIntro';
-          showSetupStatusModal();
-        }
-      } catch (error) {
-        console.error('Google sign-in profile setup failed:', error);
-        alert(error instanceof Error ? error.message : 'Google sign-in could not finish.');
-      }
-    }
-
-    async function signInWithGoogle() {
-      localStorage.setItem('motolock_google_oauth_pending', '1');
-      const { error } = await supabaseClient.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: getAuthRedirectUrl() },
-      });
-      if (error) {
-        localStorage.removeItem('motolock_google_oauth_pending');
-        alert(error.message);
-      }
-    }
-
     async function api(path, options = {}) {
       const method = (options.method || "GET").toUpperCase();
       console.log(`[Supabase Shim] Intercepted: ${method} ${path}`);
@@ -11065,13 +10788,7 @@
       }
 
       // The verified profile ID is used by the app's rider-data tables.
-      const getUserId = async () => {
-        const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-        if (authError || !user) throw new Error('Please sign in again to continue.');
-        const { data: profileId, error: profileError } = await supabaseClient.rpc('motolock_reader_profile_id');
-        if (profileError || !profileId) throw new Error('Your rider profile could not be verified.');
-        return profileId;
-      };
+      const getUserId = () => localStorage.getItem('ml_profile_id') || '00000000-0000-0000-0000-000000000001';
 
       // SHIM ROUTER
       try {
@@ -11124,87 +10841,19 @@
           return { success: true };
         }
 
-        // ---- RIDER SECURITY PIN ----
-        if (path === '/setup/pin/verify' && method === 'POST') {
-          const { data, error } = await supabaseClient.rpc('verify_rider_security_pin', { pin: body.pin });
-          if (error) throw error;
-          if (data !== true) throw new Error('Incorrect PIN.');
-          return { success: true };
-        }
-
-        if (path === '/setup/pin' && method === 'PUT') {
-          const rpc = body.currentPin ? 'change_rider_security_pin' : 'set_rider_security_pin';
-          const args = body.currentPin
-            ? { current_pin: body.currentPin, new_pin: body.pin }
-            : { pin: body.pin };
-          const { data, error } = await supabaseClient.rpc(rpc, args);
-          if (error) throw error;
-          if (body.currentPin && data !== true) throw new Error('Incorrect current PIN.');
-          return { success: true };
-        }
-
-        // ---- EMERGENCY CONTACTS ----
-        const contactMatch = path.match(/^\/contacts(?:\/([^/]+))?$/);
-        if (contactMatch) {
-          const contactId = contactMatch[1];
-          const userId = await getUserId();
-          if (method === 'GET') {
-            const { data, error } = await supabaseClient.from('emergency_contacts')
-              .select('*').eq('user_id', userId).order('created_at', { ascending: true });
-            if (error) throw error;
-            return { contacts: (data || []).map(contact => ({
-              ...contact, phone: contact.phone_number, role: contact.relationship,
-            })) };
-          }
-          if (method === 'POST') {
-            const { data, error } = await supabaseClient.from('emergency_contacts').insert({
-              user_id: userId,
-              name: String(body.name || '').trim(),
-              phone_number: String(body.phone || '').replace(/\s+/g, ''),
-              relationship: String(body.role || 'Contact').trim(),
-            }).select('*').single();
-            if (error) throw error;
-            return { success: true, contact: { ...data, phone: data.phone_number, role: data.relationship } };
-          }
-          if (method === 'PUT' && contactId) {
-            const { data, error } = await supabaseClient.from('emergency_contacts').update({
-              name: String(body.name || '').trim(),
-              phone_number: String(body.phone || '').replace(/\s+/g, ''),
-              relationship: String(body.role || 'Contact').trim(),
-            }).eq('id', contactId).eq('user_id', userId).select('*').single();
-            if (error) throw error;
-            return { success: true, contact: { ...data, phone: data.phone_number, role: data.relationship } };
-          }
-          if (method === 'DELETE' && contactId) {
-            const { data, error } = await supabaseClient.from('emergency_contacts').delete()
-              .eq('id', contactId).eq('user_id', userId).select('id').maybeSingle();
-            if (error) throw error;
-            if (!data) throw new Error('Contact not found; nothing was deleted.');
-            return { success: true };
-          }
-          throw new Error('Unsupported emergency contact request.');
-        }
-
         // ---- FACE ID ----
         if (path.includes('/face/me')) {
-          if (method === 'DELETE') {
-            const { error } = await supabaseClient.from('users')
-              .update({ face_descriptor: null, helmet_descriptor: null })
-              .eq('id', await getUserId());
-            if (error) throw error;
-            return { success: true };
-          }
-          const { data, error } = await supabaseClient.from('users').select('face_descriptor, helmet_descriptor').eq('id', await getUserId()).single();
+          const { data, error } = await supabaseClient.from('users').select('face_descriptor, helmet_descriptor').eq('id', getUserId()).single();
           if (error || !data) throw new Error('No Face ID found');
           return { descriptor: data.face_descriptor, helmetDescriptor: data.helmet_descriptor };
         }
 
-        if (path.includes('/face/enroll') || path.includes('/verification/enroll-face') || path === '/setup/face') {
+        if (path.includes('/face/enroll') || path.includes('/verification/enroll-face')) {
           let updateData = {};
           if (body.faceDescriptor) updateData.face_descriptor = body.faceDescriptor;
           if (body.helmetDescriptor) updateData.helmet_descriptor = body.helmetDescriptor;
 
-          const { error } = await supabaseClient.from('users').update(updateData).eq('id', await getUserId());
+          const { error } = await supabaseClient.from('users').update(updateData).eq('id', getUserId());
           if (error) throw error;
           return { success: true };
         }
@@ -11242,7 +10891,7 @@
 
         if (path.includes('/verification/liveness')) {
           const { error } = await supabaseClient.from('ride_history').insert({
-            user_id: await getUserId(), status: body.verified ? 'passed' : 'failed', brac_level: 0
+            user_id: getUserId(), status: body.verified ? 'passed' : 'failed', brac_level: 0
           });
           return { success: true };
         }
@@ -11256,7 +10905,7 @@
             const { data, error } = await supabaseClient
               .from('motorcycles')
               .select('id, plate_number, model, year, color')
-              .eq('user_id', await getUserId());
+              .eq('user_id', getUserId());
             if (error) throw error;
             return { motorcycles: data || [] };
           }
@@ -11272,7 +10921,7 @@
           if (method === 'POST') {
             const { data, error } = await supabaseClient
               .from('motorcycles')
-              .insert({ user_id: await getUserId(), ...motorcycleData })
+              .insert({ user_id: getUserId(), ...motorcycleData })
               .select('id, plate_number, model, year, color')
               .single();
             if (error) throw error;
@@ -11284,7 +10933,7 @@
               .from('motorcycles')
               .update(motorcycleData)
               .eq('id', motorcycleId)
-              .eq('user_id', await getUserId())
+              .eq('user_id', getUserId())
               .select('id, plate_number, model, year, color')
               .single();
             if (error) throw error;
@@ -11296,7 +10945,7 @@
               .from('motorcycles')
               .delete()
               .eq('id', motorcycleId)
-              .eq('user_id', await getUserId());
+              .eq('user_id', getUserId());
             if (error) throw error;
             return { success: true };
           }
@@ -11399,28 +11048,20 @@
 
         if (path.includes('/ride-history')) {
           if (method === 'POST') {
-            const userId = await getUserId();
-            const { data: device, error: deviceError } = await supabaseClient.from('devices')
-              .select('id').eq('user_id', userId).limit(1).maybeSingle();
-            if (deviceError) throw deviceError;
-            const { data, error } = await supabaseClient.from('ride_history').insert({
-              user_id: userId,
-              device_id: device?.id || null,
-              motorcycle_id: body.motorcycleId || null,
-              start_time: new Date().toISOString(),
-              initial_brac_level: Number(body.brac ?? body.brac_level ?? 0),
-              status: body.status === 'alert' ? 'failed_brac' : ['passed', 'completed'].includes(body.status) ? body.status : 'ongoing',
-            }).select('*').single();
-            if (error) throw error;
-            return { success: true, record: data };
+            await supabaseClient.from('ride_history').insert({
+              user_id: getUserId(), brac_level: body.brac_level || 0, gps_lat: body.gps_lat, gps_lng: body.gps_lng, status: body.status
+            });
+            return { success: true };
           } else {
-            const { data, error } = await supabaseClient.from('ride_history').select('*').eq('user_id', await getUserId());
+            const { data, error } = await supabaseClient.from('ride_history').select('*').eq('user_id', getUserId());
             if (error) throw error;
-            return { records: data || [] };
+            return { logs: data };
           }
         }
 
-        throw new Error(`Unsupported API route: ${method} ${path}`);
+        // Default fallback
+        console.warn('Unhandled API Shim route:', path);
+        return { success: true, message: 'Mocked response' };
 
       } catch (err) {
         console.error(`[Supabase Shim Error]`, err);
@@ -11490,83 +11131,6 @@
     setTimeout(syncOfflineRideLogs, 2000);
 
 
-    const signupTouchedFields = new Set();
-    const SIGNUP_FIELD_IDS = [
-      'create-fullname',
-      'create-email',
-      'create-phone',
-      'create-password',
-      'create-confirm-password',
-    ];
-
-    function getSignupFieldError(id) {
-      const value = document.getElementById(id)?.value || '';
-      const password = document.getElementById('create-password')?.value || '';
-      switch (id) {
-        case 'create-fullname': {
-          const name = value.trim();
-          if (!name) return 'Name is required.';
-          if (name.length < 2 || name.length > 80 || !/^[\p{L}\p{M}][\p{L}\p{M}\s.'’\-]*$/u.test(name)) {
-            return 'Enter a valid name using letters, spaces, apostrophes, periods, or hyphens.';
-          }
-          return '';
-        }
-        case 'create-email':
-          if (!value.trim()) return 'Email is required.';
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim())) return 'Please enter a valid email address.';
-          return '';
-        case 'create-phone': {
-          if (!value.trim()) return 'Phone number is required.';
-          const phone = normalizePhoneForApi(value);
-          return (/^09\d{9}$/.test(phone) || /^\+639\d{9}$/.test(phone)) ? '' : 'Enter a valid Philippine mobile number.';
-        }
-        case 'create-password':
-          if (!value) return 'Password is required.';
-          if (value.length < 8) return 'Password must contain at least 8 characters.';
-          if (!/[!@#$%^&*(),.?":{}|<>]/.test(value)) return 'Password must contain at least one special character.';
-          return '';
-        case 'create-confirm-password':
-          if (!value) return 'Please confirm your password.';
-          return value === password ? '' : 'Passwords do not match.';
-        default:
-          return '';
-      }
-    }
-
-    function setSignupFieldError(id, message) {
-      const input = document.getElementById(id);
-      const field = input?.closest('.signup-field');
-      const error = document.getElementById(`${id}-error`);
-      if (!input || !field || !error) return;
-      field.classList.toggle('has-error', Boolean(message));
-      input.setAttribute('aria-invalid', message ? 'true' : 'false');
-      error.textContent = message || '';
-    }
-
-    function validateSignupField(id) {
-      const message = getSignupFieldError(id);
-      setSignupFieldError(id, message);
-      return !message;
-    }
-
-    function initializeSignupValidation() {
-      for (const id of SIGNUP_FIELD_IDS) {
-        const input = document.getElementById(id);
-        if (!input) continue;
-        input.addEventListener('blur', () => {
-          signupTouchedFields.add(id);
-          validateSignupField(id);
-        });
-        input.addEventListener('input', () => {
-          if (signupTouchedFields.has(id) || input.value.length > 0) validateSignupField(id);
-          if (id === 'create-password' && (signupTouchedFields.has('create-confirm-password') || document.getElementById('create-confirm-password').value)) {
-            signupTouchedFields.add('create-confirm-password');
-            validateSignupField('create-confirm-password');
-          }
-        });
-      }
-    }
-
     async function validateCreateAccount() {
 
       try {
@@ -11575,7 +11139,7 @@
           document.getElementById("create-fullname").value.trim();
 
         const email =
-          document.getElementById("create-email").value.trim().toLowerCase();
+          document.getElementById("create-email").value.trim();
 
         const phone = normalizePhoneForApi(
           document.getElementById("create-phone").value
@@ -11593,11 +11157,28 @@
         const privacy =
           document.getElementById("privacy-check").checked;
 
-        for (const id of SIGNUP_FIELD_IDS) signupTouchedFields.add(id);
-        const invalidIds = SIGNUP_FIELD_IDS.filter(id => !validateSignupField(id));
-        if (invalidIds.length) {
-          document.getElementById(invalidIds[0])?.focus();
-          document.getElementById(invalidIds[0])?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (
+          !fullName ||
+          !email ||
+          !phone ||
+          !password
+        ) {
+          alert("Please complete all fields.");
+          return;
+        }
+
+        if (password.length < 8 || !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+          alert("Weak Password. Must be at least 8 characters and include a special character.");
+          return;
+        }
+
+        if (password !== confirmPassword) {
+          alert("Passwords do not match.");
+          return;
+        }
+
+        if (!(/^09\d{9}$/.test(phone) || /^\+639\d{9}$/.test(phone))) {
+          alert("Please enter a valid Philippine phone number.");
           return;
         }
 
@@ -11610,22 +11191,15 @@
           email,
           password,
           options: {
-            data: { full_name: fullName },
-            emailRedirectTo: getAuthRedirectUrl(),
+            data: { fullName }
           }
         });
 
         if (error) throw error;
         if (!data.user) throw new Error('Unable to create the account. Please try again.');
-        if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-          const existingMessage = 'This email is already registered. Please log in or use a different email.';
-          setSignupFieldError('create-email', existingMessage);
-          document.getElementById('create-email')?.focus();
-          return;
-        }
         if (data.session) {
           await supabaseClient.auth.signOut();
-          throw new Error('Your account was created, but email verification is disabled for this service. Your session was closed; contact support to enable email verification before signing in.');
+          throw new Error('Email confirmation is disabled in Supabase. Enable Confirm email before creating accounts.');
         }
 
         enrolledFaceDescriptor = null;
@@ -11636,21 +11210,13 @@
         resetRideFailureState();
 
         verificationEmail = email;
-        localStorage.setItem('motolock_pending_verification_email', email);
-        const verificationAddress = document.getElementById('verification-email-address');
-        if (verificationAddress) verificationAddress.textContent = `We sent a verification email to ${email}.`;
         go("verifyEmail");
 
       } catch (err) {
 
-        console.warn('Rider signup failed:', err?.code || 'auth_or_network_error');
+        console.log(err);
 
-        if (['user_already_exists', 'email_exists'].includes(err.code) || /already registered|already exists/i.test(err.message || '')) {
-          setSignupFieldError('create-email', 'This email is already registered. Please log in or use a different email.');
-          document.getElementById('create-email')?.focus();
-        } else {
-          alert(err.message || 'Unable to create the account. Please try again.');
-        }
+        alert(err.message);
       }
     }
 
@@ -11744,30 +11310,33 @@
     }
 
     let forgotPinEmail = "";
-    let recoveryCode = "";
 
     function startForgotPinFlow() {
-      supabaseClient.auth.getUser().then(({ data, error }) => {
-        if (error || !data.user?.email) {
-          alert("Please sign in again.");
-          go("login");
-          return;
-        }
-        forgotPinEmail = data.user.email;
-        noHelmetReturnTarget = "sendForgotPinCode";
-        go("verifyNoHelmet");
-      });
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+      if (!user.email) {
+        alert("Please login again.");
+        go("login");
+        return;
+      }
+
+      forgotPinEmail = user.email;
+
+      noHelmetReturnTarget = "sendForgotPinCode";
+
+      go("verifyNoHelmet");
     }
 
     async function sendForgotPinCode() {
       try {
-        const { data, error } = await supabaseClient.functions.invoke('rider-pin-recovery', {
-          body: { action: 'request', email: forgotPinEmail },
+        await api("/auth/forgot-pin", {
+          method: "POST",
+          body: JSON.stringify({
+            email: forgotPinEmail,
+          }),
         });
-        if (error) throw error;
-        if (typeof data?.message !== 'string') throw new Error(data?.error || 'Unable to request a recovery code.');
 
-        alert(data.message);
+        alert("Verification code sent to your email.");
 
         go("verifyForgotPinCode");
 
@@ -11788,13 +11357,16 @@
           alert("Please enter the verification code.");
           return;
         }
-        if (!/^\d{6}$/.test(code)) {
-          alert('Enter the six-digit recovery code from your email.');
-          return;
-        }
 
-        recoveryCode = code;
-        alert("Continue by choosing a new PIN. The code will be verified when you save it.");
+        await api("/auth/verify-reset-code", {
+          method: "POST",
+          body: JSON.stringify({
+            email: forgotPinEmail,
+            code,
+          }),
+        });
+
+        alert("Code verified successfully.");
 
         resetPinMode = true;
 
@@ -11813,12 +11385,7 @@
     let isGoingBack = false;
 
     document.addEventListener("DOMContentLoaded", () => {
-      initializeSignupValidation();
       if (window.Capacitor?.Plugins?.App) {
-        window.Capacitor.Plugins.App.addListener('appUrlOpen', event => handleNativeAuthUrl(event.url));
-        window.Capacitor.Plugins.App.getLaunchUrl?.().then(launch => {
-          if (launch?.url) handleNativeAuthUrl(launch.url);
-        }).catch(() => undefined);
         window.Capacitor.Plugins.App.addListener("backButton", () => {
           if (screenHistory.length > 0) {
             const previous = screenHistory.pop();

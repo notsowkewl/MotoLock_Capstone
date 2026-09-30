@@ -1,5 +1,6 @@
 package com.example.motolock
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,15 +32,16 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.motolock.data.SignUpValidation
+import com.example.motolock.models.User
 import com.example.motolock.network.SupabaseClientManager
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.builtin.Email
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 @Composable
-fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit = {}) {
+fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit) {
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -56,11 +58,6 @@ fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit = {}) {
     var confirmPasswordError by remember { mutableStateOf<String?>(null) }
     var termsError by remember { mutableStateOf<String?>(null) }
     var authError by remember { mutableStateOf<String?>(null) }
-    var signupComplete by remember { mutableStateOf(false) }
-    var emailInteracted by remember { mutableStateOf(false) }
-    var nameInteracted by remember { mutableStateOf(false) }
-    var passwordInteracted by remember { mutableStateOf(false) }
-    var confirmationInteracted by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -89,11 +86,11 @@ fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit = {}) {
         Spacer(modifier = Modifier.height(36.dp))
 
         CustomTextField(
-            label = "Name",
+            label = "Full Name", 
             placeholder = "Enter your full name", 
             value = fullName, 
             error = fullNameError,
-            onValueChange = { fullName = it; nameInteracted = true; fullNameError = if (nameInteracted) SignUpValidation.nameError(it) else null }
+            onValueChange = { fullName = it; fullNameError = null }
         )
         Spacer(modifier = Modifier.height(16.dp))
         
@@ -103,7 +100,7 @@ fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit = {}) {
             value = email, 
             keyboardType = KeyboardType.Email,
             error = emailError,
-            onValueChange = { email = it; emailInteracted = true; emailError = SignUpValidation.emailError(it) }
+            onValueChange = { email = it; emailError = null }
         )
         Spacer(modifier = Modifier.height(16.dp))
         
@@ -113,7 +110,7 @@ fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit = {}) {
             value = password, 
             isPassword = true,
             error = passwordError,
-            onValueChange = { password = it; passwordInteracted = true; passwordError = SignUpValidation.passwordError(it); if (confirmationInteracted) confirmPasswordError = SignUpValidation.confirmationError(it, confirmPassword) }
+            onValueChange = { password = it; passwordError = null }
         )
         Spacer(modifier = Modifier.height(16.dp))
         
@@ -123,7 +120,7 @@ fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit = {}) {
             value = confirmPassword, 
             isPassword = true,
             error = confirmPasswordError,
-            onValueChange = { confirmPassword = it; confirmationInteracted = true; confirmPasswordError = SignUpValidation.confirmationError(password, it) }
+            onValueChange = { confirmPassword = it; confirmPasswordError = null }
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -212,24 +209,21 @@ fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit = {}) {
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        if (signupComplete) {
-            Text("Check your email to verify your account before logging in.", color = Color(0xFF187443), fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp))
-            Button(onClick = onBack, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = motoBlack), shape = RoundedCornerShape(12.dp)) {
-                Text("Go to Login", color = Color.White, fontWeight = FontWeight.Bold)
-            }
-        }
         if (authError != null) {
             Text(authError!!, color = motoRed, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
         }
 
         Button(
             onClick = {
-                nameInteracted = true; emailInteracted = true; passwordInteracted = true; confirmationInteracted = true
-                fullNameError = SignUpValidation.nameError(fullName)
-                emailError = SignUpValidation.emailError(email)
-                passwordError = SignUpValidation.passwordError(password)
-                confirmPasswordError = SignUpValidation.confirmationError(password, confirmPassword)
-                var hasError = fullNameError != null || emailError != null || passwordError != null || confirmPasswordError != null
+                var hasError = false
+                if (fullName.isBlank()) { fullNameError = "Please fill in this field"; hasError = true }
+                if (email.isBlank()) { emailError = "Please fill in this field"; hasError = true }
+                if (password.isBlank()) { passwordError = "Please fill in this field"; hasError = true }
+                if (confirmPassword.isBlank()) { confirmPasswordError = "Please fill in this field"; hasError = true }
+                if (password != confirmPassword && password.isNotBlank() && confirmPassword.isNotBlank()) {
+                    confirmPasswordError = "Passwords do not match"
+                    hasError = true
+                }
                 if (!termsAccepted || !privacyAccepted) {
                     termsError = "Please accept the Terms and Privacy Policy"
                     hasError = true
@@ -237,44 +231,26 @@ fun CreateAccountScreen(onBack: () -> Unit, onNext: () -> Unit = {}) {
 
                 if (hasError) return@Button
 
-                authError = null
                 isLoading = true
                 coroutineScope.launch {
                     try {
-                        val result = SupabaseClientManager.client.auth.signUpWith(Email) {
-                            this.email = email.trim()
+                        SupabaseClientManager.client.auth.signUpWith(Email) {
+                            this.email = email
                             this.password = password
-                            data = kotlinx.serialization.json.buildJsonObject { put("full_name", kotlinx.serialization.json.JsonPrimitive(fullName.trim())) }
                         }
-                        val authUserId = result?.id
-                        val hasAuthenticatedSession = SupabaseClientManager.client.auth.currentSessionOrNull() != null
-                        val verificationWasSent = result?.confirmationSentAt != null
-                        if (authUserId.isNullOrBlank() || (!hasAuthenticatedSession && !verificationWasSent)) {
-                            // Supabase intentionally returns an obfuscated response for duplicate
-                            // emails when email confirmations are enabled. Its confirmation
-                            // timestamp is absent; never call that response a successful signup.
-                            authError = "If this email can be registered, a verification link will be sent. If it is already registered, log in or use a different email."
-                            return@launch
-                        }
-                        // The deployed auth.users trigger creates public.users with this same
-                        // UUID and metadata. Do not attempt a second client insert (RLS blocks it
-                        // before confirmation and the trigger would otherwise make it duplicate).
-                        signupComplete = true
+                        onNext()
                     } catch (e: Exception) {
-                        val errorMsg = e.message?.lowercase().orEmpty()
-                        if (errorMsg.contains("already registered") || errorMsg.contains("user already exists") || errorMsg.contains("email_exists") || errorMsg.contains("user_already_exists")) {
-                            authError = "This email is already registered. Please log in or use a different email."
-                        } else if (errorMsg.contains("network") || errorMsg.contains("timeout") || errorMsg.contains("connect")) {
-                            authError = "Network error. Check your connection and try again."
+                        val errorMsg = e.message?.lowercase() ?: ""
+                        if (errorMsg.contains("already registered") || errorMsg.contains("user already exists")) {
+                            authError = "This email is already registered."
                         } else {
-                            authError = "Sign up failed. ${e.message?.take(180) ?: "Please try again."}"
+                            authError = "Registration Failed. Please try again later."
                         }
                     } finally {
                         isLoading = false
                     }
                 }
             },
-            enabled = !isLoading && !signupComplete,
             modifier = Modifier.fillMaxWidth().height(51.dp).shadow(28.dp, RoundedCornerShape(15.dp), spotColor = motoRed.copy(alpha = 0.22f)),
             colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
             contentPadding = PaddingValues(0.dp),

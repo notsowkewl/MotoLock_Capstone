@@ -3,8 +3,7 @@ import type { CSSProperties } from 'react';
 import { alertTime, buildIncidents, filterIncidents, resolveIncident, deleteResolvedIncident, triggerLabel } from './alert-records';
 import type { AlertRow, AlertStatus, AlertStore, Incident } from './alert-records';
 import './AlertsPage.css';
-import TablePagination from './TablePagination';
-import { useTablePagination } from './useTablePagination';
+import TablePagination, { useTablePagination } from './TablePagination';
 
 interface Props {
   store: AlertStore;

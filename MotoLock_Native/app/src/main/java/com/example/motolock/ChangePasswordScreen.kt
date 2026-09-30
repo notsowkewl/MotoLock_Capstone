@@ -143,10 +143,6 @@ fun ChangePasswordScreen(onBack: () -> Unit) {
 
             Button(
                 onClick = {
-                    if (newPassword.length < 8 || !newPassword.any { !it.isLetterOrDigit() }) {
-                        message = "Password must be at least 8 characters and contain a special character."
-                        return@Button
-                    }
                     if (newPassword != confirmPassword) {
                         message = "New passwords do not match."
                         return@Button
@@ -158,7 +154,6 @@ fun ChangePasswordScreen(onBack: () -> Unit) {
                                 password = newPassword
                             }
                             message = "Success: Password updated."
-                            com.example.motolock.data.AuthRecovery.pending = false
                             currentPassword = ""; newPassword = ""; confirmPassword = ""
                         } catch (e: Exception) {
                             message = "Error: ${e.message}"
