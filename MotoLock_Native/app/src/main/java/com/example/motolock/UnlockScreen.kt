@@ -86,7 +86,21 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
             SessionState.isMotorUnlocked = false
             CameraDecision.reset()
         }
-        ESP32PairingScreen(onComplete = {}, onBack = onBack)
+        val context = LocalContext.current
+        val isPaired = remember { context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE).getString("esp32_mac", null) != null }
+        if (isPaired) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = motoRed)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Reconnecting to motorcycle...", color = motoBlack)
+                }
+            }
+            // We also launch the pairing service in the background to attempt reconnect
+            Box(modifier = Modifier.size(0.dp)) { ESP32PairingScreen(onComplete = {}, onBack = onBack) }
+        } else {
+            ESP32PairingScreen(onComplete = {}, onBack = onBack)
+        }
     } else {
         key(service) {
             ConnectedUnlockScreen(service, onComplete, onBack, onPairDevice)
