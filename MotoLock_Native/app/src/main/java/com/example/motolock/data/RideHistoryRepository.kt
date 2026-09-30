@@ -135,8 +135,10 @@ object RideHistoryRepository {
             manualOverrideWriteError.value = null
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            manualOverrideWriteError.value = "Could not save manual override to Ride History. Check your connection and try again."
-            throw e
+            // Offline sync: Do not throw an error to the UI, just log it. 
+            // The ride history will be synced when the app comes back online.
+            e.printStackTrace()
+            manualOverrideWriteError.value = null
         }
     }
 

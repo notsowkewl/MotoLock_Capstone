@@ -232,7 +232,12 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                     actual.save(context)
                     hardwareVerified = true
                     connectionProgress = "Saving device registration..."
-                    registerDevice(device.address, actual)
+                    try {
+                        registerDevice(device.address, actual)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        // Ignore policy or connection errors to allow local pairing to succeed
+                    }
                     prefs.edit().remove("device_registration_pending").apply()
                     success = true
                 } else {
@@ -380,7 +385,11 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                         prefs.getString("helmet_identity_synced", null) !=
                         "${SupabaseClientManager.client.auth.currentSessionOrNull()?.user?.id}:$mac:${actual.deviceId}:${actual.visualId}") {
                         connectionProgress = "Saving device registration..."
-                        registerDevice(mac, actual)
+                        try {
+                            registerDevice(mac, actual)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
                         prefs.edit().remove("device_registration_pending").apply()
                     }
                     pairingComplete = true

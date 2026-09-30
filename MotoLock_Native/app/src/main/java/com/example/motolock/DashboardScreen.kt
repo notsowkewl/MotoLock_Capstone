@@ -170,6 +170,9 @@ fun DashboardScreen(
                 SessionState.isMotorUnlocked = true
             } else if (!deviceConnected && !SessionState.manualOverrideActive) {
                 SessionState.isMotorUnlocked = false
+            } else if (deviceConnected && status == null && !SessionState.manualOverrideActive) {
+                // If connected but we have no valid status (e.g. factory reset encryption loss), assume locked
+                SessionState.isMotorUnlocked = false
             }
         }
         
