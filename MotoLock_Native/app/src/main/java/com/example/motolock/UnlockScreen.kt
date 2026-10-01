@@ -79,38 +79,52 @@ fun UnlockScreen(onComplete: () -> Unit, onBack: () -> Unit, onPairDevice: () ->
     val service = SessionState.activeBluetoothService
     val disconnected = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
     val connected by (service?.connectionState ?: disconnected).collectAsState()
+    var wasConnected by remember { mutableStateOf(false) }
+    LaunchedEffect(connected) { if (connected) wasConnected = true }
 
-    // The camera screen does not exist until there is a live motor connection.
-    if (service == null || !connected) {
-        LaunchedEffect(Unit) {
-            SessionState.isMotorUnlocked = false
-            CameraDecision.reset()
-        }
-        val context = LocalContext.current
-        val isPaired = remember { context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE).getString("esp32_mac", null) != null }
-        if (isPaired) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = motoRed)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Reconnecting to motorcycle...", color = motoBlack)
-                }
-            }
-            // We also launch the pairing service in the background to attempt reconnect
-            Box(modifier = Modifier.size(0.dp)) { ESP32PairingScreen(onComplete = {}, onBack = onBack) }
-        } else {
-            ESP32PairingScreen(onComplete = {}, onBack = onBack)
-        }
+    val context = LocalContext.current
+    val isPaired = remember { context.getSharedPreferences("MotoLockPrefs", android.content.Context.MODE_PRIVATE).getString("esp32_mac", null) != null }
+
+    if (!isPaired) {
+        ESP32PairingScreen(onComplete = {}, onBack = onBack)
     } else {
-        key(service) {
-            ConnectedUnlockScreen(service, onComplete, onBack, onPairDevice)
+        LaunchedEffect(connected) {
+            if (!connected) {
+                SessionState.isMotorUnlocked = false
+                CameraDecision.reset()
+            }
+        }
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            key(service) {
+                ConnectedUnlockScreen(service, onComplete, onBack, onPairDevice)
+            }
+
+            if (wasConnected && !connected) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = {},
+                    title = { Text("Connection Lost", fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.Black) },
+                    text = { Text("The motorcycle is out of range or turned off. Trying to reconnect...", color = androidx.compose.ui.graphics.Color.DarkGray) },
+                    confirmButton = {
+                        androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(24.dp), color = androidx.compose.ui.graphics.Color(0xFFED1C24))
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = onPairDevice) { Text("Pair Device", color = androidx.compose.ui.graphics.Color(0xFFED1C24)) }
+                    },
+                    containerColor = androidx.compose.ui.graphics.Color.White
+                )
+            }
+
+            if (!connected) {
+                Box(modifier = Modifier.size(0.dp)) { ESP32PairingScreen(onComplete = {}, onBack = onBack) }
+            }
         }
     }
 }
 
 @Composable
 private fun ConnectedUnlockScreen(
-    sessionService: BluetoothService,
+    sessionService: BluetoothService?,
     onComplete: () -> Unit,
     onBack: () -> Unit,
     onPairDevice: () -> Unit
@@ -200,7 +214,7 @@ private fun ConnectedUnlockScreen(
 
     val alcoholSamples = remember { com.example.motolock.data.AlcoholSampleWindow() }
 
-    fun handleAlcoholDetected(detectedLevel: Float? = alcoholSamples.maximum ?: sessionService.motorStatus.value?.alcoholPercent) {
+    fun handleAlcoholDetected(detectedLevel: Float? = alcoholSamples.maximum ?: (sessionService?.motorStatus?.value)?.alcoholPercent) {
         if (currentStep == UnlockStep.ALCOHOL_DETECTED) return
         pendingHistoryWrites++
         alcoholFailed = true
@@ -209,11 +223,11 @@ private fun ConnectedUnlockScreen(
         alcoholStatus = "Alcohol detected. Unlock blocked."
         coroutineScope.launch {
             try {
-                try { sessionService.sendLockCommand() } catch (e: Exception) {
+                try { (sessionService?.sendLockCommand() == true) } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     alcoholStatus = "Alcohol detected. Lock confirmation unavailable."
                 }
-                try { sessionService.showAlcoholResult(detectedLevel) } catch (e: Exception) {
+                try { sessionService?.showAlcoholResult(detectedLevel) } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                 }
             } catch (e: Exception) {
@@ -229,7 +243,7 @@ private fun ConnectedUnlockScreen(
     fun handleRiderLostDuringSobrietyCheck() {
         if (currentStep != UnlockStep.ALCOHOL_CHECK || alcoholFailed) return
         val now = android.os.SystemClock.elapsedRealtime()
-        val latestStatus = sessionService.motorStatus.value
+        val latestStatus = (sessionService?.motorStatus?.value)
         if (AlcoholCheckPolicy.state(latestStatus, now) == State.DETECTED) {
             handleAlcoholDetected(alcoholSamples.maximum ?: latestStatus?.alcoholPercent)
             return
@@ -241,11 +255,11 @@ private fun ConnectedUnlockScreen(
         SessionState.isMotorUnlocked = false
         coroutineScope.launch {
             try {
-                try { sessionService.sendLockCommand() } catch (e: Exception) {
+                try { (sessionService?.sendLockCommand() == true) } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     e.printStackTrace()
                 }
-                try { sessionService.setAlcoholCheckPhase(false) } catch (e: Exception) {
+                try { sessionService?.setAlcoholCheckPhase(false) } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     e.printStackTrace()
                 }
@@ -273,7 +287,7 @@ private fun ConnectedUnlockScreen(
         }
     }
 
-    val liveMotorStatus by sessionService.motorStatus.collectAsState()
+    val dummyFlow = remember { kotlinx.coroutines.flow.MutableStateFlow<com.example.motolock.data.MotorStatus?>(null) }; val liveMotorStatus by (sessionService?.motorStatus ?: dummyFlow).collectAsState()
     LaunchedEffect(liveMotorStatus) {
         val now = android.os.SystemClock.elapsedRealtime()
         val motorDetectedAlcohol = AlcoholCheckPolicy.state(liveMotorStatus, now) == State.DETECTED
@@ -332,11 +346,11 @@ private fun ConnectedUnlockScreen(
             val encrypted = prefs.getString("esp32_secret_enc", null) ?: error("Pair your motorcycle first.")
             val secret = com.example.motolock.data.KeystoreHelper.decryptSecret(encrypted) ?: error("Pairing credentials are unavailable.")
             val svc = sessionService
-            check(svc.isConnected) { "Bluetooth disconnected." }
+            check(svc?.isConnected == true) { "Bluetooth disconnected." }
             check(svc.authenticateSession(secret)) { "Motor authentication failed." }
             val identity = helmetIdentity ?: error("Pair your helmet first.")
             check(identity.matches(svc.readHelmetIdentity())) { "Connected helmet differs from your paired helmet." }
-            check(!disposed.get() && svc.isConnected && SessionState.activeBluetoothService === svc) { "Bluetooth disconnected." }
+            check(!disposed.get() && svc?.isConnected == true && SessionState.activeBluetoothService === svc) { "Bluetooth disconnected." }
             currentStep = UnlockStep.FACE_HELMET_CHECK
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -361,7 +375,7 @@ private fun ConnectedUnlockScreen(
     // Stop camera processing once the result page is displayed.
     LaunchedEffect(currentStep) {
         if (currentStep == UnlockStep.FACE_HELMET_CHECK) {
-            try { sessionService.setAlcoholCheckPhase(false) } catch (e: Exception) {
+            try { sessionService?.setAlcoholCheckPhase(false) } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 // Alcohol entry requires an acknowledged phase update before prompting.
             }
@@ -501,7 +515,7 @@ private fun ConnectedUnlockScreen(
                         val previewView = PreviewView(ctx)
                         val executor = ContextCompat.getMainExecutor(ctx)
                         cameraProviderFuture.addListener({
-                            if (disposed.get() || !sessionService.isConnected ||
+                            if (disposed.get() || (sessionService?.isConnected != true) ||
                                 SessionState.activeBluetoothService !== sessionService ||
                                 (currentStep != UnlockStep.FACE_HELMET_CHECK && currentStep != UnlockStep.ALCOHOL_CHECK)) return@addListener
                             val provider = cameraProviderFuture.get()
@@ -545,7 +559,7 @@ private fun ConnectedUnlockScreen(
                                             }
                                         }
                                     ) { success, msg ->
-                                        if (disposed.get() || !sessionService.isConnected ||
+                                        if (disposed.get() || (sessionService?.isConnected != true) ||
                                             SessionState.activeBluetoothService !== sessionService) return@DualAiAnalyzer
 
                                         if (currentStep == UnlockStep.FACE_HELMET_CHECK) {
@@ -592,7 +606,7 @@ private fun ConnectedUnlockScreen(
                                                 alcoholStatus = "Motor authorization is being revoked."
                                                 coroutineScope.launch {
                                                     try {
-                                                        check(sessionService.isConnected && sessionService.sendLockCommand()) {
+                                                        check((sessionService?.isConnected == true) && (sessionService?.sendLockCommand() == true)) {
                                                             "Bluetooth is unavailable."
                                                         }
                                                         if (currentStep == UnlockStep.ALCOHOL_CHECK) {
@@ -635,7 +649,7 @@ private fun ConnectedUnlockScreen(
                                                 alcoholSamples.reset()
                                                 run {
                                                         try {
-                                                            sessionService.setAlcoholCheckPhase(true)
+                                                            sessionService?.setAlcoholCheckPhase(true)
                                                         } catch (e: Exception) {
                                                             if (e is kotlinx.coroutines.CancellationException) throw e
                                                             alcoholFailed = true
@@ -647,14 +661,14 @@ private fun ConnectedUnlockScreen(
                                                     }
                                                 while (currentStep == UnlockStep.ALCOHOL_CHECK && !alcoholFailed && !disposed.get()) {
                                                     val now = android.os.SystemClock.elapsedRealtime()
-                                                    val sensorState = AlcoholCheckPolicy.state(sessionService.motorStatus.value, now)
+                                                    val sensorState = AlcoholCheckPolicy.state((sessionService?.motorStatus?.value), now)
                                                     if (alcoholSamples.startedAt == null &&
                     (sensorState == State.READY || sensorState == State.DETECTED)) {
-                                                        alcoholSamples.start(now, sessionService.motorStatus.value)
+                                                        alcoholSamples.start(now, (sessionService?.motorStatus?.value))
                                                     }
-                                                    alcoholSamples.observe(sessionService.motorStatus.value, now)
+                                                    alcoholSamples.observe((sessionService?.motorStatus?.value), now)
                                                     if (sensorState == State.DETECTED || alcoholSamples.detected) {
-                                                        handleAlcoholDetected(alcoholSamples.maximum ?: sessionService.motorStatus.value?.alcoholPercent)
+                                                        handleAlcoholDetected(alcoholSamples.maximum ?: (sessionService?.motorStatus?.value)?.alcoholPercent)
                                                         return@launch
                                                     }
                                                     if (sensorState != State.READY) {
@@ -843,6 +857,7 @@ fun StepIndicator(step: Int, current: Int, label: String, icon: androidx.compose
         Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = labelColor)
     }
 }
+
 
 
 

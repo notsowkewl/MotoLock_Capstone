@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -247,14 +248,17 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                 if (e is kotlinx.coroutines.CancellationException) { btService?.disconnect(); throw e }
                 e.printStackTrace()
                 // Keep the live motor link for STATUS updates and a setup retry.
-                var error = e.message ?: "Hardware setup did not finish. Retry when ready."
+                var error: String? = e.message ?: "Hardware setup did not finish. Retry when ready."
                 if (savedSecret != null && error in setOf(
                         "ERR_NOT_PROVISIONED", "ERR_AUTH_FAILED", "ERR_ALREADY_PROVISIONED"
                     )) {
-                    error = "The motor no longer has its saved pairing. Closing the app should not require a PIN. Check that motor pairing storage is intact; enter a new OLED PIN only if the motor was intentionally reset."
+                    context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE).edit()
+                        .remove("esp32_secret_enc").remove("esp32_mac").apply()
+                    error = null
+                    oneTimePin = ""
                 }
                 pairingError = error
-                if (error.startsWith("ERR_") && error !in pairingPinErrors) {
+                if (error?.startsWith("ERR_") == true && error !in pairingPinErrors) {
                     selectedPairingDevice = bluetoothAdapter?.getRemoteDevice(device.address)
                 }
                 if (error == "ERR_PAIR_PIN_EXPIRED" || error == "ERR_PAIR_PIN_LOCKED") {
@@ -399,12 +403,15 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) { service.disconnect(); throw e }
-                var error = e.message ?: "Hardware setup did not finish. Retry when ready."
+                var error: String? = e.message ?: "Hardware setup did not finish. Retry when ready."
                 if (error in setOf("ERR_NOT_PROVISIONED", "ERR_AUTH_FAILED", "ERR_ALREADY_PROVISIONED")) {
-                    error = "The motor no longer has its saved pairing. Closing the app should not require a PIN. Check that motor pairing storage is intact; enter a new OLED PIN only if the motor was intentionally reset."
+                    context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE).edit()
+                        .remove("esp32_secret_enc").remove("esp32_mac").apply()
+                    error = null
+                    oneTimePin = ""
                 }
                 pairingError = error
-                if (error.startsWith("ERR_") && error !in pairingPinErrors) {
+                if (error?.startsWith("ERR_") == true && error !in pairingPinErrors) {
                     selectedPairingDevice = bluetoothAdapter?.getRemoteDevice(mac)
                 }
                 if (pairingError?.let { it in pairingPinErrors } == true) {
@@ -663,11 +670,16 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(12.dp))
         }
         if (!pairingComplete && selectedPairingDevice == null && !isAutoConnecting && connectingMacAddress == null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Available Devices", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = motoBlack)
                 if (isScanning) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = motoRed)
+                    IconButton(onClick = { }, enabled = false) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = motoRed)
+                    }
+                } else {
+                    IconButton(onClick = { startScan() }) {
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh", tint = motoRed)
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -681,10 +693,17 @@ fun ESP32PairingScreen(onComplete: () -> Unit, onBack: () -> Unit) {
                             .background(Color.White.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
                             .border(1.dp, lineCol, RoundedCornerShape(18.dp))
                             .clickable(enabled = (connectingMacAddress == null && !isAutoConnecting && !motorConnected)) {
-                                selectedPairingDevice = device
-                                pairingAddress = device.address
-                                oneTimePin = ""
-                                pairingError = null
+                                val prefs = context.getSharedPreferences("MotoLockPrefs", Context.MODE_PRIVATE)
+                                val savedMac = prefs.getString("esp32_mac", null)
+                                if (device.address == savedMac && prefs.getString("esp32_secret_enc", null) != null) {
+                                    pairingError = null
+                                    connectAndSaveDevice(device, pin = "")
+                                } else {
+                                    selectedPairingDevice = device
+                                    pairingAddress = device.address
+                                    oneTimePin = ""
+                                    pairingError = null
+                                }
                             }
                             .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically

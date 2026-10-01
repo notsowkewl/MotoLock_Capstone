@@ -26,7 +26,7 @@ object FaceData {
 
     fun matches(current: FloatArray, stored: FloatArray): Boolean {
         val a = normalize(current); val b = normalize(stored)
-        return sqrt(a.indices.sumOf { val d = (a[it] - b[it]).toDouble(); d * d }) < 0.95
+        return sqrt(a.indices.sumOf { val d = (a[it] - b[it]).toDouble(); d * d }) < 0.75
     }
 
     fun embed(bitmap: Bitmap, bounds: Rect, model: Interpreter): FloatArray {

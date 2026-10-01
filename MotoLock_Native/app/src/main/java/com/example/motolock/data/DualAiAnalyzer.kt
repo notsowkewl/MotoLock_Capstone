@@ -135,8 +135,13 @@ class DualAiAnalyzer(
                 false
             }
             
-            // Filter out tiny background faces to prevent "Multiple faces" flickering
-            val validFaces = faces.filter { it.boundingBox.width() >= proxy.width * 0.15f && it.boundingBox.height() >= proxy.height * 0.15f }
+            // Filter out tiny background faces to prevent "Multiple faces" flickering.
+            // If we still detect multiple faces (e.g. phantom reflection on the visor or someone behind), 
+            // we sort by area and only pick the largest primary face.
+            val validFaces = faces
+                .filter { it.boundingBox.width() >= proxy.width * 0.15f && it.boundingBox.height() >= proxy.height * 0.15f }
+                .sortedByDescending { it.boundingBox.width() * it.boundingBox.height() }
+                .take(1)
             
             if (validFaces.size != 1) {
                 main.post { if (!stopped) onRiderPresenceChanged(false) }
@@ -157,7 +162,7 @@ class DualAiAnalyzer(
                     }
 
                     if (detectedHelmetBox != null) lastHelmetDetectTime = now
-            val helmetVisuallyConfirmed = detectedHelmetBox != null
+                    val helmetVisuallyConfirmed = (now - lastHelmetDetectTime < 5000)
 
                     if (!spatiallyAssociated) {
                         lastRecognizedFaceRect = null 
@@ -202,8 +207,10 @@ class DualAiAnalyzer(
             }
             
             if (detectedHelmetBox != null) lastHelmetDetectTime = now
-            // Stale detections from the previous frame must never preserve authorization.
-            val helmetVisuallyConfirmed = detectedHelmetBox != null
+            // Allow a 5000ms grace period (5 seconds). AI bounding boxes jitter naturally, 
+            // and YOLO models have blindspots when looking up/down/sideways.
+            // If the model loses the helmet, we trust the last known state for 5 seconds.
+            val helmetVisuallyConfirmed = (now - lastHelmetDetectTime < 5000)
             
             report(CameraDecision.evaluate(1, matches, helmetVisuallyConfirmed, telemetry, pairedHelmetDeviceId, pairedHelmetVisualId, currentNonce, helmetPublicKey, extractedLogoId, isSequenceValid))
             
@@ -265,8 +272,16 @@ class DualAiAnalyzer(
         
         for (i in 0 until 8400) {
             val confidence = o[4][i]; val other = o[5][i]
-            // Increased baseline confidence to 0.70 to avoid bare heads
-            if (!confidence.isFinite() || !other.isFinite() || confidence < 0.30f || confidence < other + 0.05f) continue
+            
+            // To prevent hair/caps from triggering at weird angles, we raise the strict confidence to 0.93.
+            // But for closed helmets with no face, the YOLO model is very weak at angles, so we drop it all the way to 0.40.
+            val requiredConfidence = if (face != null) 0.93f else 0.40f
+            
+            // MARGIN FIX: 'other' is the YOLO model's "No Helmet / Head" class. 
+            // If the AI is confused between Hair and Helmet, both classes will have high confidence.
+            // We force a MASSIVE margin of 0.65. The AI must be 65% MORE confident that it is a helmet than a bare head.
+            val margin = if (face != null) 0.65f else 0.10f
+            if (!confidence.isFinite() || !other.isFinite() || confidence < requiredConfidence || confidence < other + margin) continue
             val cx = (o[0][i] * coordinateScale - dx) / scale
             val cy = (o[1][i] * coordinateScale - dy) / scale
             val bw = o[2][i] * coordinateScale / scale; val bh = o[3][i] * coordinateScale / scale
@@ -274,7 +289,23 @@ class DualAiAnalyzer(
             val boxF = RectF(cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2)
 
             if (face != null) {
-                if (bw < face.width() * 0.5f || bh < face.height() * 0.5f) continue
+                // SPATIAL TRACKING: Force the AI to follow the face anywhere on the screen!
+                // 1. The helmet must overlap with the face horizontally
+                val overlap = max(0f, min(boxF.right, face.right.toFloat()) - max(boxF.left, face.left.toFloat())) / face.width()
+                // 2. The helmet must be physically near the face center
+                val dxFace = abs(cx - face.exactCenterX())
+                
+                // If it doesn't spatially overlap or track the face, it's a background object (ignore)
+                if (overlap < 0.2f || dxFace > face.width() * 2.0f) continue
+                
+                // 3. The helmet must still be physically larger than the face (to reject baseball caps)
+                // We use 1.15x as the golden ratio to allow looking sideways/upwards.
+                if (bw < face.width() * 1.15f || bh < face.height() * 1.15f) continue
+                
+                // 4. Hair ends at the chin, but a real helmet shell extends BELOW the chin.
+                // If the bounding box ends at or above the face's chin, it's just hair!
+                if (boxF.bottom < face.bottom) continue
+                
             } else {
                 if (bw < bitmap.width * 0.12f || bh < bitmap.height * 0.12f || cy > bitmap.height * 0.85f) continue
             }
